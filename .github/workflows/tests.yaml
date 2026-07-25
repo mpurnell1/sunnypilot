@@ -20,6 +20,8 @@ concurrency:
 env:
   CI: 1
   PYTHONPATH: ${{ github.workspace }}
+  # optional: when unset, the Mapbox navigation tests skip themselves
+  MAPBOX_TOKEN_CI: ${{ secrets.MAPBOX_TOKEN_CI }}
   PYTEST: pytest --continue-on-collection-errors --durations=0 -n logical
 
 jobs:
