@@ -4,7 +4,6 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-import json
 from functools import partial
 
 from openpilot.common.params import Params
@@ -57,10 +56,8 @@ class NavigationLayout(Widget):
 
   @property
   def _favs(self) -> dict:
-    try:
-      return json.loads(self._params.get("MapboxFavorites") or "{}")
-    except json.JSONDecodeError:
-      return {}
+    # MapboxFavorites is a JSON-typed param, so Params returns it already deserialized
+    return self._params.get("MapboxFavorites") or {}
 
   def _show_param_input(self, param: str, title: str) -> None:
     InputDialogSP(title, current_text=self._params.get(param) or "", param=param).show()
@@ -73,7 +70,7 @@ class NavigationLayout(Widget):
     if res == DialogResult.CONFIRM and text:
       favs = self._favs
       (favs.setdefault("favorites", {}) if is_fav else favs)[key] = text
-      self._params.put("MapboxFavorites", json.dumps(favs))
+      self._params.put("MapboxFavorites", favs)
 
   def _open_fav_dialog(self, key: str, title: str) -> None:
     InputDialogSP(title, current_text=self._favs.get(key, ""), callback=partial(self._handle_save_fav, key, False)).show()
@@ -103,7 +100,7 @@ class NavigationLayout(Widget):
   def _remove_fav_cb(self, selection: str) -> None:
     favs = self._favs
     if favs.get("favorites", {}).pop(selection, None):
-      self._params.put("MapboxFavorites", json.dumps(favs))
+      self._params.put("MapboxFavorites", favs)
 
   def _remove_fav(self) -> None:
     if favorites := self._favs.get("favorites"):
