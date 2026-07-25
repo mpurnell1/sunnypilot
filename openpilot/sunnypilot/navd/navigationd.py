@@ -52,15 +52,16 @@ class Navigationd:
         self.new_destination = self.params.get('MapboxRoute')
         self.recompute_allowed = self.params.get('MapboxRecompute', return_default=True)
 
-      # the destination can be cleared externally (e.g. from the settings UI), so drop the active route
-      if self.new_destination == '' and self.route is not None:
+      # the destination can be cleared externally (e.g. from the settings UI), so drop the active route.
+      # Params returns None for an unset or empty string param, so treat both as "no destination"
+      if not self.new_destination and self.route is not None:
         self.destination = None
         self.nav_instructions.clear_route_cache()
         self.route = None
         self.cancel_route_counter = 0
         self.reroute_counter = 0
 
-      self.allow_recompute: bool = (self.new_destination != self.destination and self.new_destination != '') or (
+      self.allow_recompute: bool = (bool(self.new_destination) and self.new_destination != self.destination) or (
         self.recompute_allowed and self.reroute_counter > 9 and self.route)
 
       if self.allow_recompute:
