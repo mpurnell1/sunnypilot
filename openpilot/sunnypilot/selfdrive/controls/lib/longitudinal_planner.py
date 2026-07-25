@@ -15,6 +15,7 @@ from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit.speed_limit_assist 
 from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit.speed_limit_resolver import SpeedLimitResolver
 from openpilot.sunnypilot.selfdrive.selfdrived.events import EventsSP
 from openpilot.sunnypilot.models.helpers import get_active_bundle
+from openpilot.sunnypilot.navd.event_builder import EventBuilder
 
 LongitudinalPlanSource = custom.LongitudinalPlanSP.LongitudinalPlanSource
 
@@ -29,6 +30,7 @@ class LongitudinalPlannerSP:
     self.generation = int(model_bundle.generation) if (model_bundle := get_active_bundle()) else None
     self.source = LongitudinalPlanSource.cruise
     self.e2e_alerts_helper = E2EAlertsHelper()
+    self.event_builder = EventBuilder()
 
     self.output_v_target = 0.
     self.output_a_target = 0.
@@ -63,9 +65,15 @@ class LongitudinalPlannerSP:
     self.output_v_target, self.output_a_target = targets[self.source]
     return self.output_v_target, self.output_a_target
 
+  def update_navigation_events(self, sm: messaging.SubMaster) -> None:
+    nav_events = self.event_builder.update(sm)
+    for event in nav_events:
+      self.events_sp.add(event['name'])
+
   def update(self, sm: messaging.SubMaster) -> None:
     self.events_sp.clear()
     self.e2e_alerts_helper.update(sm, self.events_sp)
+    self.update_navigation_events(sm)
 
   def publish_longitudinal_plan_sp(self, sm: messaging.SubMaster, pm: messaging.PubMaster) -> None:
     plan_sp_send = messaging.new_message('longitudinalPlanSP')
