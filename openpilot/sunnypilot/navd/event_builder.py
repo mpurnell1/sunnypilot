@@ -12,10 +12,17 @@ from openpilot.sunnypilot.navd.constants import NAV_CV
 
 
 class EventBuilder:
+  # a one-shot alert is re-added for a moment so a single dropped frame can't swallow it
+  STATUS_ALERT_FRAMES = int(0.5 / DT_MDL)
+
   def __init__(self):
     self._counter: int = -1
     self._enabled: bool = False
     self._params = Params()
+    self._gps_valid: bool = False
+    self._route_valid: bool = False
+    self._gps_frames: int = 0
+    self._route_frames: int = 0
 
   @staticmethod
   def _build_banner_message(metric: bool, nav_msg):
@@ -73,12 +80,50 @@ class EventBuilder:
       'message': banner_message,
     }]
 
+  def build_status_events(self, sm: messaging.SubMaster) -> list:
+    """One-shot alerts for the two preconditions navigation silently waits on.
+
+    navigationd publishes msg.valid straight from the localizer, and sets navigationd.valid
+    only once a usable route is loaded. Until the localizer has a position navigationd does
+    not even read the destination param, so surfacing both transitions makes it obvious
+    whether nav is actually working or still waiting on a GPS fix.
+    """
+    gps_valid = bool(sm.valid.get('navigationd', False))
+    route_valid = bool(sm['navigationd'].valid)
+
+    if gps_valid and not self._gps_valid:
+      self._gps_frames = self.STATUS_ALERT_FRAMES
+    if route_valid and not self._route_valid:
+      self._route_frames = self.STATUS_ALERT_FRAMES
+    self._gps_valid, self._route_valid = gps_valid, route_valid
+
+    events = []
+    if self._gps_frames > 0:
+      self._gps_frames -= 1
+      events.append({
+        'name': custom.OnroadEventSP.EventName.navigationGpsAcquired,
+        'message': 'GPS location acquired',
+      })
+    if self._route_frames > 0:
+      self._route_frames -= 1
+      events.append({
+        'name': custom.OnroadEventSP.EventName.navigationRouteActive,
+        'message': 'Navigation active',
+      })
+    return events
+
   def update(self, sm: messaging.SubMaster) -> list:
     self._counter += 1
     if self._counter % int(3.0 / DT_MDL) == 0:
       self._enabled = self._params.get("NavEvents", return_default=True)
 
-    if self._enabled:
-      return self.build_navigation_events(sm)
-    else:
+    # tracked even while disabled, so re-enabling doesn't replay a stale transition
+    status_events = self.build_status_events(sm)
+
+    if not self._enabled:
+      # drop any in-flight one-shot rather than banking it until the toggle comes back on
+      self._gps_frames = 0
+      self._route_frames = 0
       return []
+
+    return status_events + self.build_navigation_events(sm)
