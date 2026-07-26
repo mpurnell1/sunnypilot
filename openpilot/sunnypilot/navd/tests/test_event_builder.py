@@ -11,9 +11,11 @@ from openpilot.sunnypilot.navd.event_builder import EventBuilder
 
 
 class MockSM(dict):
-  def __init__(self, nav_msg):
+  def __init__(self, nav_msg, gps_valid=False):
     super().__init__()
     self['navigationd'] = nav_msg
+    # navigationd publishes msg.valid straight from the localizer
+    self.valid = {'navigationd': gps_valid}
 
 
 class TestEventBuilder:
@@ -40,7 +42,11 @@ class TestEventBuilder:
     self.params.put("NavEvents", True, block=True)
     nav_msg = self.create_nav_msg()
     events = self.event_builder.update(MockSM(nav_msg))
+    # the first update also sees the route appear, so the one-shot status alert rides along
     expected = [{
+      'name': custom.OnroadEventSP.EventName.navigationRouteActive,
+      'message': 'Navigation active',
+    }, {
       'name': custom.OnroadEventSP.EventName.navigationBanner,
       'message': 'For 192m, Continue on West Esplanade Drive'
     }]
@@ -90,3 +96,55 @@ class TestEventBuilder:
       'message': 'For 80m, Continue on 1234 Apple Way'
     }]
     assert events == expected
+
+  def test_no_status_events_before_fix(self):
+    nav_msg = self.create_nav_msg(valid=False)
+    assert self.event_builder.build_status_events(MockSM(nav_msg, gps_valid=False)) == []
+
+  def test_gps_acquired_on_transition(self):
+    nav_msg = self.create_nav_msg(valid=False)
+    assert self.event_builder.build_status_events(MockSM(nav_msg, gps_valid=False)) == []
+    events = self.event_builder.build_status_events(MockSM(nav_msg, gps_valid=True))
+    assert events == [{
+      'name': custom.OnroadEventSP.EventName.navigationGpsAcquired,
+      'message': 'GPS location acquired',
+    }]
+
+  def test_status_alert_is_one_shot(self):
+    nav_msg = self.create_nav_msg(valid=False)
+    sm = MockSM(nav_msg, gps_valid=True)
+    fired = sum(1 for _ in range(EventBuilder.STATUS_ALERT_FRAMES + 5)
+                if self.event_builder.build_status_events(sm))
+    assert fired == EventBuilder.STATUS_ALERT_FRAMES
+    # holding the fix must not keep re-alerting
+    assert self.event_builder.build_status_events(sm) == []
+
+  def test_route_active_refires_after_route_drops(self):
+    active = MockSM(self.create_nav_msg(valid=True), gps_valid=True)
+    dropped = MockSM(self.create_nav_msg(valid=False), gps_valid=True)
+
+    names = [e['name'] for e in self.event_builder.build_status_events(active)]
+    assert custom.OnroadEventSP.EventName.navigationRouteActive in names
+
+    for _ in range(EventBuilder.STATUS_ALERT_FRAMES):
+      self.event_builder.build_status_events(dropped)
+    assert self.event_builder.build_status_events(dropped) == []
+
+    names = [e['name'] for e in self.event_builder.build_status_events(active)]
+    assert custom.OnroadEventSP.EventName.navigationRouteActive in names
+
+  def test_status_events_tracked_while_disabled(self):
+    self.params.put("NavEvents", False, block=True)
+    self.event_builder._counter = -1
+    nav_msg = self.create_nav_msg(valid=True)
+    sm = MockSM(nav_msg, gps_valid=True)
+    # disabled: emits nothing, but the transition is consumed rather than banked
+    assert self.event_builder.update(sm) == []
+    assert self.event_builder._gps_valid and self.event_builder._route_valid
+
+    self.params.put("NavEvents", True, block=True)
+    self.event_builder._counter = 59
+    assert self.event_builder.update(sm) == [{
+      'name': custom.OnroadEventSP.EventName.navigationBanner,
+      'message': 'For 192m, Continue on West Esplanade Drive',
+    }]
