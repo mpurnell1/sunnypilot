@@ -8,6 +8,7 @@ import requests
 from urllib.parse import quote
 
 from openpilot.common.params import Params
+from openpilot.common.swaglog import cloudlog
 
 
 class MapboxIntegration:
@@ -28,6 +29,10 @@ class MapboxIntegration:
       return postvars, False
 
     token = self.get_public_token()
+    if not token:
+      cloudlog.error("navd: geocoding skipped, no MapboxToken set")
+      return postvars, False
+
     url = f'https://api.mapbox.com/geocoding/v5/mapbox.places/{quote(addr)}.json?access_token={token}&limit=1&proximity={current_lon},{current_lat}'
     try:
       response = requests.get(url, timeout=5)
@@ -38,8 +43,15 @@ class MapboxIntegration:
           postvars.update({'latitude': latitude, 'longitude': longitude, 'name': addr})
           self.nav_confirmed(postvars, current_lon, current_lat, bearing)
           return postvars, True
-    except requests.RequestException:
-      pass  # Broad exception to handle network errors like no internet without crashing navd process.
+        cloudlog.warning("navd: geocoding found no match for destination %r", addr)
+      else:
+        cloudlog.error("navd: geocoding failed with HTTP %d for destination %r", response.status_code, addr)
+    except requests.RequestException as e:
+      # Broad exception to handle network errors like no internet without crashing navd process.
+      cloudlog.warning("navd: geocoding request failed for destination %r: %s", addr, e)
+    except (ValueError, KeyError, IndexError) as e:
+      # a 200 with an unexpected body would otherwise take navd down
+      cloudlog.error("navd: could not parse geocoding response for destination %r: %s", addr, e)
     return postvars, False
 
   def nav_confirmed(self, postvars, start_lon, start_lat, bearing=None) -> None:
@@ -60,6 +72,7 @@ class MapboxIntegration:
   @staticmethod
   def generate_route(start_lon, start_lat, end_lon, end_lat, token, bearing=None) -> dict | None:
     if not token:
+      cloudlog.error("navd: route generation skipped, no MapboxToken set")
       return None
 
     params = {
@@ -76,14 +89,22 @@ class MapboxIntegration:
 
     try:
       response = requests.get(f'https://api.mapbox.com/directions/v5/mapbox/driving/{start_lon},{start_lat};{end_lon},{end_lat}', params=params, timeout=5)
+      if response.status_code != 200:
+        cloudlog.error("navd: directions failed with HTTP %d", response.status_code)
       data = response.json() if response.status_code == 200 else {}
-    except requests.RequestException:
+    except requests.RequestException as e:
+      cloudlog.warning("navd: directions request failed: %s", e)
+      return None
+    except ValueError as e:
+      cloudlog.error("navd: could not parse directions response: %s", e)
       return None
 
     routes = data['routes'] if data else None
     legs = routes[0]['legs'] if routes else None
 
     if data.get('code') != 'Ok' or not routes or not legs:
+      if data:
+        cloudlog.error("navd: directions returned no usable route (code=%s)", data.get('code'))
       return None
 
     route = routes[0]

@@ -257,4 +257,19 @@ EVENTS_SP: dict[int, dict[str, Alert | AlertCallbackType]] = {
   EventNameSP.navigationBanner: {
     ET.WARNING: navigation_alert,
   },
+
+  # informational, so PERMANENT: these matter most before engaging, while setting a destination
+  EventNameSP.navigationGpsAcquired: {
+    ET.PERMANENT: Alert(
+      "GPS location acquired", "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.LOWEST, VisualAlert.none, AudibleAlert.none, 3.),
+  },
+
+  EventNameSP.navigationRouteActive: {
+    ET.PERMANENT: Alert(
+      "Navigation active", "",
+      AlertStatus.normal, AlertSize.small,
+      Priority.LOWEST, VisualAlert.none, AudibleAlert.none, 3.),
+  },
 }
