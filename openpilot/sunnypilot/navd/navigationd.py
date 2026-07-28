@@ -176,6 +176,7 @@ class Navigationd:
     msg.navigationd.bannerInstructions = banner_instructions
     msg.navigationd.distanceFromRoute = nav_data.get('distance_from_route', 0.0)
     msg.navigationd.valid = self.valid
+    msg.navigationd.routeFailures = min(self.failed_attempts, 0xffff)
 
     all_maneuvers = (
       [custom.Navigationd.Maneuver.new_message(distance=m['distance'], type=m['type'], modifier=m['modifier'],

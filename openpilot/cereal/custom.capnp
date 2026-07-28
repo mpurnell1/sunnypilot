@@ -480,6 +480,8 @@ struct Navigationd @0xcb9fd56c7057593a {
   distanceFromRoute @3 :Float32;
   allManeuvers @4 :List(Maneuver);
   valid @5 :Bool;
+  # consecutive failed route requests, so consumers can tell "still trying" from "not working"
+  routeFailures @6 :UInt16;
 
   struct Maneuver {
     distance @0 :Float32;

@@ -4,11 +4,15 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-from openpilot.cereal import custom
+from openpilot.cereal import custom, log
 from openpilot.common.params import Params
 
 from openpilot.selfdrive.ui.sunnypilot import nav_status as nav_status_module
-from openpilot.selfdrive.ui.sunnypilot.nav_status import GPS_LOST_HOLD_SECONDS, NavState, NavStatus
+from openpilot.selfdrive.ui.sunnypilot.nav_status import (
+  GPS_LOST_HOLD_SECONDS, ROUTE_FAILURE_THRESHOLD, NavState, NavStatus,
+)
+
+NetworkType = log.DeviceState.NetworkType
 
 
 class MockSM(dict):
@@ -18,13 +22,20 @@ class MockSM(dict):
     # navigationd publishes msg.valid straight from the localizer, and navigationd.valid once a route loads
     self.valid = {'navigationd': False}
     self['navigationd'] = custom.Navigationd.new_message()
+    self.set_network(NetworkType.cell4G)
 
-  def set(self, alive: bool, gps_valid: bool = False, route_valid: bool = False):
+  def set(self, alive: bool, gps_valid: bool = False, route_valid: bool = False, failures: int = 0):
     self.alive['navigationd'] = alive
     self.valid['navigationd'] = gps_valid
     msg = custom.Navigationd.new_message()
     msg.valid = route_valid
+    msg.routeFailures = failures
     self['navigationd'] = msg
+
+  def set_network(self, network_type):
+    msg = log.DeviceState.new_message()
+    msg.networkType = network_type
+    self['deviceState'] = msg
 
 
 class TestNavStatus:
@@ -107,6 +118,53 @@ class TestNavStatus:
     self.tick()
     assert not self.status.gps_locked
     assert self.status.state == NavState.OFFLINE
+
+  def test_a_never_seen_fix_is_not_reported_as_locked(self):
+    # the hold window is measured against the last fix, which must not default to "just now"
+    self.now = 0.5
+    self.sm.set(alive=True, gps_valid=False)
+    self.tick()
+    assert not self.status.gps_locked
+
+  def test_repeated_failures_are_reported_as_no_route(self):
+    self.set_destination("740 E Ventura Blvd")
+    self.sm.set(alive=True, gps_valid=True, failures=1)
+    self.tick()
+    assert self.status.state == NavState.COMPUTING, "one failure is still worth calling 'trying'"
+
+    self.sm.set(alive=True, gps_valid=True, failures=ROUTE_FAILURE_THRESHOLD)
+    self.tick()
+    assert self.status.state == NavState.NO_ROUTE
+    assert self.status.destination == "740 E Ventura Blvd"
+
+  def test_no_route_names_the_offline_case(self):
+    self.set_destination("740 E Ventura Blvd")
+    self.sm.set(alive=True, gps_valid=True, failures=5)
+
+    self.sm.set_network(NetworkType.none)
+    self.tick()
+    assert self.status.state == NavState.NO_ROUTE
+    assert not self.status.online
+    assert "offline" in self.status.route_text
+
+    self.sm.set_network(NetworkType.cell4G)
+    self.tick()
+    assert self.status.online
+    assert "offline" not in self.status.route_text
+
+  def test_failures_outrank_a_dropped_fix(self):
+    # navd keeps its last position, so it goes on requesting routes after the localizer drops;
+    # reporting "waiting for GPS" there would hide the real failure
+    self.set_destination("740 E Ventura Blvd")
+    self.sm.set(alive=True, gps_valid=False, failures=5)
+    self.tick()
+    assert self.status.state == NavState.NO_ROUTE
+
+  def test_a_loaded_route_outranks_stale_failures(self):
+    self.set_destination("740 E Ventura Blvd")
+    self.sm.set(alive=True, gps_valid=True, route_valid=True, failures=3)
+    self.tick()
+    assert self.status.state == NavState.ACTIVE
 
   def test_allow_navigation_is_tracked(self):
     self.params.put("AllowNavigation", False, block=True)
