@@ -23,6 +23,7 @@ MAX_PILL_WIDTH_RATIO = 0.5
 BACKGROUND = rl.Color(0, 0, 0, 140)
 GPS_LOCKED = rl.Color(0x2f, 0xc4, 0x6e, 0xff)
 GPS_WAITING = rl.Color(0xff, 0xb8, 0x2e, 0xff)
+ROUTE_FAILED = rl.Color(0xf2, 0x6d, 0x6d, 0xff)
 TEXT_COLOR = rl.Color(255, 255, 255, 220)
 
 
@@ -70,6 +71,8 @@ class NavIndicatorRenderer:
       return tr("Waiting for GPS...")
     if state == NavState.COMPUTING:
       return tr("Computing route...")
+    if state == NavState.NO_ROUTE:
+      return self.nav_status.no_route_text
     return self.nav_status.destination
 
   def render(self, rect: rl.Rectangle) -> None:
@@ -96,12 +99,15 @@ class NavIndicatorRenderer:
     pill = rl.Rectangle(rect.x + (rect.width - width) / 2, rect.y + TOP_OFFSET, width, PILL_HEIGHT)
     rl.draw_rectangle_rounded(pill, 0.35, 10, BACKGROUND)
 
+    failed = status.state == NavState.NO_ROUTE
+    text_color = ROUTE_FAILED if failed else TEXT_COLOR
+
     cy = pill.y + PILL_HEIGHT / 2
     x = pill.x + PILL_PADDING
     _draw_pin(x, cy, GPS_LOCKED if status.gps_locked else GPS_WAITING)
     x += ICON_WIDTH + ICON_GAP
     if show_flag:
-      _draw_flag(x, cy, TEXT_COLOR)
+      _draw_flag(x, cy, text_color)
       x += ICON_WIDTH + ICON_GAP
 
-    rl.draw_text_ex(self._font, text, rl.Vector2(x, cy - text_size.y / 2), FONT_SIZE, 0, TEXT_COLOR)
+    rl.draw_text_ex(self._font, text, rl.Vector2(x, cy - text_size.y / 2), FONT_SIZE, 0, text_color)
