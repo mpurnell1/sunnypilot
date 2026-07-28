@@ -4,19 +4,25 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
+import pyray as rl
 from functools import partial
 
 from openpilot.common.params import Params
+from openpilot.selfdrive.ui.sunnypilot.nav_status import NavState, NavStatus
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.widgets import DialogResult, Widget
 from openpilot.system.ui.widgets.confirm_dialog import alert_dialog
-from openpilot.system.ui.widgets.list_view import button_item
+from openpilot.system.ui.widgets.list_view import ListItem, TextAction, button_item
 from openpilot.system.ui.widgets.option_dialog import MultiOptionDialog
 from openpilot.system.ui.widgets.scroller_tici import Scroller
 
 from openpilot.system.ui.sunnypilot.widgets.input_dialog import InputDialogSP
 from openpilot.system.ui.sunnypilot.widgets.list_view import toggle_item_sp, multiple_button_item_sp
+
+STATUS_GOOD_COLOR = rl.Color(0x2f, 0xc4, 0x6e, 0xff)
+STATUS_PENDING_COLOR = rl.Color(0xff, 0xb8, 0x2e, 0xff)
+STATUS_IDLE_COLOR = rl.Color(170, 170, 170, 255)
 
 
 class NavigationLayout(Widget):
@@ -25,6 +31,12 @@ class NavigationLayout(Widget):
 
     self._params = Params()
     self._dialog: MultiOptionDialog | None = None
+    self._nav_status = NavStatus()
+
+    # the two preconditions navigation waits on, shown where the destination is actually set
+    self._gps_status_item = ListItem(title=tr("GPS location"), action_item=TextAction(text=lambda: self._nav_status.gps_text),
+                                     description=tr("navigationd cannot geocode a destination until the localizer has a position"))
+    self._route_status_item = ListItem(title=tr("Route status"), action_item=TextAction(text=lambda: self._nav_status.route_text))
 
     self._mapbox_token_item = button_item(tr("Mapbox token"), tr("Edit"), tr("Enter your Mapbox public token"),
                                           partial(self._show_param_input, "MapboxToken", tr("Enter Mapbox Token")))
@@ -43,6 +55,7 @@ class NavigationLayout(Widget):
     ]
 
     items = [
+      self._gps_status_item, self._route_status_item,
       self._mapbox_token_item, self._mapbox_route_item,
       button_item(tr("Clear current route"), tr("Clear"), "", self._clear_route),
       multiple_button_item_sp(tr("Favorites"), tr("Select favorite route"), [tr("Home"), tr("Work"), tr("Favorites")], 0,
@@ -122,6 +135,17 @@ class NavigationLayout(Widget):
       item.set_visible(state)
 
   def _update_state(self):
+    self._nav_status.update()
+    self._gps_status_item.action_item.color = STATUS_GOOD_COLOR if self._nav_status.gps_locked else (
+      STATUS_IDLE_COLOR if self._nav_status.state == NavState.OFFLINE else STATUS_PENDING_COLOR)
+    self._route_status_item.action_item.color = {
+      NavState.OFFLINE: STATUS_IDLE_COLOR,
+      NavState.NO_DESTINATION: STATUS_IDLE_COLOR,
+      NavState.WAITING_FOR_GPS: STATUS_PENDING_COLOR,
+      NavState.COMPUTING: STATUS_PENDING_COLOR,
+      NavState.ACTIVE: STATUS_GOOD_COLOR,
+    }[self._nav_status.state]
+
     self._mapbox_token_item.action_item.set_value(self._params.get("MapboxToken") or tr("Mapbox token not set"))
     self._mapbox_route_item.action_item.set_value(self._params.get("MapboxRoute") or tr("Destination not set"))
     self._update_navigation_visibility(self._params.get_bool("AllowNavigation"))
