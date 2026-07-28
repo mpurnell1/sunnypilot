@@ -1,0 +1,58 @@
+"""
+Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of other contributors.
+
+This file is part of sunnypilot and is licensed under the MIT License.
+See the LICENSE.md file in the root directory for more details.
+"""
+import pytest
+
+from opendbc.car.structs import car
+from openpilot.cereal import custom
+from openpilot.selfdrive.selfdrived.events import ET
+from openpilot.selfdrive.selfdrived.selfdrived import SelfdriveD
+from openpilot.sunnypilot.selfdrive.selfdrived.events import EVENTS_SP
+
+EventNameSP = custom.OnroadEventSP.EventName
+
+# navigation is opt-in and depends on the network and a third-party API, so nothing it does may
+# gate engaging openpilot. Every escape hatch it relies on is pinned here.
+NAV_EVENTS = [
+  EventNameSP.navigationBanner,
+  EventNameSP.navigationGpsAcquired,
+  EventNameSP.navigationRouteActive,
+]
+BLOCKING = (ET.NO_ENTRY, ET.SOFT_DISABLE, ET.IMMEDIATE_DISABLE, ET.USER_DISABLE)
+
+
+@pytest.fixture(scope="module")
+def selfdrived():
+  return SelfdriveD(car.CarParams.new_message(), custom.CarParamsSP.new_message())
+
+
+def test_navd_crash_does_not_raise_process_not_running(selfdrived):
+  # processNotRunning is NO_ENTRY + SOFT_DISABLE, and navigationd is only_onroad so manager
+  # marks it shouldBeRunning; without this exemption a navd crash would refuse engagement
+  assert 'navigationd' in selfdrived.ignored_processes
+  assert not ({'navigationd'} - selfdrived.ignored_processes)
+
+
+def test_navd_silence_does_not_raise_comm_issue(selfdrived):
+  # commIssue comes from all_alive/all_freq_ok/all_checks, which honour these ignore lists
+  sm = selfdrived.sm
+  assert 'navigationd' in sm.services, "navigationd must be subscribed for the checks to matter"
+  for ignore_list in (sm.ignore_alive, sm.ignore_average_freq, sm.ignore_valid):
+    assert 'navigationd' in ignore_list
+
+  sm.alive['navigationd'] = False
+  sm.valid['navigationd'] = False
+  sm.freq_ok['navigationd'] = False
+  # scoped to navigationd: nothing is publishing in a test, so the unscoped checks are all False
+  assert sm.all_alive(['navigationd']), "a dead navigationd must not fail the alive check"
+  assert sm.all_freq_ok(['navigationd'])
+  assert sm.all_valid(['navigationd'])
+
+
+@pytest.mark.parametrize("event", NAV_EVENTS)
+def test_nav_events_cannot_block_or_disengage(event):
+  for et in BLOCKING:
+    assert et not in EVENTS_SP[event], f"{event} defines {et}, which would affect engagement"

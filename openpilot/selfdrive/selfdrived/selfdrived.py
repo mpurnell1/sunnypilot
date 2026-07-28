@@ -149,7 +149,10 @@ class SelfdriveD(CruiseHelper):
     self.state_machine = StateMachine()
     self.rk = Ratekeeper(100, print_delay_threshold=None)
 
-    self.ignored_processes = {'mapd', }
+    # navigationd is opt-in and network-dependent, so a crash in it must not raise
+    # processNotRunning, which is NO_ENTRY + SOFT_DISABLE. Its death is still visible: the UI
+    # sees navigationd go un-alive and reports navigation as not running.
+    self.ignored_processes = {'mapd', 'navigationd'}
 
     # Determine startup event
     is_remote = build_metadata.openpilot.comma_remote or build_metadata.openpilot.sunnypilot_remote
