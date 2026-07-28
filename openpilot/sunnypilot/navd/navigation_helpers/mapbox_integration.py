@@ -20,9 +20,14 @@ class MapboxIntegration:
     return token
 
   def set_destination(self, postvars, current_lon, current_lat, bearing=None) -> tuple[dict, bool]:
+    """Returns the postvars and whether a usable route was stored.
+
+    Geocoding and directions are separate API calls and either can fail on its own, so the
+    caller is told about the route rather than just the address: a destination that geocodes
+    but produces no route has not been accepted and must be retried.
+    """
     if 'latitude' in postvars and 'longitude' in postvars:
-      self.nav_confirmed(postvars, current_lon, current_lat, bearing)
-      return postvars, True
+      return postvars, self.nav_confirmed(postvars, current_lon, current_lat, bearing)
 
     addr = postvars['place_name']
     if not addr:
@@ -41,8 +46,7 @@ class MapboxIntegration:
         if features:
           longitude, latitude = features[0]['geometry']['coordinates']
           postvars.update({'latitude': latitude, 'longitude': longitude, 'name': addr})
-          self.nav_confirmed(postvars, current_lon, current_lat, bearing)
-          return postvars, True
+          return postvars, self.nav_confirmed(postvars, current_lon, current_lat, bearing)
         cloudlog.warning("navd: geocoding found no match for destination %r", addr)
       else:
         cloudlog.error("navd: geocoding failed with HTTP %d for destination %r", response.status_code, addr)
@@ -54,20 +58,24 @@ class MapboxIntegration:
       cloudlog.error("navd: could not parse geocoding response for destination %r: %s", addr, e)
     return postvars, False
 
-  def nav_confirmed(self, postvars, start_lon, start_lat, bearing=None) -> None:
+  def nav_confirmed(self, postvars, start_lon, start_lat, bearing=None) -> bool:
     if not postvars:
-      return
+      return False
 
     latitude = float(postvars['latitude'])
     longitude = float(postvars['longitude'])
 
-    data: dict = {'navData': {'current': {'latitude': latitude, 'longitude': longitude}, 'route': {}}}
-
     token = self.get_public_token()
     route_data = self.generate_route(start_lon, start_lat, longitude, latitude, token, bearing)
-    if route_data:
-      data['navData']['route'] = route_data
+    if not route_data:
+      # storing an empty route here would discard a working one on a failed reroute, and would
+      # read as an accepted destination that navd then has no reason to recompute
+      cloudlog.error("navd: no route stored for destination %r, keeping any previous route", postvars.get('name'))
+      return False
+
+    data: dict = {'navData': {'current': {'latitude': latitude, 'longitude': longitude}, 'route': route_data}}
     self.params.put('MapboxSettings', data)
+    return True
 
   @staticmethod
   def generate_route(start_lon, start_lat, end_lon, end_lat, token, bearing=None) -> dict | None:

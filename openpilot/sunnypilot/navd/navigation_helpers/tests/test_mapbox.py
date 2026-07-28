@@ -28,12 +28,13 @@ class TestMapbox:
     cls.current_lon, cls.current_lat = -119.17557, 34.23305
     cls.mapbox.params.put('MapboxRoute', '740 E Ventura Blvd. Camarillo, CA', block=True)
     cls.postvars = {"place_name": cls.mapbox.params.get('MapboxRoute')}
-    cls.postvars, cls.valid_addr = cls.mapbox.set_destination(cls.postvars, cls.current_lon, cls.current_lat)
+    cls.postvars, cls.route_ready = cls.mapbox.set_destination(cls.postvars, cls.current_lon, cls.current_lat)
     cls.route = cls.nav.get_current_route()
     cls.progress = cls.nav.get_route_progress(cls.current_lat, cls.current_lon)
 
   def test_set_destination(self):
-    assert self.valid_addr
+    # set_destination reports that a route was stored, not just that the address geocoded
+    assert self.route_ready
     settings = self.mapbox.params.get('MapboxSettings')
     assert settings is not None
     dest_lat = settings['navData']['current']['latitude']
