@@ -6,6 +6,7 @@ See the LICENSE.md file in the root directory for more details.
 """
 from math import degrees
 from numpy import interp
+from time import monotonic
 
 import openpilot.cereal.messaging as messaging
 from openpilot.cereal import custom
@@ -13,7 +14,7 @@ from openpilot.common.params import Params
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
 
-from openpilot.sunnypilot.navd.constants import NAV_CV
+from openpilot.sunnypilot.navd.constants import NAV_CV, NAV_RETRY
 from openpilot.sunnypilot.navd.helpers import Coordinate, parse_banner_instructions
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
 from openpilot.sunnypilot.navd.navigation_helpers.nav_instructions import NavigationInstructions
@@ -38,11 +39,25 @@ class Navigationd:
     self.allow_recompute: bool = False
     self.reroute_counter: int = 0
     self.cancel_route_counter: int = 0
+    self.attempted_destination: str | None = None
+    self.failed_attempts: int = 0
+    self.next_attempt_time: float = 0.0
 
     self.frame: int = -1
     self.last_position: Coordinate | None = None
     self.last_bearing: float | None = None
     self.valid: bool = False
+
+  def _reset_retry(self) -> None:
+    self.failed_attempts = 0
+    self.next_attempt_time = 0.0
+
+  def _schedule_retry(self) -> None:
+    delay = min(NAV_RETRY.BASE_SECONDS * (2 ** self.failed_attempts), NAV_RETRY.MAX_SECONDS)
+    self.failed_attempts += 1
+    self.next_attempt_time = monotonic() + delay
+    cloudlog.warning("navd: no route for destination %r, retrying in %.0fs (attempt %d)",
+                     self.new_destination, delay, self.failed_attempts)
 
   def _update_params(self):
     if self.last_position is not None:
@@ -61,25 +76,45 @@ class Navigationd:
         self.cancel_route_counter = 0
         self.reroute_counter = 0
 
-      self.allow_recompute: bool = (bool(self.new_destination) and self.new_destination != self.destination) or (
-        self.recompute_allowed and self.reroute_counter > 9 and self.route)
+      # entering a different destination is a fresh request, so it must not inherit the
+      # backoff accumulated by the previous one
+      if self.new_destination != self.attempted_destination:
+        self._reset_retry()
+
+      # a destination is only accepted once a route actually came back, so a directions failure
+      # stays pending instead of latching a destination that can never be recomputed
+      pending = bool(self.new_destination) and self.new_destination != self.destination
+      rerouting = bool(self.recompute_allowed and self.reroute_counter > 9 and self.route)
+      self.allow_recompute: bool = (pending or rerouting) and monotonic() >= self.next_attempt_time
 
       if self.allow_recompute:
+        self.attempted_destination = self.new_destination
         postvars = {'place_name': self.new_destination}
-        postvars, valid_addr = self.mapbox.set_destination(postvars, self.last_position.longitude, self.last_position.latitude, self.last_bearing)
+        postvars, route_ready = self.mapbox.set_destination(postvars, self.last_position.longitude, self.last_position.latitude, self.last_bearing)
 
-        if valid_addr:
-          self.destination = self.new_destination
+        route = None
+        if route_ready:
           self.nav_instructions.clear_route_cache()
-          self.route = self.nav_instructions.get_current_route()
+          route = self.nav_instructions.get_current_route()
+
+        if route is not None:
+          self.destination = self.new_destination
+          self.route = route
           self.cancel_route_counter = 0
           self.reroute_counter = 0
+          self._reset_retry()
+        else:
+          # an existing route is left alone: only the request for a new one failed
+          self._schedule_retry()
 
       if self.cancel_route_counter == 30:
         self.cancel_route_counter = 0
         self.params.put("MapboxRoute", "")
         self.nav_instructions.clear_route_cache()
         self.route = None
+        # the route-cleared branch above only fires while a route is live, so without this the
+        # destination stays latched and re-entering the same address does nothing
+        self.destination = None
 
       self.valid = self.route is not None
 
