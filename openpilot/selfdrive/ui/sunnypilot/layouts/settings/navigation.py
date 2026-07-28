@@ -22,6 +22,7 @@ from openpilot.system.ui.sunnypilot.widgets.list_view import toggle_item_sp, mul
 
 STATUS_GOOD_COLOR = rl.Color(0x2f, 0xc4, 0x6e, 0xff)
 STATUS_PENDING_COLOR = rl.Color(0xff, 0xb8, 0x2e, 0xff)
+STATUS_FAILED_COLOR = rl.Color(0xf2, 0x6d, 0x6d, 0xff)
 STATUS_IDLE_COLOR = rl.Color(170, 170, 170, 255)
 
 
@@ -143,6 +144,7 @@ class NavigationLayout(Widget):
       NavState.NO_DESTINATION: STATUS_IDLE_COLOR,
       NavState.WAITING_FOR_GPS: STATUS_PENDING_COLOR,
       NavState.COMPUTING: STATUS_PENDING_COLOR,
+      NavState.NO_ROUTE: STATUS_FAILED_COLOR,
       NavState.ACTIVE: STATUS_GOOD_COLOR,
     }[self._nav_status.state]
 
