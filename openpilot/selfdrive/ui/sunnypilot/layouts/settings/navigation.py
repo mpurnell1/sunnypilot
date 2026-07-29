@@ -13,12 +13,21 @@ from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.widgets import DialogResult, Widget
 from openpilot.system.ui.widgets.confirm_dialog import alert_dialog
-from openpilot.system.ui.widgets.list_view import ListItem, TextAction, button_item
+from openpilot.system.ui.widgets.list_view import button_item
 from openpilot.system.ui.widgets.option_dialog import MultiOptionDialog
 from openpilot.system.ui.widgets.scroller_tici import Scroller
 
+from openpilot.system.ui.sunnypilot.widgets import get_highlighted_description
 from openpilot.system.ui.sunnypilot.widgets.input_dialog import InputDialogSP
 from openpilot.system.ui.sunnypilot.widgets.list_view import toggle_item_sp, multiple_button_item_sp
+
+NAV_BANNER_BUTTONS = [tr("Off"), tr("Increments"), tr("Always")]
+
+NAV_BANNER_DESCRIPTIONS = [
+  tr("Off: Show no turn-by-turn instructions."),
+  tr("Increments: Show the next instruction as you approach each turn."),
+  tr("Always: Keep the next instruction on screen for the whole route."),
+]
 
 STATUS_GOOD_COLOR = rl.Color(0x2f, 0xc4, 0x6e, 0xff)
 STATUS_PENDING_COLOR = rl.Color(0xff, 0xb8, 0x2e, 0xff)
@@ -34,35 +43,42 @@ class NavigationLayout(Widget):
     self._dialog: MultiOptionDialog | None = None
     self._nav_status = NavStatus()
 
-    # the two preconditions navigation waits on, shown where the destination is actually set
-    self._gps_status_item = ListItem(title=tr("GPS location"), action_item=TextAction(text=lambda: self._nav_status.gps_text),
-                                     description=tr("navigationd cannot geocode a destination until the localizer has a position"))
-    self._route_status_item = ListItem(title=tr("Route status"), action_item=TextAction(text=lambda: self._nav_status.route_text))
+    # The two preconditions navigation waits on. Each row both reports its live state and
+    # switches the matching onroad icon, so the reading and the control sit together.
+    self._gps_status_item = toggle_item_sp(tr("GPS Indicator"),
+                                           tr("Display a location pin under the set speed, green once the GPS fix is good."),
+                                           param="NavShowGpsIcon")
+    self._gps_status_item.set_right_value(lambda: self._nav_status.gps_text)
+    self._route_status_item = toggle_item_sp(tr("Route Indicator"),
+                                             tr("Display a destination flag under the set speed, green once a route is loaded."),
+                                             param="NavShowRouteIcon")
+    self._route_status_item.set_right_value(lambda: self._nav_status.route_text)
 
-    self._mapbox_token_item = button_item(tr("Mapbox token"), tr("Edit"), tr("Enter your Mapbox public token"),
+    self._mapbox_token_item = button_item(tr("Mapbox Token"), tr("Edit"), tr("Enter your Mapbox public token."),
                                           partial(self._show_param_input, "MapboxToken", tr("Enter Mapbox Token")))
-    self._mapbox_route_item = button_item(tr("Mapbox route"), tr("Edit"), "",
+    self._mapbox_route_item = button_item(tr("Mapbox Route"), tr("Edit"), "",
                                           partial(self._show_param_input, "MapboxRoute", tr("Enter Mapbox Route")))
 
     # only shown while navigation is enabled
     self._vis_items = [
       button_item(tr("Set Home"), tr("Set"), "", partial(self._open_fav_dialog, "home", tr("Set Home Route"))),
       button_item(tr("Set Work"), tr("Set"), "", partial(self._open_fav_dialog, "work", tr("Set Work Route"))),
-      button_item(tr("Add Favorite"), tr("Add"), tr("Add a new favorite"), self._add_fav),
-      button_item(tr("Remove Favorite"), tr("Remove"), tr("Remove a favorite"), self._remove_fav),
-      toggle_item_sp(tr("Mapbox recompute"), tr("Enable automatic route recomputation"), param="MapboxRecompute"),
-      toggle_item_sp(tr("Navigation desires"), tr("Allow navigation to automatically take turns"), param="NavDesiresAllowed"),
-      toggle_item_sp(tr("Navigation banners"), tr("Show turn-by-turn instructions as onroad alerts"), param="NavEvents"),
+      button_item(tr("Add Favorite"), tr("Add"), tr("Add a new favorite."), self._add_fav),
+      button_item(tr("Remove Favorite"), tr("Remove"), tr("Remove a favorite."), self._remove_fav),
+      toggle_item_sp(tr("Mapbox Recompute"), tr("Recompute the route automatically after leaving it."), param="MapboxRecompute"),
+      toggle_item_sp(tr("Navigation Desires"), tr("Allow navigation to steer through turns on the route."), param="NavDesiresAllowed"),
+      multiple_button_item_sp(tr("Navigation Banners"), self._get_banner_description,
+                              NAV_BANNER_BUTTONS, param="NavBannerMode"),
     ]
 
     items = [
       self._gps_status_item, self._route_status_item,
       self._mapbox_token_item, self._mapbox_route_item,
-      button_item(tr("Clear current route"), tr("Clear"), "", self._clear_route),
-      multiple_button_item_sp(tr("Favorites"), tr("Select favorite route"), [tr("Home"), tr("Work"), tr("Favorites")], 0,
+      button_item(tr("Clear Current Route"), tr("Clear"), "", self._clear_route),
+      multiple_button_item_sp(tr("Favorites"), tr("Select a saved destination."), [tr("Home"), tr("Work"), tr("Favorites")], 0,
                               callback=self._favorites_callback),
       *self._vis_items[:4],
-      toggle_item_sp(tr("Allow navigation"), tr("Enable navigation service"), callback=self._update_navigation_visibility,
+      toggle_item_sp(tr("Allow Navigation"), tr("Enable the navigation service."), callback=self._update_navigation_visibility,
                      param="AllowNavigation"),
       *self._vis_items[4:],
     ]
@@ -135,11 +151,15 @@ class NavigationLayout(Widget):
     for item in self._vis_items:
       item.set_visible(state)
 
+  def _get_banner_description(self) -> str:
+    return get_highlighted_description(self._params, "NavBannerMode", NAV_BANNER_DESCRIPTIONS)
+
   def _update_state(self):
     self._nav_status.update()
-    self._gps_status_item.action_item.color = STATUS_GOOD_COLOR if self._nav_status.gps_locked else (
+    # the toggle owns the right item, so the live state is coloured through the value text
+    self._gps_status_item._right_value_color = STATUS_GOOD_COLOR if self._nav_status.gps_locked else (
       STATUS_IDLE_COLOR if self._nav_status.state == NavState.OFFLINE else STATUS_PENDING_COLOR)
-    self._route_status_item.action_item.color = {
+    self._route_status_item._right_value_color = {
       NavState.OFFLINE: STATUS_IDLE_COLOR,
       NavState.NO_DESTINATION: STATUS_IDLE_COLOR,
       NavState.WAITING_FOR_GPS: STATUS_PENDING_COLOR,

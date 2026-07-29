@@ -6,6 +6,25 @@ See the LICENSE.md file in the root directory for more details.
 """
 
 
+class BannerMode:
+  OFF = 0
+  INCREMENTAL = 1
+  ALWAYS = 2
+
+
+class NAV_BANNER:
+  """Incremental banners: show near each distance milestone rather than continuously.
+
+  Thresholds are metres to the upcoming maneuver, coarse far out and tightening near the
+  turn, so the prompts feel like a nav app instead of a permanent overlay.
+  """
+  THRESHOLDS_M = (3000.0, 1500.0, 800.0, 400.0, 150.0, 50.0)
+  SHOW_SECONDS = 4.0
+  # a maneuver's distance only grows when a new one becomes current, so a jump this large
+  # means the previous turn was passed and the milestone sequence restarts
+  NEW_MANEUVER_JUMP_M = 50.0
+
+
 class NAV_RETRY:
   """ Spacing for route requests that failed.
 

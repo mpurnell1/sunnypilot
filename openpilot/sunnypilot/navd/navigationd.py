@@ -48,6 +48,15 @@ class Navigationd:
     self.last_bearing: float | None = None
     self.valid: bool = False
 
+  # MapboxSettings outlives the in-memory route, so a route left there can be reloaded later
+  def _drop_route(self) -> None:
+    self.params.remove("MapboxSettings")
+    self.nav_instructions.clear_route_cache()
+    self.route = None
+    self.destination = None
+    self.cancel_route_counter = 0
+    self.reroute_counter = 0
+
   def _reset_retry(self) -> None:
     self.failed_attempts = 0
     self.next_attempt_time = 0.0
@@ -70,11 +79,7 @@ class Navigationd:
       # the destination can be cleared externally (e.g. from the settings UI), so drop the active route.
       # Params returns None for an unset or empty string param, so treat both as "no destination"
       if not self.new_destination and self.route is not None:
-        self.destination = None
-        self.nav_instructions.clear_route_cache()
-        self.route = None
-        self.cancel_route_counter = 0
-        self.reroute_counter = 0
+        self._drop_route()
 
       # entering a different destination is a fresh request, so it must not inherit the
       # backoff accumulated by the previous one
@@ -108,13 +113,8 @@ class Navigationd:
           self._schedule_retry()
 
       if self.cancel_route_counter == 30:
-        self.cancel_route_counter = 0
         self.params.put("MapboxRoute", "")
-        self.nav_instructions.clear_route_cache()
-        self.route = None
-        # the route-cleared branch above only fires while a route is live, so without this the
-        # destination stays latched and re-entering the same address does nothing
-        self.destination = None
+        self._drop_route()
 
       self.valid = self.route is not None
 
