@@ -25,7 +25,6 @@ BAD = rl.Color(0xf2, 0x4b, 0x4b, 0xff)
 
 
 def _draw_pin(cx: float, cy: float, color: rl.Color) -> None:
-  """A map pin: round head with a hole, tapering to a point below. GPS fix."""
   radius = ICON_WIDTH / 2
   head_y = cy - radius * 0.35
 
@@ -36,7 +35,6 @@ def _draw_pin(cx: float, cy: float, color: rl.Color) -> None:
 
 
 def _draw_flag(cx: float, cy: float, color: rl.Color) -> None:
-  """A destination flag: pole on the left, pennant filling the top half. Route loaded."""
   pole_w = max(3.0, ICON_WIDTH * 0.12)
   height = ICON_WIDTH * 1.05
   x = cx - ICON_WIDTH / 2
@@ -46,14 +44,9 @@ def _draw_flag(cx: float, cy: float, color: rl.Color) -> None:
   rl.draw_rectangle_rec(rl.Rectangle(x + pole_w, top, ICON_WIDTH - pole_w, height * 0.45), color)
 
 
+# pin is the GPS fix, flag is the route. The flag needs a destination to mean anything, but the
+# pin does not, so it stays visible on its own.
 class NavIndicatorRenderer:
-  """Two at-a-glance lights for the preconditions navigation waits on.
-
-  Pin is the GPS fix, flag is the route. Green means working, red means not. The flag is only
-  drawn once a destination exists, so with nothing set the pin alone still shows the lock state
-  -- which is the thing you need before a destination can be geocoded at all.
-  """
-
   def __init__(self):
     self.nav_status = NavStatus()
 
@@ -66,16 +59,22 @@ class NavIndicatorRenderer:
     if not status.allow_navigation or status.state == NavState.OFFLINE:
       return
 
-    show_flag = status.state != NavState.NO_DESTINATION
-    width = UI_CONFIG.set_speed_width_metric if ui_state.is_metric else UI_CONFIG.set_speed_width_imperial
+    # each icon is individually switchable from Settings > Navigation
+    show_pin = status.show_gps_icon
+    show_flag = status.show_route_icon and status.state != NavState.NO_DESTINATION
+    if not (show_pin or show_flag):
+      return
 
+    width = UI_CONFIG.set_speed_width_metric if ui_state.is_metric else UI_CONFIG.set_speed_width_imperial
     box = rl.Rectangle(rect.x + LEFT_MARGIN, rect.y + TOP_OFFSET, width, BOX_HEIGHT)
     rl.draw_rectangle_rounded(box, 0.35, 10, BACKGROUND)
 
     cy = box.y + BOX_HEIGHT / 2
-    span = ICON_WIDTH * 2 + ICON_GAP if show_flag else ICON_WIDTH
+    span = ICON_WIDTH * (show_pin + show_flag) + ICON_GAP * (show_pin and show_flag)
     x = box.x + (box.width - span) / 2 + ICON_WIDTH / 2
 
-    _draw_pin(x, cy, GOOD if status.gps_locked else BAD)
+    if show_pin:
+      _draw_pin(x, cy, GOOD if status.gps_locked else BAD)
+      x += ICON_WIDTH + ICON_GAP
     if show_flag:
-      _draw_flag(x + ICON_WIDTH + ICON_GAP, cy, GOOD if status.state == NavState.ACTIVE else BAD)
+      _draw_flag(x, cy, GOOD if status.state == NavState.ACTIVE else BAD)

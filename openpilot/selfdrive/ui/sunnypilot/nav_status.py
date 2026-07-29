@@ -24,38 +24,27 @@ class NavState(IntEnum):
   ACTIVE = 5           # a route is loaded
 
 
-# navd retries with backoff, so the second failure is ~10s in. Waiting for it avoids calling a
-# single transient failure a dead loop, while not showing "computing" for a request that is not
-# actually in flight.
+# navd's retry backoff puts the second failure ~10s in
 ROUTE_FAILURE_THRESHOLD = 2
 
-
-# navigationd sets msg.valid from the *instantaneous* localizer fix, so a single dropped
-# sample would otherwise flicker the indicator. It keeps its last position across those
-# gaps, so holding the display briefly matches what the daemon is actually doing.
+# navigationd sets msg.valid from the instantaneous localizer fix but keeps its last position
+# across short dropouts, so the display tolerates the same gaps the daemon does
 GPS_LOST_HOLD_SECONDS = 2.0
-
-# ...and the fix has to hold for this long before it is believed. The UI runs across ignition
-# cycles on a conflated socket, so the first read after a car start can be the last message of
-# the *previous* drive, which reported a lock. Without this, that stale sample latched the
-# hold above and displayed "GPS locked" for two seconds before falling back to waiting.
 GPS_ACQUIRE_CONFIRM_SECONDS = 1.0
 
 DESTINATION_POLL_SECONDS = 1.0
 
 
+# navigationd exposes the two preconditions separately: the message's own valid flag is the
+# localizer fix, and navigationd.valid means a route is loaded. The onroad indicator and the
+# navigation settings panel share this so they cannot disagree.
 class NavStatus:
-  """Shared read-model for "is navigation actually working".
-
-  navigationd exposes the two preconditions separately: the message's own valid flag is the
-  localizer fix, and navigationd.valid means a usable route is loaded. Both the onroad
-  indicator and the navigation settings panel read this so they can't disagree.
-  """
-
   def __init__(self):
     self._params = Params()
     self.destination: str = ""
     self.allow_navigation: bool = False
+    self.show_gps_icon: bool = True
+    self.show_route_icon: bool = True
     self.gps_locked: bool = False
     self.online: bool = False
     self.state: NavState = NavState.OFFLINE
@@ -64,13 +53,8 @@ class NavStatus:
     self._fix_confirmed: bool = False
     self._last_poll_time: float = 0.0
 
+  # deliberately asymmetric: unbroken validity to acquire, a grace period to lose
   def _update_fix(self, now: float, valid: bool) -> None:
-    """Asymmetric: slow to trust a fix, quick to keep one.
-
-    Acquiring needs GPS_ACQUIRE_CONFIRM_SECONDS of unbroken validity, so no single stale or
-    spurious sample can ever show a lock. Once confirmed it survives GPS_LOST_HOLD_SECONDS
-    without one, matching navd, which keeps using its last position across short dropouts.
-    """
     if valid:
       if self._fix_since is None:
         self._fix_since = now
@@ -88,11 +72,12 @@ class NavStatus:
       self._last_poll_time = now
       self.destination = self._params.get("MapboxRoute") or ""
       self.allow_navigation = self._params.get_bool("AllowNavigation")
+      self.show_gps_icon = self._params.get_bool("NavShowGpsIcon")
+      self.show_route_icon = self._params.get_bool("NavShowRouteIcon")
 
     sm = ui_state.sm
-    # sm.valid holds the last received value forever, so it only means anything while navd is
-    # alive *and* the message arrived during this drive. The socket is conflated and the UI
-    # outlives ignition cycles, so without the frame check the first read can be last drive's.
+    # sm.valid holds its last received value indefinitely, and the conflated socket can hand
+    # the UI a message from the previous ignition cycle, so both checks are load-bearing
     running = sm.alive["navigationd"] and sm.recv_frame["navigationd"] >= ui_state.started_frame
     self._update_fix(now, running and sm.valid["navigationd"])
     self.gps_locked = running and self._fix_confirmed
@@ -105,8 +90,7 @@ class NavStatus:
     elif sm["navigationd"].valid:
       self.state = NavState.ACTIVE
     elif sm["navigationd"].routeFailures >= ROUTE_FAILURE_THRESHOLD:
-      # checked before the fix, since navd keeps its last position and so keeps requesting
-      # routes even after the localizer drops out
+      # ranked above the fix check: navd keeps requesting routes after the localizer drops
       self.state = NavState.NO_ROUTE
     elif not self.gps_locked:
       self.state = NavState.WAITING_FOR_GPS
@@ -119,10 +103,9 @@ class NavStatus:
       return tr("Offline")
     return tr("Locked") if self.gps_locked else tr("Waiting for fix...")
 
+  # no connection is the common cause and the one the driver can act on, so it is named
   @property
   def no_route_text(self) -> str:
-    """Route requests are failing. No connection is by far the most common cause and the one
-    the driver can act on, so it is called out rather than lumped in with a generic failure."""
     return tr("No route - device offline") if not self.online else tr("Route request failed")
 
   @property

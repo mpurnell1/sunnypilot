@@ -72,7 +72,6 @@ class TestNavStatus:
     self.status.update()
 
   def acquire_fix(self):
-    """Hold a valid fix long enough for it to be confirmed."""
     self.tick()
     self.tick(GPS_ACQUIRE_CONFIRM_SECONDS)
 
@@ -125,36 +124,31 @@ class TestNavStatus:
     self.acquire_fix()
     assert self.status.gps_locked
 
-    # SubMaster.valid keeps the last received value forever, so alive has to gate it
     self.sm.alive['navigationd'] = False
     self.tick()
     assert not self.status.gps_locked
     assert self.status.state == NavState.OFFLINE
 
   def test_a_never_seen_fix_is_not_reported_as_locked(self):
-    # the hold window is measured against the last fix, which must not default to "just now"
     self.now = 0.5
     self.sm.set(alive=True, gps_valid=False)
     self.tick()
     assert not self.status.gps_locked
 
   def test_a_stale_lock_from_the_previous_drive_is_ignored(self):
-    # the UI outlives ignition cycles on a conflated socket, so the first read after a car start
-    # can be the last message of the previous drive, which reported a lock
     self.sm.set(alive=True, gps_valid=True)
     self.sm.recv_frame['navigationd'] = STARTED_FRAME - 1
     self.tick()
     assert not self.status.gps_locked
     assert self.status.state == NavState.OFFLINE
 
-    # and it must not have latched: fresh data still has to earn the lock
+    # fresh data still has to earn the lock
     self.sm.recv_frame['navigationd'] = STARTED_FRAME + 1
     self.sm.set(alive=True, gps_valid=False)
     self.tick()
     assert not self.status.gps_locked
 
   def test_a_single_valid_sample_does_not_show_a_lock(self):
-    # one sample then silence: previously the 2s hold displayed this as "GPS locked"
     self.sm.set(alive=True, gps_valid=True)
     self.tick()
     assert not self.status.gps_locked, "a fix must be sustained before it is believed"

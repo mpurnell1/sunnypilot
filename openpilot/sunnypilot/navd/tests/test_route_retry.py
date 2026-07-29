@@ -17,10 +17,9 @@ DESTINATION = "740 E Ventura Blvd"
 ROUTE = {'steps': [{}], 'geometry': [{}]}
 
 
+# a route request costs a Mapbox geocoding call and usually a directions call, and
+# _update_params runs at the 3Hz loop rate, so failures must neither latch nor spin
 class TestRouteRetry:
-  """A route request costs a Mapbox geocoding call and usually a directions call, and
-  _update_params runs at the 3Hz loop rate, so failures must neither latch nor spin."""
-
   is_darwin = platform.system() == "Darwin"
 
   @pytest.fixture(autouse=True)
@@ -50,8 +49,8 @@ class TestRouteRetry:
     mocker.patch.object(self.nav.nav_instructions, 'get_current_route',
                         side_effect=lambda: ROUTE if self.route_ready else None)
 
+  # the real loop runs at 3Hz, which is what makes an un-backed-off retry expensive
   def run_for(self, seconds: float) -> None:
-    """Drive _update_params at the real 3Hz loop rate."""
     for _ in range(int(seconds * 3)):
       self.now += 1 / 3
       self.nav._update_params()
@@ -66,15 +65,13 @@ class TestRouteRetry:
   def test_directions_failure_does_not_latch_the_destination(self):
     self.route_ready = False
     self.run_for(1.0)
-    # the pre-fix bug: destination was accepted on geocode alone, so allow_recompute could
-    # never become true again and nav was dead for the rest of the ignition cycle
     assert self.nav.destination is None
     assert self.nav.route is None
 
   def test_failures_are_retried_with_backoff_not_at_loop_rate(self):
     self.route_ready = False
     self.run_for(60.0)
-    # 3Hz over 60s would be 180 requests; backoff caps it at 10s + 20s + 40s
+    # 3Hz over 60s is 180 requests; the backoff schedule allows 10s + 20s + 40s
     assert self.set_destination_calls == 3, f"expected 3 spaced retries, got {self.set_destination_calls}"
 
   def test_backoff_is_capped(self):
@@ -135,8 +132,31 @@ class TestRouteRetry:
     self.run_for(1.0)
     assert self.nav.destination == DESTINATION
 
-    # arrival drives cancel_route_counter to 30, which clears the route
+    # arrival drives cancel_route_counter to 30
     self.nav.cancel_route_counter = 30
     self.run_for(1 / 3)
     assert self.nav.route is None
     assert self.nav.destination is None, "re-entering the same address must be able to start a new route"
+
+  def test_clearing_the_destination_forgets_the_stored_route(self):
+    self.route_ready = True
+    self.run_for(1.0)
+    assert self.nav.route == ROUTE
+
+    Params().put("MapboxSettings", {"navData": {"route": {"steps": [{}]}}}, block=True)
+    Params().put("MapboxRoute", "", block=True)
+    self.run_for(6.0)
+
+    assert self.nav.route is None
+    assert self.nav.destination is None
+    assert Params().get("MapboxSettings") is None, "stored route must not survive a clear"
+
+  def test_arrival_forgets_the_stored_route(self):
+    self.route_ready = True
+    self.run_for(1.0)
+    Params().put("MapboxSettings", {"navData": {"route": {"steps": [{}]}}}, block=True)
+
+    self.nav.cancel_route_counter = 30
+    self.run_for(1 / 3)
+    assert self.nav.route is None
+    assert Params().get("MapboxSettings") is None
