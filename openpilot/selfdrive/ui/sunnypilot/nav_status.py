@@ -35,6 +35,12 @@ ROUTE_FAILURE_THRESHOLD = 2
 # gaps, so holding the display briefly matches what the daemon is actually doing.
 GPS_LOST_HOLD_SECONDS = 2.0
 
+# ...and the fix has to hold for this long before it is believed. The UI runs across ignition
+# cycles on a conflated socket, so the first read after a car start can be the last message of
+# the *previous* drive, which reported a lock. Without this, that stale sample latched the
+# hold above and displayed "GPS locked" for two seconds before falling back to waiting.
+GPS_ACQUIRE_CONFIRM_SECONDS = 1.0
+
 DESTINATION_POLL_SECONDS = 1.0
 
 
@@ -54,7 +60,27 @@ class NavStatus:
     self.online: bool = False
     self.state: NavState = NavState.OFFLINE
     self._last_fix_time: float | None = None
+    self._fix_since: float | None = None
+    self._fix_confirmed: bool = False
     self._last_poll_time: float = 0.0
+
+  def _update_fix(self, now: float, valid: bool) -> None:
+    """Asymmetric: slow to trust a fix, quick to keep one.
+
+    Acquiring needs GPS_ACQUIRE_CONFIRM_SECONDS of unbroken validity, so no single stale or
+    spurious sample can ever show a lock. Once confirmed it survives GPS_LOST_HOLD_SECONDS
+    without one, matching navd, which keeps using its last position across short dropouts.
+    """
+    if valid:
+      if self._fix_since is None:
+        self._fix_since = now
+      self._last_fix_time = now
+      if now - self._fix_since >= GPS_ACQUIRE_CONFIRM_SECONDS:
+        self._fix_confirmed = True
+    else:
+      self._fix_since = None
+      if self._last_fix_time is None or (now - self._last_fix_time) >= GPS_LOST_HOLD_SECONDS:
+        self._fix_confirmed = False
 
   def update(self) -> None:
     now = monotonic()
@@ -64,13 +90,12 @@ class NavStatus:
       self.allow_navigation = self._params.get_bool("AllowNavigation")
 
     sm = ui_state.sm
-    # sm.valid holds the last received value forever, so it only means anything while navd is alive
-    running = sm.alive["navigationd"]
-    if running and sm.valid["navigationd"]:
-      self._last_fix_time = now
-    # None rather than 0.0: a never-seen fix must not look recent just because the clock is small
-    self.gps_locked = (running and self._last_fix_time is not None
-                       and (now - self._last_fix_time) < GPS_LOST_HOLD_SECONDS)
+    # sm.valid holds the last received value forever, so it only means anything while navd is
+    # alive *and* the message arrived during this drive. The socket is conflated and the UI
+    # outlives ignition cycles, so without the frame check the first read can be last drive's.
+    running = sm.alive["navigationd"] and sm.recv_frame["navigationd"] >= ui_state.started_frame
+    self._update_fix(now, running and sm.valid["navigationd"])
+    self.gps_locked = running and self._fix_confirmed
     self.online = sm["deviceState"].networkType != NetworkType.none
 
     if not running:

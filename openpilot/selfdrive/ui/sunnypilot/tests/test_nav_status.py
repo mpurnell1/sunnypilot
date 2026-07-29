@@ -9,10 +9,12 @@ from openpilot.common.params import Params
 
 from openpilot.selfdrive.ui.sunnypilot import nav_status as nav_status_module
 from openpilot.selfdrive.ui.sunnypilot.nav_status import (
-  GPS_LOST_HOLD_SECONDS, ROUTE_FAILURE_THRESHOLD, NavState, NavStatus,
+  GPS_ACQUIRE_CONFIRM_SECONDS, GPS_LOST_HOLD_SECONDS, ROUTE_FAILURE_THRESHOLD, NavState, NavStatus,
 )
 
 NetworkType = log.DeviceState.NetworkType
+
+STARTED_FRAME = 100
 
 
 class MockSM(dict):
@@ -21,6 +23,8 @@ class MockSM(dict):
     self.alive = {'navigationd': False}
     # navigationd publishes msg.valid straight from the localizer, and navigationd.valid once a route loads
     self.valid = {'navigationd': False}
+    # fresher than started_frame: data received during this drive, not the previous one
+    self.recv_frame = {'navigationd': STARTED_FRAME + 1}
     self['navigationd'] = custom.Navigationd.new_message()
     self.set_network(NetworkType.cell4G)
 
@@ -49,13 +53,16 @@ class TestNavStatus:
     # both are module/singleton state, so they are restored in teardown rather than left patched
     self._real_sm = nav_status_module.ui_state.sm
     self._real_monotonic = nav_status_module.monotonic
+    self._real_started_frame = nav_status_module.ui_state.started_frame
     nav_status_module.ui_state.sm = self.sm
+    nav_status_module.ui_state.started_frame = STARTED_FRAME
     nav_status_module.monotonic = lambda: self.now
 
     self.status = NavStatus()
 
   def teardown_method(self, method):
     nav_status_module.ui_state.sm = self._real_sm
+    nav_status_module.ui_state.started_frame = self._real_started_frame
     nav_status_module.monotonic = self._real_monotonic
 
   def tick(self, seconds: float = 0.0):
@@ -63,6 +70,11 @@ class TestNavStatus:
     # the destination is only re-read on a poll interval, so force it when the clock hasn't moved
     self.status._last_poll_time = 0.0
     self.status.update()
+
+  def acquire_fix(self):
+    """Hold a valid fix long enough for it to be confirmed."""
+    self.tick()
+    self.tick(GPS_ACQUIRE_CONFIRM_SECONDS)
 
   def set_destination(self, destination: str):
     self.params.put("MapboxRoute", destination, block=True)
@@ -75,7 +87,7 @@ class TestNavStatus:
 
   def test_no_destination(self):
     self.sm.set(alive=True, gps_valid=True)
-    self.tick()
+    self.acquire_fix()
     assert self.status.state == NavState.NO_DESTINATION
     assert self.status.gps_locked
 
@@ -89,7 +101,7 @@ class TestNavStatus:
   def test_computing_then_active(self):
     self.set_destination("740 E Ventura Blvd")
     self.sm.set(alive=True, gps_valid=True)
-    self.tick()
+    self.acquire_fix()
     assert self.status.state == NavState.COMPUTING
 
     self.sm.set(alive=True, gps_valid=True, route_valid=True)
@@ -98,7 +110,7 @@ class TestNavStatus:
 
   def test_gps_lock_is_held_across_a_dropped_sample(self):
     self.sm.set(alive=True, gps_valid=True)
-    self.tick()
+    self.acquire_fix()
     assert self.status.gps_locked
 
     self.sm.set(alive=True, gps_valid=False)
@@ -110,7 +122,7 @@ class TestNavStatus:
 
   def test_stale_validity_does_not_survive_navd_dying(self):
     self.sm.set(alive=True, gps_valid=True)
-    self.tick()
+    self.acquire_fix()
     assert self.status.gps_locked
 
     # SubMaster.valid keeps the last received value forever, so alive has to gate it
@@ -126,10 +138,35 @@ class TestNavStatus:
     self.tick()
     assert not self.status.gps_locked
 
+  def test_a_stale_lock_from_the_previous_drive_is_ignored(self):
+    # the UI outlives ignition cycles on a conflated socket, so the first read after a car start
+    # can be the last message of the previous drive, which reported a lock
+    self.sm.set(alive=True, gps_valid=True)
+    self.sm.recv_frame['navigationd'] = STARTED_FRAME - 1
+    self.tick()
+    assert not self.status.gps_locked
+    assert self.status.state == NavState.OFFLINE
+
+    # and it must not have latched: fresh data still has to earn the lock
+    self.sm.recv_frame['navigationd'] = STARTED_FRAME + 1
+    self.sm.set(alive=True, gps_valid=False)
+    self.tick()
+    assert not self.status.gps_locked
+
+  def test_a_single_valid_sample_does_not_show_a_lock(self):
+    # one sample then silence: previously the 2s hold displayed this as "GPS locked"
+    self.sm.set(alive=True, gps_valid=True)
+    self.tick()
+    assert not self.status.gps_locked, "a fix must be sustained before it is believed"
+
+    self.sm.set(alive=True, gps_valid=False)
+    self.tick(0.1)
+    assert not self.status.gps_locked
+
   def test_repeated_failures_are_reported_as_no_route(self):
     self.set_destination("740 E Ventura Blvd")
     self.sm.set(alive=True, gps_valid=True, failures=1)
-    self.tick()
+    self.acquire_fix()
     assert self.status.state == NavState.COMPUTING, "one failure is still worth calling 'trying'"
 
     self.sm.set(alive=True, gps_valid=True, failures=ROUTE_FAILURE_THRESHOLD)
@@ -163,7 +200,7 @@ class TestNavStatus:
   def test_a_loaded_route_outranks_stale_failures(self):
     self.set_destination("740 E Ventura Blvd")
     self.sm.set(alive=True, gps_valid=True, route_valid=True, failures=3)
-    self.tick()
+    self.acquire_fix()
     assert self.status.state == NavState.ACTIVE
 
   def test_allow_navigation_is_tracked(self):
