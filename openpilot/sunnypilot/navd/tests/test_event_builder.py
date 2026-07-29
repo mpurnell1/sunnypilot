@@ -7,6 +7,8 @@ See the LICENSE.md file in the root directory for more details.
 from openpilot.cereal import custom
 from openpilot.common.params import Params
 
+from openpilot.common.realtime import DT_MDL
+from openpilot.sunnypilot.navd.constants import BannerMode, NAV_BANNER
 from openpilot.sunnypilot.navd.event_builder import EventBuilder
 
 
@@ -39,7 +41,7 @@ class TestEventBuilder:
     assert events == []
 
   def test_enabled(self):
-    self.params.put("NavEvents", True, block=True)
+    self.params.put("NavBannerMode", BannerMode.ALWAYS, block=True)
     nav_msg = self.create_nav_msg()
     events = self.event_builder.update(MockSM(nav_msg))
     # the first update also sees the route appear, so the one-shot status alert rides along
@@ -52,7 +54,7 @@ class TestEventBuilder:
     }]
     assert events == expected
 
-    self.params.put("NavEvents", False, block=True)
+    self.params.put("NavBannerMode", BannerMode.OFF, block=True)
     self.event_builder._counter = 59
     events = self.event_builder.update(MockSM(nav_msg))
     assert events == []
@@ -134,7 +136,7 @@ class TestEventBuilder:
     assert custom.OnroadEventSP.EventName.navigationRouteActive in names
 
   def test_status_events_tracked_while_disabled(self):
-    self.params.put("NavEvents", False, block=True)
+    self.params.put("NavBannerMode", BannerMode.OFF, block=True)
     self.event_builder._counter = -1
     nav_msg = self.create_nav_msg(valid=True)
     sm = MockSM(nav_msg, gps_valid=True)
@@ -142,9 +144,72 @@ class TestEventBuilder:
     assert self.event_builder.update(sm) == []
     assert self.event_builder._gps_valid and self.event_builder._route_valid
 
-    self.params.put("NavEvents", True, block=True)
+    self.params.put("NavBannerMode", BannerMode.ALWAYS, block=True)
     self.event_builder._counter = 59
     assert self.event_builder.update(sm) == [{
       'name': custom.OnroadEventSP.EventName.navigationBanner,
       'message': 'For 192m, Continue on West Esplanade Drive',
     }]
+
+
+BANNER = custom.OnroadEventSP.EventName.navigationBanner
+
+
+class TestIncrementalBanners:
+  def setup_method(self):
+    self.params = Params()
+    self.params.put("NavBannerMode", BannerMode.INCREMENTAL, block=True)
+    self.event_builder = EventBuilder()
+    self.event_builder._mode = BannerMode.INCREMENTAL
+
+  def msg_at(self, distance, instruction='West Esplanade Drive'):
+    nav_msg = custom.Navigationd.new_message()
+    nav_msg.valid = True
+    nav_msg.upcomingTurn = 'none'
+    # build_navigation_events reads maneuver [1] when there is more than one
+    nav_msg.allManeuvers = [
+      custom.Navigationd.Maneuver.new_message(distance=distance, type='turn', modifier='left', instruction=instruction),
+      custom.Navigationd.Maneuver.new_message(distance=distance, type='turn', modifier='left', instruction=instruction),
+    ]
+    return MockSM(nav_msg, gps_valid=True)
+
+  def banners_while_approaching(self, distance, frames=1):
+    n = 0
+    for _ in range(frames):
+      self.event_builder._counter = 1  # don't let the periodic param re-read fight the fixture
+      n += sum(1 for e in self.event_builder.update(self.msg_at(distance)) if e['name'] == BANNER)
+    return n
+
+  def test_no_banner_before_the_first_milestone(self):
+    assert self.banners_while_approaching(5000.0, frames=20) == 0
+
+  def test_crossing_a_milestone_fires_a_burst_then_stops(self):
+    fired = self.banners_while_approaching(2900.0, frames=200)
+    assert fired == int(NAV_BANNER.SHOW_SECONDS / DT_MDL), "one bounded burst per milestone"
+    # holding the same distance must not re-fire
+    assert self.banners_while_approaching(2900.0, frames=50) == 0
+
+  def test_each_milestone_fires_once(self):
+    for d in (2900.0, 1400.0, 700.0, 300.0, 100.0, 40.0):
+      assert self.banners_while_approaching(d, frames=200) > 0, f"expected a prompt crossing {d}m"
+      assert self.banners_while_approaching(d, frames=20) == 0, f"{d}m re-fired without a new milestone"
+
+  def test_several_milestones_at_once_still_fire_once(self):
+    # a maneuver that appears already close shouldn't dump every prompt at the driver
+    fired = self.banners_while_approaching(40.0, frames=400)
+    assert fired == int(NAV_BANNER.SHOW_SECONDS / DT_MDL)
+
+  def test_a_new_maneuver_restarts_the_sequence(self):
+    assert self.banners_while_approaching(300.0, frames=200) > 0
+    assert self.banners_while_approaching(300.0, frames=20) == 0
+
+    # next turn: distance jumps back up, so the milestones start again
+    n = 0
+    for _ in range(200):
+      self.event_builder._counter = 1
+      n += sum(1 for e in self.event_builder.update(self.msg_at(2900.0, 'Oak Street')) if e['name'] == BANNER)
+    assert n > 0, "a new maneuver must prompt again"
+
+  def test_always_mode_holds_the_banner(self):
+    self.event_builder._mode = BannerMode.ALWAYS
+    assert self.banners_while_approaching(5000.0, frames=20) == 20
