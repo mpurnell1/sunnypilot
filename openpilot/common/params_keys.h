@@ -245,7 +245,10 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"MapboxFavorites", {PERSISTENT | BACKUP, JSON}},
     {"MapboxRecompute", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"NavDesiresAllowed", {PERSISTENT | BACKUP, BOOL, "0"}},
-    {"NavEvents", {PERSISTENT | BACKUP, BOOL, "0"}},
+    // 0 = off, 1 = at distance increments approaching the turn, 2 = always on screen
+    {"NavBannerMode", {PERSISTENT | BACKUP, INT, "1"}},
+    {"NavShowGpsIcon", {PERSISTENT | BACKUP, BOOL, "1"}},
+    {"NavShowRouteIcon", {PERSISTENT | BACKUP, BOOL, "1"}},
 
     // mapd
     {"MapAdvisorySpeedLimit", {CLEAR_ON_ONROAD_TRANSITION, FLOAT}},
