@@ -8,7 +8,7 @@ from openpilot.cereal import custom, messaging
 from openpilot.common.params import Params
 from openpilot.common.realtime import DT_MDL
 
-from openpilot.sunnypilot.navd.constants import NAV_CV
+from openpilot.sunnypilot.navd.constants import BannerMode, NAV_BANNER, NAV_CV
 
 
 class EventBuilder:
@@ -17,12 +17,16 @@ class EventBuilder:
 
   def __init__(self):
     self._counter: int = -1
-    self._enabled: bool = False
+    self._mode: int = BannerMode.OFF
     self._params = Params()
     self._gps_valid: bool = False
     self._route_valid: bool = False
     self._gps_frames: int = 0
     self._route_frames: int = 0
+    self._banner_key: tuple | None = None
+    self._banner_distance: float = 0.0
+    self._banner_crossed: int = 0
+    self._banner_frames: int = 0
 
   @staticmethod
   def _build_banner_message(metric: bool, nav_msg):
@@ -81,13 +85,6 @@ class EventBuilder:
     }]
 
   def build_status_events(self, sm: messaging.SubMaster) -> list:
-    """One-shot alerts for the two preconditions navigation silently waits on.
-
-    navigationd publishes msg.valid straight from the localizer, and sets navigationd.valid
-    only once a usable route is loaded. Until the localizer has a position navigationd does
-    not even read the destination param, so surfacing both transitions makes it obvious
-    whether nav is actually working or still waiting on a GPS fix.
-    """
     gps_valid = bool(sm.valid.get('navigationd', False))
     route_valid = bool(sm['navigationd'].valid)
 
@@ -112,18 +109,48 @@ class EventBuilder:
       })
     return events
 
+  # each maneuver walks down THRESHOLDS_M, firing once per threshold crossed however many it
+  # passes in one step, so the screen stays free between prompts
+  def _banner_due(self, nav_msg) -> bool:
+    if not len(nav_msg.allManeuvers):
+      return False
+
+    m = nav_msg.allManeuvers[1] if len(nav_msg.allManeuvers) > 1 else nav_msg.allManeuvers[0]
+    distance = m.distance
+    key = (m.instruction, m.type, m.modifier)
+
+    # distance jumping up means the previous maneuver was passed, even if the text repeats
+    if key != self._banner_key or distance > self._banner_distance + NAV_BANNER.NEW_MANEUVER_JUMP_M:
+      self._banner_key = key
+      self._banner_crossed = 0
+      self._banner_frames = 0
+    self._banner_distance = distance
+
+    crossed = sum(1 for t in NAV_BANNER.THRESHOLDS_M if distance <= t)
+    if crossed > self._banner_crossed:
+      self._banner_crossed = crossed
+      self._banner_frames = int(NAV_BANNER.SHOW_SECONDS / DT_MDL)
+
+    if self._banner_frames > 0:
+      self._banner_frames -= 1
+      return True
+    return False
+
   def update(self, sm: messaging.SubMaster) -> list:
     self._counter += 1
     if self._counter % int(3.0 / DT_MDL) == 0:
-      self._enabled = self._params.get("NavEvents", return_default=True)
+      self._mode = int(self._params.get("NavBannerMode", return_default=True))
 
     # tracked even while disabled, so re-enabling doesn't replay a stale transition
     status_events = self.build_status_events(sm)
 
-    if not self._enabled:
+    if self._mode == BannerMode.OFF:
       # drop any in-flight one-shot rather than banking it until the toggle comes back on
       self._gps_frames = 0
       self._route_frames = 0
       return []
+
+    if self._mode == BannerMode.INCREMENTAL and not self._banner_due(sm['navigationd']):
+      return status_events
 
     return status_events + self.build_navigation_events(sm)

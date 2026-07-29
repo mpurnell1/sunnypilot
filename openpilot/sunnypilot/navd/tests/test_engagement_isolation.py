@@ -30,8 +30,8 @@ def selfdrived():
 
 
 def test_navd_crash_does_not_raise_process_not_running(selfdrived):
-  # processNotRunning is NO_ENTRY + SOFT_DISABLE, and navigationd is only_onroad so manager
-  # marks it shouldBeRunning; without this exemption a navd crash would refuse engagement
+  # navigationd is only_onroad, so manager marks it shouldBeRunning and a crash lands it in
+  # not_running; processNotRunning is NO_ENTRY + SOFT_DISABLE
   assert 'navigationd' in selfdrived.ignored_processes
   assert not ({'navigationd'} - selfdrived.ignored_processes)
 
