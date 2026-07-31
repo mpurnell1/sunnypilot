@@ -12,17 +12,10 @@ from openpilot.sunnypilot.navd.constants import BannerMode, NAV_BANNER, NAV_CV
 
 
 class EventBuilder:
-  # a one-shot alert is re-added for a moment so a single dropped frame can't swallow it
-  STATUS_ALERT_FRAMES = int(0.5 / DT_MDL)
-
   def __init__(self):
     self._counter: int = -1
     self._mode: int = BannerMode.OFF
     self._params = Params()
-    self._gps_valid: bool = False
-    self._route_valid: bool = False
-    self._gps_frames: int = 0
-    self._route_frames: int = 0
     self._banner_key: tuple | None = None
     self._banner_distance: float = 0.0
     self._banner_crossed: int = 0
@@ -42,11 +35,14 @@ class EventBuilder:
       if m.distance < NAV_CV.QUARTER_MILE:
         dist = f'{round((m.distance * NAV_CV.METERS_TO_FEET) / 50) * 50}ft,'
 
-    if m.type == 'arrive' or m.type == 'depart' or 'Your destination' in banner:
+    if m.type == 'depart':
       base_msg = banner
+    elif m.type == 'arrive' or 'Your destination' in banner:
+      # far from the destination the raw text reads as "you have arrived", so keep the distance on it
+      base_msg = banner if m.distance < NAV_CV.SHORT_DISTANCE_METERS else f'In {dist} {banner}'
     elif banner.startswith(('Continue', 'Drive', 'Head')):
       base_msg = f'For {dist} {banner}'
-    elif 'Turn' in banner or 'Take' in banner or 'Make' in banner:
+    elif 'Turn' in banner or 'Take' in banner or 'Make' in banner or banner.startswith(('Bear', 'Keep', 'Merge', 'Exit')):
       base_msg = f'In {dist} {banner}'
     else:
       base_msg = f'For {dist} Continue on {banner}'
@@ -84,31 +80,6 @@ class EventBuilder:
       'message': banner_message,
     }]
 
-  def build_status_events(self, sm: messaging.SubMaster) -> list:
-    gps_valid = bool(sm.valid.get('navigationd', False))
-    route_valid = bool(sm['navigationd'].valid)
-
-    if gps_valid and not self._gps_valid:
-      self._gps_frames = self.STATUS_ALERT_FRAMES
-    if route_valid and not self._route_valid:
-      self._route_frames = self.STATUS_ALERT_FRAMES
-    self._gps_valid, self._route_valid = gps_valid, route_valid
-
-    events = []
-    if self._gps_frames > 0:
-      self._gps_frames -= 1
-      events.append({
-        'name': custom.OnroadEventSP.EventName.navigationGpsAcquired,
-        'message': 'GPS location acquired',
-      })
-    if self._route_frames > 0:
-      self._route_frames -= 1
-      events.append({
-        'name': custom.OnroadEventSP.EventName.navigationRouteActive,
-        'message': 'Navigation active',
-      })
-    return events
-
   # each maneuver walks down THRESHOLDS_M, firing once per threshold crossed however many it
   # passes in one step, so the screen stays free between prompts
   def _banner_due(self, nav_msg) -> bool:
@@ -141,16 +112,10 @@ class EventBuilder:
     if self._counter % int(3.0 / DT_MDL) == 0:
       self._mode = int(self._params.get("NavBannerMode", return_default=True))
 
-    # tracked even while disabled, so re-enabling doesn't replay a stale transition
-    status_events = self.build_status_events(sm)
-
     if self._mode == BannerMode.OFF:
-      # drop any in-flight one-shot rather than banking it until the toggle comes back on
-      self._gps_frames = 0
-      self._route_frames = 0
       return []
 
     if self._mode == BannerMode.INCREMENTAL and not self._banner_due(sm['navigationd']):
-      return status_events
+      return []
 
-    return status_events + self.build_navigation_events(sm)
+    return self.build_navigation_events(sm)

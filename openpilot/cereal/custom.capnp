@@ -361,8 +361,6 @@ struct OnroadEventSP @0xda96579883444c35 {
     laneChangeRoadEdge @24;
     bigModelReady @25;
     navigationBanner @26;
-    navigationGpsAcquired @27;
-    navigationRouteActive @28;
   }
 }
 
