@@ -71,16 +71,19 @@ class NavigationLayout(Widget):
                               NAV_BANNER_BUTTONS, param="NavBannerMode"),
     ]
 
+    # -1: nothing highlighted until the destination actually matches a saved place
+    self._favorites_item = multiple_button_item_sp(tr("Favorites"), tr("Select a saved destination."), [tr("Home"), tr("Work"), tr("Favorites")], -1,
+                                                   callback=self._favorites_callback)
+
     items = [
-      self._gps_status_item, self._route_status_item,
       self._mapbox_token_item, self._mapbox_route_item,
       button_item(tr("Clear Current Route"), tr("Clear"), "", self._clear_route),
-      multiple_button_item_sp(tr("Favorites"), tr("Select a saved destination."), [tr("Home"), tr("Work"), tr("Favorites")], 0,
-                              callback=self._favorites_callback),
+      self._favorites_item,
       *self._vis_items[:4],
       toggle_item_sp(tr("Allow Navigation"), tr("Enable the navigation service."), callback=self._update_navigation_visibility,
                      param="AllowNavigation"),
       *self._vis_items[4:],
+      self._gps_status_item, self._route_status_item,
     ]
     self._scroller = Scroller(items, line_separator=True, spacing=0)
 
@@ -171,6 +174,20 @@ class NavigationLayout(Widget):
     self._mapbox_token_item.action_item.set_value(self._params.get("MapboxToken") or tr("Mapbox token not set"))
     self._mapbox_route_item.action_item.set_value(self._params.get("MapboxRoute") or tr("Destination not set"))
     self._update_navigation_visibility(self._params.get_bool("AllowNavigation"))
+
+    # the highlight mirrors the actual destination rather than the last tap, so a tap that
+    # saved nothing, or a destination set/cleared elsewhere, can't leave it stale
+    route = self._params.get("MapboxRoute")
+    favs = self._favs
+    if route and route == favs.get("home"):
+      selected = 0
+    elif route and route == favs.get("work"):
+      selected = 1
+    elif route and route in (favs.get("favorites") or {}).values():
+      selected = 2
+    else:
+      selected = -1
+    self._favorites_item.action_item.selected_button = selected
 
   def _render(self, rect):
     self._scroller.render(rect)
