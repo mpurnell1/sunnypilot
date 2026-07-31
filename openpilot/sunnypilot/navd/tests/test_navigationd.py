@@ -48,6 +48,32 @@ class TestNavigationd:
     assert not progress  # no route was actually set
     assert isinstance(nav_data, dict)
 
+  def test_final_step_blocks_reroute(self):
+    nav = Navigationd()
+    nav.last_position = Coordinate(latitude=37.0, longitude=128.0)
+    nav.mapbox.set_destination = lambda *args, **kwargs: ({}, False)
+    nav.frame = 0  # keep clear of the periodic param re-read so the fixture state holds
+    nav.route = {'steps': []}
+    nav.destination = "123 Main St"
+    nav.new_destination = "123 Main St"
+    nav.attempted_destination = "123 Main St"
+    nav.recompute_allowed = True
+    nav.reroute_counter = 10
+
+    nav.final_step = True
+    nav._update_params()
+    assert not nav.allow_recompute, "final step must not trigger a reroute"
+
+    nav.final_step = False
+    nav._update_params()
+    assert nav.allow_recompute
+
+  def test_drop_route_clears_final_step(self):
+    nav = Navigationd()
+    nav.final_step = True
+    nav._drop_route()
+    assert not nav.final_step
+
   def test_build_navigation_message(self):
     if self.is_darwin:
       nav = Navigationd()
