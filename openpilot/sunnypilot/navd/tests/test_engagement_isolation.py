@@ -18,8 +18,6 @@ EventNameSP = custom.OnroadEventSP.EventName
 # gate engaging openpilot. Every escape hatch it relies on is pinned here.
 NAV_EVENTS = [
   EventNameSP.navigationBanner,
-  EventNameSP.navigationGpsAcquired,
-  EventNameSP.navigationRouteActive,
 ]
 BLOCKING = (ET.NO_ENTRY, ET.SOFT_DISABLE, ET.IMMEDIATE_DISABLE, ET.USER_DISABLE)
 

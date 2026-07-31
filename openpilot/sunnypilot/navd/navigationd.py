@@ -42,6 +42,7 @@ class Navigationd:
     self.attempted_destination: str | None = None
     self.failed_attempts: int = 0
     self.next_attempt_time: float = 0.0
+    self.final_step: bool = False
 
     self.frame: int = -1
     self.last_position: Coordinate | None = None
@@ -56,6 +57,7 @@ class Navigationd:
     self.destination = None
     self.cancel_route_counter = 0
     self.reroute_counter = 0
+    self.final_step = False
 
   def _reset_retry(self) -> None:
     self.failed_attempts = 0
@@ -89,7 +91,7 @@ class Navigationd:
       # a destination is only accepted once a route actually came back, so a directions failure
       # stays pending instead of latching a destination that can never be recomputed
       pending = bool(self.new_destination) and self.new_destination != self.destination
-      rerouting = bool(self.recompute_allowed and self.reroute_counter > 9 and self.route)
+      rerouting = bool(self.recompute_allowed and not self.final_step and self.reroute_counter > 9 and self.route)
       self.allow_recompute: bool = (pending or rerouting) and monotonic() >= self.next_attempt_time
 
       if self.allow_recompute:
@@ -157,10 +159,11 @@ class Navigationd:
           self.cancel_route_counter = 0
           self.reroute_counter = 0
 
-        # Don't recompute in last segment to prevent reroute loops
-        if progress['current_step_idx'] == len(self.route['steps']) - 1:
-          self.recompute_allowed = False
-          self.allow_navigation = False
+        # recomputing from inside the final step causes reroute loops at the destination, so
+        # gate it with a dedicated latch. The param-backed allow_navigation/recompute_allowed
+        # flags can't hold this state: they flap back on at the next 5s param re-read, which
+        # made banners and arrival cleanup fire only on the iterations where the flap was off
+        self.final_step = progress['current_step_idx'] == len(self.route['steps']) - 1
     else:
       banner_instructions = ''
       progress = None
