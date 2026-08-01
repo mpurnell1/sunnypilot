@@ -470,6 +470,8 @@ struct Navigationd @0xcb9fd56c7057593a {
   timeRemaining @8 :Float32;      # seconds to the destination, from Mapbox step durations
   # populated only while NavLaneGuidance is enabled and a lane-bearing banner is active
   lanes @9 :List(LaneGuidance);
+  # 'left'/'right' while NavLaneGuidance is in Assist mode and the route wants a lane change soon
+  laneChangeDirection @10 :Text;
 
   struct Maneuver {
     distance @0 :Float32;

@@ -251,7 +251,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"NavShowRouteIcon", {PERSISTENT | BACKUP, BOOL, "1"}},
     // bitmask: 1 = next-turn card, 2 = route summary pill; 0 off, 3 both
     {"NavHudMode", {PERSISTENT | BACKUP, INT, "3"}},
-    {"NavLaneGuidance", {PERSISTENT | BACKUP, BOOL, "0"}},
+    // 0 = off, 1 = display lanes on the turn card, 2 = also confirm signaled lane changes
+    {"NavLaneGuidance", {PERSISTENT | BACKUP, INT, "0"}},
 
     // mapd
     {"MapAdvisorySpeedLimit", {CLEAR_ON_ONROAD_TRANSITION, FLOAT}},
