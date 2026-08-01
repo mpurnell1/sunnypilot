@@ -465,6 +465,22 @@ class TestAthenadMethods(OpenpilotTestCase):
     keys = dispatcher["getGithubUsername"]()
     assert keys == self.default_params["GithubUsername"]
 
+  def test_set_nav_destination_pin_wins_over_place_name(self):
+    resp = dispatcher["setNavDestination"](latitude=32.7767, longitude=-96.797, place_name="Taco Bell")
+    assert resp == {"success": 1}
+    assert self.params.get("MapboxRoute") == "-96.797,32.7767"
+
+  def test_set_nav_destination_place_name_only(self):
+    resp = dispatcher["setNavDestination"](place_name="Taco Bell")
+    assert resp == {"success": 1}
+    assert self.params.get("MapboxRoute") == "Taco Bell"
+
+  def test_set_nav_destination_empty(self):
+    self.params.put("MapboxRoute", "unchanged", block=True)
+    resp = dispatcher["setNavDestination"]()
+    assert resp == {"success": 0}
+    assert self.params.get("MapboxRoute") == "unchanged"
+
   def test_get_version(self):
     resp = dispatcher["getVersion"]()
     keys = ["version", "remote", "branch", "commit", "commit_date"]
