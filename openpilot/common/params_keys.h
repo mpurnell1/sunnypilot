@@ -264,7 +264,9 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"NavBannerMode", {PERSISTENT | BACKUP, INT, "1"}},
     {"NavShowGpsIcon", {PERSISTENT | BACKUP, BOOL, "1"}},
     {"NavShowRouteIcon", {PERSISTENT | BACKUP, BOOL, "1"}},
-    {"NavShowTurnIndicator", {PERSISTENT | BACKUP, BOOL, "1"}},
+    // bitmask: 1 = next-turn card, 2 = route summary pill; 0 off, 3 both
+    {"NavHudMode", {PERSISTENT | BACKUP, INT, "3"}},
+    {"NavLaneGuidance", {PERSISTENT | BACKUP, BOOL, "0"}},
 
     // mapd
     {"MapAdvisorySpeedLimit", {CLEAR_ON_ONROAD_TRANSITION, FLOAT}},
