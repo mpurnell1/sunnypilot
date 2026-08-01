@@ -11,6 +11,7 @@ from openpilot.selfdrive.ui.mici.onroad.torque_bar import TorqueBar
 from openpilot.selfdrive.ui.sunnypilot.onroad.developer_ui import DeveloperUiRenderer, DeveloperUiState, get_bottom_dev_ui_offset
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import NavIndicatorRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.road_name import RoadNameRenderer
+from openpilot.selfdrive.ui.sunnypilot.onroad.route_summary import RouteSummaryRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.rocket_fuel import RocketFuel
 from openpilot.selfdrive.ui.sunnypilot.onroad.speed_limit import SpeedLimitRenderer
 from openpilot.selfdrive.ui.sunnypilot.onroad.smart_cruise_control import SmartCruiseControlRenderer
@@ -32,6 +33,7 @@ class HudRendererSP(HudRenderer):
     self.developer_ui = DeveloperUiRenderer()
     self.nav_indicator = NavIndicatorRenderer()
     self.road_name_renderer = RoadNameRenderer()
+    self.route_summary = RouteSummaryRenderer()
     self.rocket_fuel = RocketFuel()
     self.speed_limit_renderer = SpeedLimitRenderer()
     self.smart_cruise_control_renderer = SmartCruiseControlRenderer()
@@ -58,6 +60,7 @@ class HudRendererSP(HudRenderer):
     super()._update_state()
     self.nav_indicator.update()
     self.road_name_renderer.update()
+    self.route_summary.update()
     self.speed_limit_renderer.update()
     self.smart_cruise_control_renderer.update()
     self.turn_signal_controller.update()
@@ -142,6 +145,7 @@ class HudRendererSP(HudRenderer):
 
     self.developer_ui.render(rect)
     self.nav_indicator.render(rect)
+    self.route_summary.render(rect)
     self.road_name_renderer.render(rect)
     self.speed_limit_renderer.render(rect)
     self.smart_cruise_control_renderer.render(rect)

@@ -25,8 +25,13 @@ BOX_GAP = 20
 ICON_WIDTH = 44
 ICON_GAP = 26
 
+# double height so the maneuver icon and the distance stack instead of sharing a row the
+# column is too narrow for
+TURN_BOX_HEIGHT = BOX_HEIGHT * 2
+TURN_ICON_WIDTH = 64
+TURN_ICON_CY = 60
+TURN_TEXT_TOP = 108
 TURN_FONT_SIZE = 36
-TURN_TEXT_GAP = 14
 
 BACKGROUND = rl.Color(0, 0, 0, 140)
 GOOD = rl.Color(0x2f, 0xc4, 0x6e, 0xff)
@@ -82,20 +87,20 @@ def _draw_pin(cx: float, cy: float, color: rl.Color) -> None:
   rl.draw_circle(int(cx), int(head_y), radius * 0.38, BACKGROUND)
 
 
-def _draw_flag(cx: float, cy: float, color: rl.Color) -> None:
-  pole_w = max(3.0, ICON_WIDTH * 0.12)
-  height = ICON_WIDTH * 1.05
-  x = cx - ICON_WIDTH / 2
+def _draw_flag(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH) -> None:
+  pole_w = max(3.0, size * 0.12)
+  height = size * 1.05
+  x = cx - size / 2
   top = cy - height / 2
 
   rl.draw_rectangle_rec(rl.Rectangle(x, top, pole_w, height), color)
-  rl.draw_rectangle_rec(rl.Rectangle(x + pole_w, top, ICON_WIDTH - pole_w, height * 0.45), color)
+  rl.draw_rectangle_rec(rl.Rectangle(x + pole_w, top, size - pole_w, height * 0.45), color)
 
 
-def _draw_arrow(cx: float, cy: float, angle_deg: float, color: rl.Color) -> None:
-  half = ICON_WIDTH / 2
-  head_radius = ICON_WIDTH * 0.36
-  shaft_w = ICON_WIDTH * 0.22
+def _draw_arrow(cx: float, cy: float, angle_deg: float, color: rl.Color, size: float = ICON_WIDTH) -> None:
+  half = size / 2
+  head_radius = size * 0.36
+  shaft_w = size * 0.22
   # screen y grows downward, so straight ahead is (0, -1)
   rad = radians(angle_deg)
   dx, dy = sin(rad), -cos(rad)
@@ -103,7 +108,7 @@ def _draw_arrow(cx: float, cy: float, angle_deg: float, color: rl.Color) -> None
   tail = rl.Vector2(cx - dx * half, cy - dy * half)
   # draw_rectangle_pro rotates about the origin point placed at rec.x/rec.y; the rectangle's
   # local +y axis points down unrotated, so angle + 180 sends it along the travel direction
-  shaft_len = ICON_WIDTH - head_radius
+  shaft_len = size - head_radius
   rl.draw_rectangle_pro(rl.Rectangle(tail.x, tail.y, shaft_w, shaft_len),
                         rl.Vector2(shaft_w / 2, 0), angle_deg + 180, color)
 
@@ -112,33 +117,33 @@ def _draw_arrow(cx: float, cy: float, angle_deg: float, color: rl.Color) -> None
   rl.draw_poly(head_center, 3, head_radius, angle_deg - 90, color)
 
 
-def _draw_uturn(cx: float, cy: float, color: rl.Color) -> None:
-  radius = ICON_WIDTH * 0.30
-  half_stroke = ICON_WIDTH * 0.11
-  arc_cy = cy - ICON_WIDTH * 0.12
+def _draw_uturn(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH) -> None:
+  radius = size * 0.30
+  half_stroke = size * 0.11
+  arc_cy = cy - size * 0.12
   # ring angles run clockwise from +x in screen coords, so 180..360 is the upper half
   rl.draw_ring(rl.Vector2(cx, arc_cy), radius - half_stroke, radius + half_stroke, 180, 360, 24, color)
 
   # approach leg up the right side, exit leg down the left ending in the arrowhead
-  leg_len = ICON_WIDTH * 0.46
+  leg_len = size * 0.46
   rl.draw_rectangle_rec(rl.Rectangle(cx + radius - half_stroke, arc_cy, 2 * half_stroke, leg_len), color)
   rl.draw_rectangle_rec(rl.Rectangle(cx - radius - half_stroke, arc_cy, 2 * half_stroke, leg_len * 0.5), color)
-  head_radius = ICON_WIDTH * 0.24
+  head_radius = size * 0.24
   rl.draw_poly(rl.Vector2(cx - radius, arc_cy + leg_len * 0.5 + head_radius * 0.4), 3, head_radius, 90, color)
 
 
-def _draw_roundabout(cx: float, cy: float, color: rl.Color) -> None:
-  radius = ICON_WIDTH * 0.28
-  half_stroke = ICON_WIDTH * 0.10
-  ring_cy = cy + ICON_WIDTH * 0.08
+def _draw_roundabout(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH) -> None:
+  radius = size * 0.28
+  half_stroke = size * 0.10
+  ring_cy = cy + size * 0.08
   rl.draw_ring(rl.Vector2(cx, ring_cy), radius - half_stroke, radius + half_stroke, 0, 360, 32, color)
 
   # generic glyph: enter from below, arrow out the top; banner text carries the exact exit
-  stem_h = ICON_WIDTH * 0.20
+  stem_h = size * 0.20
   rl.draw_rectangle_rec(rl.Rectangle(cx - half_stroke, ring_cy + radius - half_stroke, 2 * half_stroke, stem_h), color)
-  exit_h = ICON_WIDTH * 0.14
+  exit_h = size * 0.14
   rl.draw_rectangle_rec(rl.Rectangle(cx - half_stroke, ring_cy - radius - exit_h, 2 * half_stroke, exit_h + half_stroke), color)
-  head_radius = ICON_WIDTH * 0.22
+  head_radius = size * 0.22
   rl.draw_poly(rl.Vector2(cx, ring_cy - radius - exit_h - head_radius * 0.4), 3, head_radius, -90, color)
 
 
@@ -168,25 +173,26 @@ class NavIndicatorRenderer:
 
   def _render_turn(self, box: rl.Rectangle, maneuver: tuple[str, str, float]) -> None:
     maneuver_type, modifier, distance = maneuver
-    rl.draw_rectangle_rounded(box, 0.35, 10, BACKGROUND)
+    # roundness is a fraction of the box's short side, so halve it to keep the same corner
+    # radius as the single-height boxes
+    rl.draw_rectangle_rounded(box, 0.175, 10, BACKGROUND)
+
+    # icon above, distance below, both centered
+    icon_cx = box.x + box.width / 2
+    icon_cy = box.y + TURN_ICON_CY
+
+    if maneuver_type == 'arrive':
+      _draw_flag(icon_cx, icon_cy, TURN_COLOR, TURN_ICON_WIDTH)
+    elif any(t in maneuver_type for t in ROUNDABOUT_TYPES):
+      _draw_roundabout(icon_cx, icon_cy, TURN_COLOR, TURN_ICON_WIDTH)
+    elif modifier == 'uturn':
+      _draw_uturn(icon_cx, icon_cy, TURN_COLOR, TURN_ICON_WIDTH)
+    else:
+      _draw_arrow(icon_cx, icon_cy, ARROW_ANGLES.get(modifier, 0), TURN_COLOR, TURN_ICON_WIDTH)
 
     text = format_distance(distance, ui_state.is_metric)
     text_size = measure_text_cached(self._font, text, TURN_FONT_SIZE)
-
-    cy = box.y + BOX_HEIGHT / 2
-    span = ICON_WIDTH + TURN_TEXT_GAP + text_size.x
-    icon_cx = box.x + (box.width - span) / 2 + ICON_WIDTH / 2
-
-    if maneuver_type == 'arrive':
-      _draw_flag(icon_cx, cy, TURN_COLOR)
-    elif any(t in maneuver_type for t in ROUNDABOUT_TYPES):
-      _draw_roundabout(icon_cx, cy, TURN_COLOR)
-    elif modifier == 'uturn':
-      _draw_uturn(icon_cx, cy, TURN_COLOR)
-    else:
-      _draw_arrow(icon_cx, cy, ARROW_ANGLES.get(modifier, 0), TURN_COLOR)
-
-    origin = rl.Vector2(icon_cx + ICON_WIDTH / 2 + TURN_TEXT_GAP, cy - text_size.y / 2)
+    origin = rl.Vector2(icon_cx - text_size.x / 2, box.y + TURN_TEXT_TOP)
     rl.draw_text_ex(self._font, text, origin, TURN_FONT_SIZE, 0, TURN_COLOR)
 
   def render(self, rect: rl.Rectangle) -> None:
@@ -215,4 +221,4 @@ class NavIndicatorRenderer:
       top += BOX_HEIGHT + BOX_GAP
 
     if maneuver is not None:
-      self._render_turn(rl.Rectangle(rect.x + LEFT_MARGIN, top, width, BOX_HEIGHT), maneuver)
+      self._render_turn(rl.Rectangle(rect.x + LEFT_MARGIN, top, width, TURN_BOX_HEIGHT), maneuver)

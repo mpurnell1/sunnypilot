@@ -47,6 +47,13 @@ class NavigationInstructions:
 
     distance_to_end_of_step = max(0, current_step['distance'] - (closest_cumulative - current_step['cumulative_distance']))
 
+    effective_step_idx = current_step_idx if current_step_idx >= 0 else 0
+    distance_remaining = max(0.0, route['total_distance'] - closest_cumulative)
+    # remaining time scales the current step's duration by how much of it is left, then adds
+    # the untouched steps; Mapbox durations carry no live traffic, so this is a floor estimate
+    step_fraction = min(1.0, distance_to_end_of_step / current_step['distance']) if current_step['distance'] > 0 else 0.0
+    time_remaining = current_step['duration'] * step_fraction + sum(step['duration'] for step in route['steps'][effective_step_idx + 1:])
+
     all_maneuvers: list = []
     max_maneuvers = 3
     for idx in range(current_step_idx, min(current_step_idx + max_maneuvers, len(route['steps']))):
@@ -65,6 +72,8 @@ class NavigationInstructions:
       'all_maneuvers': all_maneuvers,
       'current_step_idx': current_step_idx,
       'distance_to_end_of_step': distance_to_end_of_step,
+      'distance_remaining': distance_remaining,
+      'time_remaining': time_remaining,
     }
 
   def get_current_route(self):
