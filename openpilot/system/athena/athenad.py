@@ -377,14 +377,18 @@ def getVersion() -> dict[str, str]:
 
 
 @dispatcher.add_method
-def setNavDestination(latitude: int = 0, longitude: int = 0, place_name: str | None = None, place_details: str | None = None) -> dict[str, int]:
-  destination = {
-    "latitude": latitude,
-    "longitude": longitude,
-    "place_name": place_name,
-    "place_details": place_details,
-  }
-  Params().put("NavDestination", json.dumps(destination))
+def setNavDestination(latitude: float = 0, longitude: float = 0, place_name: str | None = None, place_details: str | None = None) -> dict[str, int]:
+  # navigationd geocodes whatever text lands in MapboxRoute, and Mapbox resolves a "lon,lat"
+  # query to that exact point — so an explicit pin from the caller wins over a text search,
+  # which could match a different location than the one picked on the phone
+  if latitude or longitude:
+    destination = f"{longitude},{latitude}"
+  elif place_name:
+    destination = place_name
+  else:
+    return {"success": 0}
+
+  Params().put("MapboxRoute", destination)
 
   return {"success": 1}
 
