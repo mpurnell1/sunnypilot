@@ -46,7 +46,7 @@ class NavStatus:
     self.show_gps_icon: bool = True
     self.show_route_icon: bool = True
     self.nav_hud_mode: int = 3
-    self.lane_guidance: bool = False
+    self.lane_guidance: int = 0  # 0 off, 1 display, 2 display + assist; the card shows lanes when >= 1
     self.gps_locked: bool = False
     self.online: bool = False
     self.state: NavState = NavState.OFFLINE
@@ -77,7 +77,7 @@ class NavStatus:
       self.show_gps_icon = self._params.get_bool("NavShowGpsIcon")
       self.show_route_icon = self._params.get_bool("NavShowRouteIcon")
       self.nav_hud_mode = self._params.get("NavHudMode", return_default=True)
-      self.lane_guidance = self._params.get_bool("NavLaneGuidance")
+      self.lane_guidance = self._params.get("NavLaneGuidance", return_default=True)
 
     sm = ui_state.sm
     # sm.valid holds its last received value indefinitely, and the conflated socket can hand

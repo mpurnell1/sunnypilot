@@ -12,6 +12,12 @@ class BannerMode:
   ALWAYS = 2
 
 
+# NavLaneGuidance modes
+LANE_GUIDANCE_OFF = 0
+LANE_GUIDANCE_DISPLAY = 1
+LANE_GUIDANCE_ASSIST = 2
+
+
 class NAV_BANNER:
   """Incremental banners: show near each distance milestone rather than continuously.
 
