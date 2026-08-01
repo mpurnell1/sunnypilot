@@ -130,10 +130,12 @@ def _draw_uturn(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH)
   # ring angles run clockwise from +x in screen coords, so 180..360 is the upper half
   rl.draw_ring(rl.Vector2(cx, arc_cy), radius - half_stroke, radius + half_stroke, 180, 360, 24, color)
 
-  # approach leg up the right side, exit leg down the left ending in the arrowhead
+  # approach leg up the right side, exit leg down the left ending in the arrowhead. The legs
+  # bite half a stroke into the arc ends — flush edges rasterize with a hairline seam
+  overlap = half_stroke * 0.5
   leg_len = size * 0.46
-  rl.draw_rectangle_rec(rl.Rectangle(cx + radius - half_stroke, arc_cy, 2 * half_stroke, leg_len), color)
-  rl.draw_rectangle_rec(rl.Rectangle(cx - radius - half_stroke, arc_cy, 2 * half_stroke, leg_len * 0.5), color)
+  rl.draw_rectangle_rec(rl.Rectangle(cx + radius - half_stroke, arc_cy - overlap, 2 * half_stroke, leg_len + overlap), color)
+  rl.draw_rectangle_rec(rl.Rectangle(cx - radius - half_stroke, arc_cy - overlap, 2 * half_stroke, leg_len * 0.5 + overlap), color)
   head_radius = size * 0.24
   rl.draw_poly(rl.Vector2(cx - radius, arc_cy + leg_len * 0.5 + head_radius * 0.4), 3, head_radius, 90, color)
 
