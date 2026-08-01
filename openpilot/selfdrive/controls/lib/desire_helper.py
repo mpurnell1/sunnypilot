@@ -71,11 +71,16 @@ class DesireHelper:
 
         self.alc.update_lane_change(blindspot_detected, carstate.brakePressed)
 
+        # the route asking for this exact lane change stands in for the wheel nudge; the
+        # blinker, speed, and blindspot gates above and below are untouched
+        nav_confirmed = self.navigation_desires.lane_change_hint() == \
+          ('left' if self.lane_change_direction == LaneChangeDirection.left else 'right')
+
         if not one_blinker or below_lane_change_speed:
           self.lane_change_state = LaneChangeState.off
           self.lane_change_direction = LaneChangeDirection.none
           self.lane_change_timer = 0.0
-        elif (torque_applied or self.alc.auto_lane_change_allowed) and not blindspot_detected:
+        elif (torque_applied or self.alc.auto_lane_change_allowed or nav_confirmed) and not blindspot_detected:
           self.lane_change_state = LaneChangeState.laneChangeStarting
           self.lane_change_timer = 0.0
 

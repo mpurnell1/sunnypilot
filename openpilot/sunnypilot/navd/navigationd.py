@@ -15,7 +15,8 @@ from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
 
 from openpilot.sunnypilot.navd.constants import NAV_CV, NAV_RETRY
-from openpilot.sunnypilot.navd.helpers import Coordinate, parse_banner_instructions
+from openpilot.sunnypilot.navd.helpers import Coordinate, lane_change_hint, parse_banner_instructions
+from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
 from openpilot.sunnypilot.navd.navigation_helpers.nav_instructions import NavigationInstructions
 
@@ -35,7 +36,7 @@ class Navigationd:
     self.new_destination: str = ''
 
     self.allow_navigation: bool = False
-    self.lane_guidance: bool = False
+    self.lane_guidance: int = 0  # 0 off, 1 display, 2 display + assist
     self.recompute_allowed: bool = False
     self.allow_recompute: bool = False
     self.reroute_counter: int = 0
@@ -146,6 +147,9 @@ class Navigationd:
         nav_data['distance_from_route'] = progress['distance_from_route']
         nav_data['distance_remaining'] = progress['distance_remaining']
         nav_data['time_remaining'] = progress['time_remaining']
+
+        if self.lane_guidance >= LANE_GUIDANCE_ASSIST:
+          nav_data['lane_change_direction'] = lane_change_hint(progress, v_ego)
         speed_breakpoints: list = [0.0, 5.0, 10.0, 20.0, 40.0]
         distance_list: list = [100.0, 125.0, 150.0, 200.0, 250.0]
         large_distance: bool = progress['distance_from_route'] > float(interp(v_ego, speed_breakpoints, distance_list))
@@ -188,6 +192,7 @@ class Navigationd:
     msg.navigationd.distanceFromRoute = nav_data.get('distance_from_route', 0.0)
     msg.navigationd.distanceRemaining = nav_data.get('distance_remaining', 0.0)
     msg.navigationd.timeRemaining = nav_data.get('time_remaining', 0.0)
+    msg.navigationd.laneChangeDirection = nav_data.get('lane_change_direction', 'none')
     msg.navigationd.valid = self.valid
     msg.navigationd.routeFailures = min(self.failed_attempts, 0xffff)
 

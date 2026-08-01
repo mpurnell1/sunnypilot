@@ -14,6 +14,15 @@ MODIFIABLE_DIRECTIONS = ('left', 'right')
 # 'roundabout turn', 'exit roundabout', and 'exit rotary'
 ROUNDABOUT_TYPES = ('roundabout', 'rotary')
 
+# maneuvers where being in the correct lane early matters; roundabouts are excluded because
+# the useful lane depends on the exit, which the modifier alone does not describe
+LANE_CHANGE_HINT_TYPES = ('turn', 'off ramp', 'fork', 'merge', 'end of road', 'continue')
+# uturn maps to left for right-hand-traffic countries
+LANE_CHANGE_HINT_SIDES = {'slightLeft': 'left', 'left': 'left', 'sharpLeft': 'left', 'uturn': 'left',
+                          'slightRight': 'right', 'right': 'right', 'sharpRight': 'right'}
+LANE_CHANGE_HINT_SPEED_BP = [8.0, 15.0, 25.0, 35.0]  # m/s
+LANE_CHANGE_HINT_DIST = [150.0, 300.0, 600.0, 900.0]  # m
+
 EARTH_MEAN_RADIUS = 6371007.2
 SPEED_CONVERSIONS = {
   'km/h': CV.KPH_TO_MS,
@@ -131,6 +140,25 @@ def coordinate_from_param(param: str, params: Params | None = None) -> Coordinat
     return None
 
   return Coordinate(pos['latitude'], pos['longitude'])
+
+
+def lane_change_hint(progress: dict, v_ego: float) -> str:
+  """Which side the route wants the car on for the next maneuver, or 'none'.
+
+  Purely advisory: the consumer only uses it to confirm a lane change the driver has
+  already signaled, so a wrong hint can at worst leave the normal nudge flow in place.
+  """
+  maneuvers = progress['all_maneuvers']
+  if len(maneuvers) < 2:
+    return 'none'
+  m = maneuvers[1]
+  if not any(t in m['type'] for t in LANE_CHANGE_HINT_TYPES):
+    return 'none'
+  side = LANE_CHANGE_HINT_SIDES.get(m['modifier'])
+  if side is None:
+    return 'none'
+  window = np.interp(v_ego, LANE_CHANGE_HINT_SPEED_BP, LANE_CHANGE_HINT_DIST)
+  return side if m['distance'] <= window else 'none'
 
 
 def string_to_direction(direction: str) -> str:
