@@ -8,7 +8,7 @@ from numpy import interp
 
 from openpilot.common.params import Params
 
-from openpilot.sunnypilot.navd.helpers import Coordinate, bearing_between_two_points, string_to_direction, distance_along_geometry
+from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES, Coordinate, bearing_between_two_points, string_to_direction, distance_along_geometry
 
 
 class NavigationInstructions:
@@ -140,6 +140,10 @@ class NavigationInstructions:
       distance = self.coord.distance_to(progress['next_turn']['location'])
 
       if distance <= distance_interp:
+        # a roundabout's modifier only describes the exit heading, and publishing it would let
+        # steering desires treat the roundabout like an ordinary turn
+        if any(t in progress['next_turn']['maneuver'] for t in ROUNDABOUT_TYPES):
+          return 'roundabout'
         modifier = progress['next_turn']['modifier']
         return str(modifier)
     return 'none'
