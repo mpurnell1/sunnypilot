@@ -45,6 +45,7 @@ class NavStatus:
     self.allow_navigation: bool = False
     self.show_gps_icon: bool = True
     self.show_route_icon: bool = True
+    self.show_turn_indicator: bool = True
     self.gps_locked: bool = False
     self.online: bool = False
     self.state: NavState = NavState.OFFLINE
@@ -74,6 +75,7 @@ class NavStatus:
       self.allow_navigation = self._params.get_bool("AllowNavigation")
       self.show_gps_icon = self._params.get_bool("NavShowGpsIcon")
       self.show_route_icon = self._params.get_bool("NavShowRouteIcon")
+      self.show_turn_indicator = self._params.get_bool("NavShowTurnIndicator")
 
     sm = ui_state.sm
     # sm.valid holds its last received value indefinitely, and the conflated socket can hand
