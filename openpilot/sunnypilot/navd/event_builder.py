@@ -75,6 +75,10 @@ class EventBuilder:
 
     if nav_msg.upcomingTurn != 'none':
       banner_message = EventBuilder._get_turning_message(nav_msg.upcomingTurn)
+    elif nav_msg.laneChangeDirection in ('left', 'right'):
+      # assist mode never moves the car on its own; the prompt tells the driver the blinker
+      # is what starts it
+      banner_message = f"Route ahead: signal {nav_msg.laneChangeDirection} when clear"
 
     return [{
       'name': custom.OnroadEventSP.EventName.navigationBanner,

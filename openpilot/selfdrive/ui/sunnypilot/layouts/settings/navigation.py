@@ -39,6 +39,14 @@ NAV_HUD_DESCRIPTIONS = [
   tr("Both: Turn card and arrival pill."),
 ]
 
+NAV_LANE_BUTTONS = [tr("Off"), tr("Display"), tr("Assist")]
+
+NAV_LANE_DESCRIPTIONS = [
+  tr("Off: No lane guidance."),
+  tr("Display: Show which lanes lead to the next maneuver on the turn card."),
+  tr("Assist: Also confirm a lane change you signal toward the route immediately, without a steering nudge or delay. You still start every lane change with the blinker."),  # noqa: E501
+]
+
 STATUS_GOOD_COLOR = rl.Color(0x2f, 0xc4, 0x6e, 0xff)
 STATUS_PENDING_COLOR = rl.Color(0xff, 0xb8, 0x2e, 0xff)
 STATUS_FAILED_COLOR = rl.Color(0xf2, 0x6d, 0x6d, 0xff)
@@ -65,9 +73,8 @@ class NavigationLayout(Widget):
     self._route_status_item.set_right_value(lambda: self._nav_status.route_text)
     self._nav_hud_item = multiple_button_item_sp(tr("Navigation HUD"), self._get_nav_hud_description,
                                                  NAV_HUD_BUTTONS, param="NavHudMode")
-    self._lane_guidance_item = toggle_item_sp(tr("Lane Guidance"),
-                                              tr("Show which lanes lead to the next maneuver on the turn card. Display only."),
-                                              param="NavLaneGuidance")
+    self._lane_guidance_item = multiple_button_item_sp(tr("Lane Guidance"), self._get_lane_guidance_description,
+                                                       NAV_LANE_BUTTONS, param="NavLaneGuidance")
 
     self._mapbox_token_item = button_item(tr("Mapbox Token"), tr("Edit"), tr("Enter your Mapbox public token."),
                                           partial(self._show_param_input, "MapboxToken", tr("Enter Mapbox Token")))
@@ -175,6 +182,9 @@ class NavigationLayout(Widget):
 
   def _get_nav_hud_description(self) -> str:
     return get_highlighted_description(self._params, "NavHudMode", NAV_HUD_DESCRIPTIONS)
+
+  def _get_lane_guidance_description(self) -> str:
+    return get_highlighted_description(self._params, "NavLaneGuidance", NAV_LANE_DESCRIPTIONS)
 
   def _update_state(self):
     self._nav_status.update()
