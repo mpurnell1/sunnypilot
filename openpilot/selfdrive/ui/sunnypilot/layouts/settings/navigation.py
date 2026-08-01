@@ -53,6 +53,9 @@ class NavigationLayout(Widget):
                                              tr("Display a destination flag under the set speed, green once a route is loaded."),
                                              param="NavShowRouteIcon")
     self._route_status_item.set_right_value(lambda: self._nav_status.route_text)
+    self._turn_indicator_item = toggle_item_sp(tr("Turn Indicator"),
+                                               tr("Display the distance to the next turn and an arrow for it, below the GPS and route indicators."),
+                                               param="NavShowTurnIndicator")
 
     self._mapbox_token_item = button_item(tr("Mapbox Token"), tr("Edit"), tr("Enter your Mapbox public token."),
                                           partial(self._show_param_input, "MapboxToken", tr("Enter Mapbox Token")))
@@ -83,7 +86,7 @@ class NavigationLayout(Widget):
       toggle_item_sp(tr("Allow Navigation"), tr("Enable the navigation service."), callback=self._update_navigation_visibility,
                      param="AllowNavigation"),
       *self._vis_items[4:],
-      self._gps_status_item, self._route_status_item,
+      self._gps_status_item, self._route_status_item, self._turn_indicator_item,
     ]
     self._scroller = Scroller(items, line_separator=True, spacing=0)
 
