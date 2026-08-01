@@ -33,6 +33,12 @@ TURN_ICON_CY = 60
 TURN_TEXT_TOP = 108
 TURN_FONT_SIZE = 36
 
+# extra card row for lane guidance, one small arrow per lane
+LANE_ROW_HEIGHT = 56
+LANE_ICON_SIZE = 28
+LANE_GAP = 10
+LANE_INACTIVE = rl.Color(255, 255, 255, 80)
+
 BACKGROUND = rl.Color(0, 0, 0, 140)
 GOOD = rl.Color(0x2f, 0xc4, 0x6e, 0xff)
 BAD = rl.Color(0xf2, 0x4b, 0x4b, 0xff)
@@ -171,7 +177,26 @@ class NavIndicatorRenderer:
     if show_flag:
       _draw_flag(x, cy, GOOD if status.state == NavState.ACTIVE else BAD)
 
-  def _render_turn(self, box: rl.Rectangle, maneuver: tuple[str, str, float]) -> None:
+  def _render_lanes(self, box: rl.Rectangle, lanes) -> None:
+    n = len(lanes)
+    size = min(LANE_ICON_SIZE, (box.width - 24 - (n - 1) * LANE_GAP) / n)
+    span = size * n + LANE_GAP * (n - 1)
+    cy = box.y + box.height - LANE_ROW_HEIGHT / 2
+    x = box.x + (box.width - span) / 2 + size / 2
+
+    for lane in lanes:
+      # a lane can serve several directions; when it's the one to take, show the direction
+      # the maneuver uses, otherwise its first listed direction
+      direction = lane.activeDirection if lane.active and lane.activeDirection else \
+        (lane.directions[0] if len(lane.directions) else 'straight')
+      color = TURN_COLOR if lane.active else LANE_INACTIVE
+      if direction == 'uturn':
+        _draw_uturn(x, cy, color, size)
+      else:
+        _draw_arrow(x, cy, ARROW_ANGLES.get(direction, 0), color, size)
+      x += size + LANE_GAP
+
+  def _render_turn(self, box: rl.Rectangle, maneuver: tuple[str, str, float], lanes) -> None:
     maneuver_type, modifier, distance = maneuver
     # roundness is a fraction of the box's short side, so halve it to keep the same corner
     # radius as the single-height boxes
@@ -195,6 +220,9 @@ class NavIndicatorRenderer:
     origin = rl.Vector2(icon_cx - text_size.x / 2, box.y + TURN_TEXT_TOP)
     rl.draw_text_ex(self._font, text, origin, TURN_FONT_SIZE, 0, TURN_COLOR)
 
+    if len(lanes):
+      self._render_lanes(box, lanes)
+
   def render(self, rect: rl.Rectangle) -> None:
     status = self.nav_status
     # hidden unless navigation is opted into and navigationd is actually publishing
@@ -205,8 +233,13 @@ class NavIndicatorRenderer:
     show_pin = status.show_gps_icon
     show_flag = status.show_route_icon and status.state != NavState.NO_DESTINATION
     maneuver = None
+    lanes = []
     if status.show_turn_indicator and status.state == NavState.ACTIVE:
       maneuver = pick_upcoming_maneuver(ui_state.sm['navigationd'].allManeuvers)
+      # double-gated: navigationd only publishes lanes while NavLaneGuidance is on, and the
+      # card only grows for them while it is, so a stale message can't resize the HUD
+      if maneuver is not None and status.lane_guidance:
+        lanes = ui_state.sm['navigationd'].lanes
 
     if not (show_pin or show_flag) and maneuver is None:
       return
@@ -221,4 +254,5 @@ class NavIndicatorRenderer:
       top += BOX_HEIGHT + BOX_GAP
 
     if maneuver is not None:
-      self._render_turn(rl.Rectangle(rect.x + LEFT_MARGIN, top, width, TURN_BOX_HEIGHT), maneuver)
+      height = TURN_BOX_HEIGHT + (LANE_ROW_HEIGHT if len(lanes) else 0)
+      self._render_turn(rl.Rectangle(rect.x + LEFT_MARGIN, top, width, height), maneuver, lanes)
