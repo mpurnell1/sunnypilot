@@ -35,6 +35,7 @@ class Navigationd:
     self.new_destination: str = ''
 
     self.allow_navigation: bool = False
+    self.lane_guidance: bool = False
     self.recompute_allowed: bool = False
     self.allow_recompute: bool = False
     self.reroute_counter: int = 0
@@ -75,6 +76,7 @@ class Navigationd:
       self.frame += 1
       if self.frame % 15 == 0:
         self.allow_navigation = self.params.get('AllowNavigation', return_default=True)
+        self.lane_guidance = self.params.get('NavLaneGuidance', return_default=True)
         self.new_destination = self.params.get('MapboxRoute')
         self.recompute_allowed = self.params.get('MapboxRecompute', return_default=True)
 
@@ -136,6 +138,10 @@ class Navigationd:
           parsed = parse_banner_instructions(progress['current_step']['bannerInstructions'], progress['distance_to_end_of_step'])
           if parsed:
             banner_instructions = parsed['maneuverPrimaryText']
+            # showFull means the banner for this distance is active; earlier banners on the same
+            # step describe the maneuver from too far out for lane-level advice to apply yet
+            if self.lane_guidance and parsed.get('showFull'):
+              nav_data['lanes'] = parsed.get('lanes', [])
 
         nav_data['distance_from_route'] = progress['distance_from_route']
         nav_data['distance_remaining'] = progress['distance_remaining']
@@ -192,6 +198,11 @@ class Navigationd:
       else []
     )
     msg.navigationd.allManeuvers = all_maneuvers
+    msg.navigationd.lanes = [
+      custom.Navigationd.LaneGuidance.new_message(directions=lane['directions'], active=lane['active'],
+                                                  activeDirection=lane.get('activeDirection', ''))
+      for lane in nav_data.get('lanes', [])
+    ]
     return msg
 
   def run(self):

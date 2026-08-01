@@ -45,7 +45,8 @@ class NavStatus:
     self.allow_navigation: bool = False
     self.show_gps_icon: bool = True
     self.show_route_icon: bool = True
-    self.show_turn_indicator: bool = True
+    self.nav_hud_mode: int = 3
+    self.lane_guidance: bool = False
     self.gps_locked: bool = False
     self.online: bool = False
     self.state: NavState = NavState.OFFLINE
@@ -75,7 +76,8 @@ class NavStatus:
       self.allow_navigation = self._params.get_bool("AllowNavigation")
       self.show_gps_icon = self._params.get_bool("NavShowGpsIcon")
       self.show_route_icon = self._params.get_bool("NavShowRouteIcon")
-      self.show_turn_indicator = self._params.get_bool("NavShowTurnIndicator")
+      self.nav_hud_mode = self._params.get("NavHudMode", return_default=True)
+      self.lane_guidance = self._params.get_bool("NavLaneGuidance")
 
     sm = ui_state.sm
     # sm.valid holds its last received value indefinitely, and the conflated socket can hand
@@ -98,6 +100,15 @@ class NavStatus:
       self.state = NavState.WAITING_FOR_GPS
     else:
       self.state = NavState.COMPUTING
+
+  # NavHudMode is a bitmask presented as Off / Turns / ETA / Both in settings
+  @property
+  def show_turn_indicator(self) -> bool:
+    return bool(self.nav_hud_mode & 1)
+
+  @property
+  def show_route_summary(self) -> bool:
+    return bool(self.nav_hud_mode & 2)
 
   @property
   def gps_text(self) -> str:
