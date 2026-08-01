@@ -62,8 +62,11 @@ class TestPickUpcomingManeuver:
 class TestArrowVocabulary:
   def test_covers_every_normalized_modifier(self):
     # navigationd publishes string_to_direction's output verbatim, so every value it can
-    # produce must map to an angle
+    # produce must either map to an angle or have a dedicated glyph ('uturn')
     raw_modifiers = ['left', 'right', 'straight', 'slight left', 'slight right',
-                     'sharp left', 'sharp right', 'uturn', '']
+                     'sharp left', 'sharp right', '']
     for raw in raw_modifiers:
       assert string_to_direction(raw) in ARROW_ANGLES
+
+  def test_uturn_is_not_flattened(self):
+    assert string_to_direction('uturn') == 'uturn'
