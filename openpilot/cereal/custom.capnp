@@ -468,12 +468,22 @@ struct Navigationd @0xcb9fd56c7057593a {
   routeFailures @6 :UInt16;
   distanceRemaining @7 :Float32;  # meters to the destination along the route
   timeRemaining @8 :Float32;      # seconds to the destination, from Mapbox step durations
+  # populated only while NavLaneGuidance is enabled and a lane-bearing banner is active
+  lanes @9 :List(LaneGuidance);
 
   struct Maneuver {
     distance @0 :Float32;
     type @1 :Text;
     modifier @2 :Text;
     instruction @3 :Text;
+  }
+
+  struct LaneGuidance {
+    # directions are already normalized by string_to_direction ('left', 'slightRight', ...)
+    directions @0 :List(Text);
+    active @1 :Bool;
+    # which of directions the maneuver actually uses, when the lane serves several
+    activeDirection @2 :Text;
   }
 }
 
