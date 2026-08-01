@@ -7,6 +7,7 @@ See the LICENSE.md file in the root directory for more details.
 from openpilot.cereal import custom
 
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import ARROW_ANGLES, format_distance, pick_upcoming_maneuver
+from openpilot.selfdrive.ui.sunnypilot.onroad.route_summary import format_remaining_time
 from openpilot.sunnypilot.navd.helpers import string_to_direction
 
 
@@ -37,6 +38,18 @@ class TestFormatDistance:
   def test_never_negative(self):
     assert format_distance(-5, True) == "0 m"
     assert format_distance(-5, False) == "0 ft"
+
+
+class TestFormatRemainingTime:
+  def test_minutes(self):
+    assert format_remaining_time(0) == "0 min"
+    assert format_remaining_time(59) == "1 min"
+    assert format_remaining_time(25 * 60) == "25 min"
+
+  def test_hours(self):
+    assert format_remaining_time(3600) == "1 hr 0 min"
+    assert format_remaining_time(4980) == "1 hr 23 min"
+    assert format_remaining_time(7260) == "2 hr 1 min"
 
 
 class TestPickUpcomingManeuver:

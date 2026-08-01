@@ -138,6 +138,8 @@ class Navigationd:
             banner_instructions = parsed['maneuverPrimaryText']
 
         nav_data['distance_from_route'] = progress['distance_from_route']
+        nav_data['distance_remaining'] = progress['distance_remaining']
+        nav_data['time_remaining'] = progress['time_remaining']
         speed_breakpoints: list = [0.0, 5.0, 10.0, 20.0, 40.0]
         distance_list: list = [100.0, 125.0, 150.0, 200.0, 250.0]
         large_distance: bool = progress['distance_from_route'] > float(interp(v_ego, speed_breakpoints, distance_list))
@@ -178,6 +180,8 @@ class Navigationd:
     msg.navigationd.currentSpeedLimit = nav_data.get('current_speed_limit', 0)
     msg.navigationd.bannerInstructions = banner_instructions
     msg.navigationd.distanceFromRoute = nav_data.get('distance_from_route', 0.0)
+    msg.navigationd.distanceRemaining = nav_data.get('distance_remaining', 0.0)
+    msg.navigationd.timeRemaining = nav_data.get('time_remaining', 0.0)
     msg.navigationd.valid = self.valid
     msg.navigationd.routeFailures = min(self.failed_attempts, 0xffff)
 
