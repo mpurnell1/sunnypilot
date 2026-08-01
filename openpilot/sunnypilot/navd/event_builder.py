@@ -60,6 +60,7 @@ class EventBuilder:
       'sharpRight': 'Sharp Right Turn',
       'straight': 'Continuing Straight',
       'uturn': 'U-Turn Ahead',
+      'roundabout': 'Roundabout Ahead',
     }
     return turn_messages.get(upcoming_turn, f"Upcoming {upcoming_turn.replace('_', ' ').title()}")
 
