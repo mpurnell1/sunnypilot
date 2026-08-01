@@ -10,6 +10,9 @@ from openpilot.common.params import Params
 
 DIRECTIONS = ('left', 'right', 'straight')
 MODIFIABLE_DIRECTIONS = ('left', 'right')
+# substring-matched against Mapbox maneuver types, so these also cover
+# 'roundabout turn', 'exit roundabout', and 'exit rotary'
+ROUNDABOUT_TYPES = ('roundabout', 'rotary')
 
 EARTH_MEAN_RADIUS = 6371007.2
 SPEED_CONVERSIONS = {
@@ -131,6 +134,10 @@ def coordinate_from_param(param: str, params: Params | None = None) -> Coordinat
 
 
 def string_to_direction(direction: str) -> str:
+  # matched before the left/right scan: Mapbox's uturn modifier contains neither word, and
+  # flattening it to 'none' would render a u-turn as "continue straight"
+  if 'uturn' in direction:
+    return 'uturn'
   for d in DIRECTIONS:
     if d in direction:
       if 'slight' in direction and d in MODIFIABLE_DIRECTIONS:

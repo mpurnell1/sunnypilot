@@ -10,6 +10,7 @@ import pyray as rl
 
 from openpilot.selfdrive.ui.onroad.hud_renderer import UI_CONFIG
 from openpilot.selfdrive.ui.sunnypilot.nav_status import NavState, NavStatus
+from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.text_measure import measure_text_cached
@@ -35,8 +36,8 @@ TURN_COLOR = rl.Color(255, 255, 255, 230)
 METERS_PER_FOOT = 0.3048
 METERS_PER_MILE = 1609.344
 
-# degrees clockwise from straight ahead, keyed by string_to_direction's whole vocabulary.
-# Mapbox's 'uturn' modifier also normalizes to 'none' upstream, so it renders as straight.
+# degrees clockwise from straight ahead. 'uturn' and roundabout maneuvers are absent by
+# design: they get dedicated glyphs rather than a rotated arrow.
 ARROW_ANGLES = {
   'straight': 0, 'none': 0,
   'slightRight': 45, 'right': 90, 'sharpRight': 135,
@@ -111,6 +112,36 @@ def _draw_arrow(cx: float, cy: float, angle_deg: float, color: rl.Color) -> None
   rl.draw_poly(head_center, 3, head_radius, angle_deg - 90, color)
 
 
+def _draw_uturn(cx: float, cy: float, color: rl.Color) -> None:
+  radius = ICON_WIDTH * 0.30
+  half_stroke = ICON_WIDTH * 0.11
+  arc_cy = cy - ICON_WIDTH * 0.12
+  # ring angles run clockwise from +x in screen coords, so 180..360 is the upper half
+  rl.draw_ring(rl.Vector2(cx, arc_cy), radius - half_stroke, radius + half_stroke, 180, 360, 24, color)
+
+  # approach leg up the right side, exit leg down the left ending in the arrowhead
+  leg_len = ICON_WIDTH * 0.46
+  rl.draw_rectangle_rec(rl.Rectangle(cx + radius - half_stroke, arc_cy, 2 * half_stroke, leg_len), color)
+  rl.draw_rectangle_rec(rl.Rectangle(cx - radius - half_stroke, arc_cy, 2 * half_stroke, leg_len * 0.5), color)
+  head_radius = ICON_WIDTH * 0.24
+  rl.draw_poly(rl.Vector2(cx - radius, arc_cy + leg_len * 0.5 + head_radius * 0.4), 3, head_radius, 90, color)
+
+
+def _draw_roundabout(cx: float, cy: float, color: rl.Color) -> None:
+  radius = ICON_WIDTH * 0.28
+  half_stroke = ICON_WIDTH * 0.10
+  ring_cy = cy + ICON_WIDTH * 0.08
+  rl.draw_ring(rl.Vector2(cx, ring_cy), radius - half_stroke, radius + half_stroke, 0, 360, 32, color)
+
+  # generic glyph: enter from below, arrow out the top; banner text carries the exact exit
+  stem_h = ICON_WIDTH * 0.20
+  rl.draw_rectangle_rec(rl.Rectangle(cx - half_stroke, ring_cy + radius - half_stroke, 2 * half_stroke, stem_h), color)
+  exit_h = ICON_WIDTH * 0.14
+  rl.draw_rectangle_rec(rl.Rectangle(cx - half_stroke, ring_cy - radius - exit_h, 2 * half_stroke, exit_h + half_stroke), color)
+  head_radius = ICON_WIDTH * 0.22
+  rl.draw_poly(rl.Vector2(cx, ring_cy - radius - exit_h - head_radius * 0.4), 3, head_radius, -90, color)
+
+
 # pin is the GPS fix, flag is the route. The flag needs a destination to mean anything, but the
 # pin does not, so it stays visible on its own.
 class NavIndicatorRenderer:
@@ -148,6 +179,10 @@ class NavIndicatorRenderer:
 
     if maneuver_type == 'arrive':
       _draw_flag(icon_cx, cy, TURN_COLOR)
+    elif any(t in maneuver_type for t in ROUNDABOUT_TYPES):
+      _draw_roundabout(icon_cx, cy, TURN_COLOR)
+    elif modifier == 'uturn':
+      _draw_uturn(icon_cx, cy, TURN_COLOR)
     else:
       _draw_arrow(icon_cx, cy, ARROW_ANGLES.get(modifier, 0), TURN_COLOR)
 
