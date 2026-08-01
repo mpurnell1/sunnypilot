@@ -466,6 +466,8 @@ struct Navigationd @0xcb9fd56c7057593a {
   valid @5 :Bool;
   # consecutive failed route requests, so consumers can tell "still trying" from "not working"
   routeFailures @6 :UInt16;
+  distanceRemaining @7 :Float32;  # meters to the destination along the route
+  timeRemaining @8 :Float32;      # seconds to the destination, from Mapbox step durations
 
   struct Maneuver {
     distance @0 :Float32;
