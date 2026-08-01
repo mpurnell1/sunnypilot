@@ -29,6 +29,8 @@ class TestFormatDistance:
 
   def test_imperial(self):
     assert format_distance(100, False) == "350 ft"
+    assert format_distance(304, False) == "1000 ft"
+    assert format_distance(305, False) == "0.2 mi"
     assert format_distance(500, False) == "0.3 mi"
     assert format_distance(17000, False) == "11 mi"
 
