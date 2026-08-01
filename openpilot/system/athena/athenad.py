@@ -385,6 +385,23 @@ def getVersion() -> dict[str, str]:
   }
 
 
+@dispatcher.add_method
+def setNavDestination(latitude: float = 0, longitude: float = 0, place_name: str | None = None, place_details: str | None = None) -> dict[str, int]:
+  # navigationd geocodes whatever text lands in MapboxRoute, and Mapbox resolves a "lon,lat"
+  # query to that exact point — so an explicit pin from the caller wins over a text search,
+  # which could match a different location than the one picked on the phone
+  if latitude or longitude:
+    destination = f"{longitude},{latitude}"
+  elif place_name:
+    destination = place_name
+  else:
+    return {"success": 0}
+
+  Params().put("MapboxRoute", destination)
+
+  return {"success": 1}
+
+
 def scan_dir(path: str, prefix: str, base: str | None = None) -> list[str]:
   if base is None:
     base = path
@@ -706,14 +723,6 @@ def cancelUpload(upload_id: str | list[str]) -> dict[str, int | str]:
 
   cancelled_uploads.update(cancelled_ids)
   return {"success": 1}
-
-@dispatcher.add_method
-def setNavDestination(latitude: float, longitude: float) -> dict[str, int | str]:
-  if not (-90 <= latitude <= 90 and -180 <= longitude <= 180):
-    return {"success": 0, "error": "Invalid destination coordinates"}
-  Params().put("NavDestination", {"latitude": latitude, "longitude": longitude}, block=True)
-  return {"success": 1}
-
 
 @dispatcher.add_method
 def clearNavDestination() -> dict[str, int]:
