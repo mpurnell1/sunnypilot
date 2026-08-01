@@ -29,6 +29,16 @@ NAV_BANNER_DESCRIPTIONS = [
   tr("Always: Keep the next instruction on screen for the whole route."),
 ]
 
+# NavHudMode bitmask: 1 = turn card, 2 = route summary pill
+NAV_HUD_BUTTONS = [tr("Off"), tr("Turns"), tr("ETA"), tr("Both")]
+
+NAV_HUD_DESCRIPTIONS = [
+  tr("Off: No navigation HUD elements."),
+  tr("Turns: Next-turn card under the set speed."),
+  tr("ETA: Arrival pill in the bottom-right corner."),
+  tr("Both: Turn card and arrival pill."),
+]
+
 STATUS_GOOD_COLOR = rl.Color(0x2f, 0xc4, 0x6e, 0xff)
 STATUS_PENDING_COLOR = rl.Color(0xff, 0xb8, 0x2e, 0xff)
 STATUS_FAILED_COLOR = rl.Color(0xf2, 0x6d, 0x6d, 0xff)
@@ -53,9 +63,11 @@ class NavigationLayout(Widget):
                                              tr("Display a destination flag under the set speed, green once a route is loaded."),
                                              param="NavShowRouteIcon")
     self._route_status_item.set_right_value(lambda: self._nav_status.route_text)
-    self._turn_indicator_item = toggle_item_sp(tr("Turn Indicator"),
-                                               tr("Display the distance to the next turn and an arrow for it, below the GPS and route indicators."),
-                                               param="NavShowTurnIndicator")
+    self._nav_hud_item = multiple_button_item_sp(tr("Navigation HUD"), self._get_nav_hud_description,
+                                                 NAV_HUD_BUTTONS, param="NavHudMode")
+    self._lane_guidance_item = toggle_item_sp(tr("Lane Guidance"),
+                                              tr("Show which lanes lead to the next maneuver on the turn card. Display only."),
+                                              param="NavLaneGuidance")
 
     self._mapbox_token_item = button_item(tr("Mapbox Token"), tr("Edit"), tr("Enter your Mapbox public token."),
                                           partial(self._show_param_input, "MapboxToken", tr("Enter Mapbox Token")))
@@ -86,7 +98,8 @@ class NavigationLayout(Widget):
       toggle_item_sp(tr("Allow Navigation"), tr("Enable the navigation service."), callback=self._update_navigation_visibility,
                      param="AllowNavigation"),
       *self._vis_items[4:],
-      self._gps_status_item, self._route_status_item, self._turn_indicator_item,
+      self._gps_status_item, self._route_status_item,
+      self._nav_hud_item, self._lane_guidance_item,
     ]
     self._scroller = Scroller(items, line_separator=True, spacing=0)
 
@@ -159,6 +172,9 @@ class NavigationLayout(Widget):
 
   def _get_banner_description(self) -> str:
     return get_highlighted_description(self._params, "NavBannerMode", NAV_BANNER_DESCRIPTIONS)
+
+  def _get_nav_hud_description(self) -> str:
+    return get_highlighted_description(self._params, "NavHudMode", NAV_HUD_DESCRIPTIONS)
 
   def _update_state(self):
     self._nav_status.update()

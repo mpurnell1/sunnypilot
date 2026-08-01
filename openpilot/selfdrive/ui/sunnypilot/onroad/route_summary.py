@@ -49,7 +49,7 @@ class RouteSummaryRenderer:
 
   def render(self, rect: rl.Rectangle) -> None:
     status = self.nav_status
-    if not status.allow_navigation or status.state != NavState.ACTIVE:
+    if not status.allow_navigation or not status.show_route_summary or status.state != NavState.ACTIVE:
       return
 
     msg = ui_state.sm['navigationd']
