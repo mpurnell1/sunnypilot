@@ -75,7 +75,36 @@ class MapboxIntegration:
 
     data: dict = {'navData': {'current': {'latitude': latitude, 'longitude': longitude}, 'route': route_data}}
     self.params.put('MapboxSettings', data)
+
+    # the device clock is GPS-synced UTC with no system timezone, so the ETA readout needs the
+    # destination's zone. Cleared on failure: a zone left over from an earlier trip is worse
+    # than the UI's device-local fallback
+    tzid = self.get_timezone(longitude, latitude, token)
+    if tzid:
+      self.params.put('NavDestinationTimezone', tzid)
+    else:
+      self.params.remove('NavDestinationTimezone')
     return True
+
+  # Mapbox's public timezone boundary tileset, queried per accepted route rather than shipping
+  # a coordinate-to-zone dataset on the device
+  @staticmethod
+  def get_timezone(lon, lat, token) -> str | None:
+    url = f'https://api.mapbox.com/v4/examples.4ze9z6tv/tilequery/{lon},{lat}.json'
+    try:
+      response = requests.get(url, params={'access_token': token}, timeout=5)
+      if response.status_code != 200:
+        cloudlog.error("navd: timezone lookup failed with HTTP %d", response.status_code)
+        return None
+      features = response.json()['features']
+      if features:
+        return features[0]['properties']['TZID']
+      cloudlog.warning("navd: no timezone found at %s,%s", lon, lat)
+    except requests.RequestException as e:
+      cloudlog.warning("navd: timezone request failed: %s", e)
+    except (ValueError, KeyError, IndexError) as e:
+      cloudlog.error("navd: could not parse timezone response: %s", e)
+    return None
 
   @staticmethod
   def generate_route(start_lon, start_lat, end_lon, end_lat, token, bearing=None) -> dict | None:
