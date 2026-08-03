@@ -145,7 +145,7 @@ class HudRendererSP(HudRenderer):
 
     self.developer_ui.render(rect)
     self.nav_indicator.render(rect)
-    self.route_summary.render(rect)
+    self.route_summary.render(rect, self.nav_indicator.stack_bottom)
     self.road_name_renderer.render(rect)
     self.speed_limit_renderer.render(rect)
     self.smart_cruise_control_renderer.render(rect)
