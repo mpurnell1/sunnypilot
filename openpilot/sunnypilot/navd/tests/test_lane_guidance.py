@@ -4,9 +4,11 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
+from types import SimpleNamespace
+
 from openpilot.common.params import Params
 from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST, LANE_GUIDANCE_DISPLAY
-from openpilot.sunnypilot.navd.helpers import lane_change_hint, parse_banner_instructions
+from openpilot.sunnypilot.navd.helpers import lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.navigation_desires.navigation_desires import NavigationDesires
 from openpilot.sunnypilot.navd.navigationd import Navigationd
 
@@ -89,6 +91,35 @@ class TestLaneChangeHint:
     assert lane_change_hint({'all_maneuvers': [{'type': 'arrive', 'modifier': 'none', 'distance': 50.0}]}, 30.0) == 'none'
 
 
+TWO_LANES = [{'active': True, 'directions': ['left']}, {'active': False, 'directions': ['straight']}]
+
+
+class TestAutoConfirm:
+  def test_slip_road_types_confirm_without_lane_data(self):
+    assert lane_change_auto_confirm(_hint_progress('off ramp', 'slightRight', 200.0), None)
+    assert lane_change_auto_confirm(_hint_progress('merge', 'slightLeft', 200.0), None)
+
+  def test_ambiguous_types_need_a_multi_lane_approach(self):
+    for maneuver_type in ('turn', 'fork', 'continue', 'end of road'):
+      progress = _hint_progress(maneuver_type, 'left', 200.0)
+      assert not lane_change_auto_confirm(progress, None)
+      assert not lane_change_auto_confirm(progress, [TWO_LANES[0]])
+      assert lane_change_auto_confirm(progress, TWO_LANES)
+
+  def test_uturn_never_confirms(self):
+    assert not lane_change_auto_confirm(_hint_progress('turn', 'uturn', 200.0), TWO_LANES)
+
+  def test_lone_maneuver_does_not_confirm(self):
+    assert not lane_change_auto_confirm({'all_maneuvers': [{'type': 'arrive', 'modifier': 'none', 'distance': 50.0}]}, None)
+
+  def test_flag_reaches_the_message(self):
+    nav = Navigationd()
+    msg = nav._build_navigation_message('', None, {'lane_change_direction': 'left', 'lane_change_auto_confirm': True}, True)
+    assert msg.navigationd.laneChangeAutoConfirm
+    msg = nav._build_navigation_message('', None, {'lane_change_direction': 'left'}, True)
+    assert not msg.navigationd.laneChangeAutoConfirm
+
+
 class TestAssistGate:
   def test_hint_requires_assist_mode_and_valid_message(self):
     desires = NavigationDesires()
@@ -107,3 +138,11 @@ class TestAssistGate:
     # message is not valid yet, so still gated
     assert not msg.valid
     assert desires.lane_change_hint() == 'none'
+
+  def test_hint_requires_the_auto_confirm_flag(self):
+    desires = NavigationDesires()
+    desires.lane_assist = True
+    desires.sm = {'navigationd': SimpleNamespace(valid=True, laneChangeDirection='left', laneChangeAutoConfirm=False)}
+    assert desires.lane_change_hint() == 'none'
+    desires.sm = {'navigationd': SimpleNamespace(valid=True, laneChangeDirection='left', laneChangeAutoConfirm=True)}
+    assert desires.lane_change_hint() == 'left'
