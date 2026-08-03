@@ -472,6 +472,9 @@ struct Navigationd @0xcb9fd56c7057593a {
   lanes @9 :List(LaneGuidance);
   # 'left'/'right' while NavLaneGuidance is in Assist mode and the route wants a lane change soon
   laneChangeDirection @10 :Text;
+  # whether the hint may stand in for the wheel nudge: only when the maneuver's topology or
+  # mapped lane count says the adjacent lane runs our way, never toward oncoming traffic
+  laneChangeAutoConfirm @11 :Bool;
 
   struct Maneuver {
     distance @0 :Float32;
