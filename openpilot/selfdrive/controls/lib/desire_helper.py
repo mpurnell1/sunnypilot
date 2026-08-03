@@ -1,6 +1,7 @@
 from openpilot.cereal import log, custom
 from openpilot.common.constants import CV
 from openpilot.common.realtime import DT_MDL
+from openpilot.sunnypilot.selfdrive.controls.lib.adjacent_lane_detector import AdjacentLaneDetector
 from openpilot.sunnypilot.selfdrive.controls.lib.auto_lane_change import AutoLaneChangeController, AutoLaneChangeMode
 from openpilot.sunnypilot.selfdrive.controls.lib.lane_turn_desire import LaneTurnController
 from openpilot.sunnypilot.navd.navigation_desires.navigation_desires import NavigationDesires
@@ -30,15 +31,22 @@ class DesireHelper:
     self.lane_turn_controller = LaneTurnController(self)
     self.lane_turn_direction = TurnDirection.none
     self.navigation_desires = NavigationDesires()
+    self.adjacent_lane_detector = AdjacentLaneDetector()
 
   @staticmethod
   def get_lane_change_direction(CS):
     return LaneChangeDirection.left if CS.leftBlinker else LaneChangeDirection.right
 
-  def update(self, carstate, lateral_active, lane_change_prob):
+  def update(self, carstate, lateral_active, lane_change_prob, model_data=None):
     self.alc.update_params()
     self.lane_turn_controller.update_params()
     v_ego = carstate.vEgo
+    # fed every frame, not just in preLaneChange, so its confirmation window is already
+    # warm by the time the driver signals
+    if model_data is not None:
+      self.adjacent_lane_detector.update(model_data, v_ego)
+    else:
+      self.adjacent_lane_detector.reset()
     one_blinker = carstate.leftBlinker != carstate.rightBlinker
     below_lane_change_speed = v_ego < LANE_CHANGE_SPEED_MIN
 
@@ -71,10 +79,12 @@ class DesireHelper:
 
         self.alc.update_lane_change(blindspot_detected, carstate.brakePressed)
 
-        # the route asking for this exact lane change stands in for the wheel nudge; the
-        # blinker, speed, and blindspot gates above and below are untouched
+        # the route asking for this exact lane change stands in for the wheel nudge, but
+        # only into a lane the model can actually see: a hint toward a road edge or an
+        # unmarked shoulder leaves the normal nudge flow (and its gates) in place
         nav_confirmed = self.navigation_desires.lane_change_hint() == \
-          ('left' if self.lane_change_direction == LaneChangeDirection.left else 'right')
+          ('left' if self.lane_change_direction == LaneChangeDirection.left else 'right') and \
+          self.adjacent_lane_detector.available(self.lane_change_direction)
 
         if not one_blinker or below_lane_change_speed:
           self.lane_change_state = LaneChangeState.off
