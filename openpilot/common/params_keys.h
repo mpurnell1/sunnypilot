@@ -256,6 +256,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"AllowNavigation", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"MapboxToken", {PERSISTENT | BACKUP, STRING}},
     {"MapboxSettings", {CLEAR_ON_MANAGER_START, JSON}},
+    // IANA TZID at the destination, for showing the ETA in local time on a UTC-only device
+    {"NavDestinationTimezone", {CLEAR_ON_MANAGER_START, STRING}},
     {"MapboxRoute", {PERSISTENT, STRING}},
     {"MapboxFavorites", {PERSISTENT | BACKUP, JSON}},
     {"MapboxRecompute", {PERSISTENT | BACKUP, BOOL, "0"}},

@@ -87,6 +87,12 @@ class TestMapbox:
     assert isinstance(speed_limit_metric, int)
     assert isinstance(speed_limit_imperial, int)
 
+  def test_timezone_lookup(self):
+    tzid = self.mapbox.get_timezone(self.current_lon, self.current_lat, os.environ.get('MAPBOX_TOKEN_CI'))
+    assert tzid == 'America/Los_Angeles'
+    settings_tz = self.mapbox.params.get('NavDestinationTimezone')
+    assert settings_tz == 'America/Los_Angeles'
+
   def test_arrival_detection(self):
     is_arrived = self.nav.arrived_at_destination(self.progress, 2.0)
     assert isinstance(is_arrived, bool)
