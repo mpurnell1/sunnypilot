@@ -22,6 +22,10 @@ LANE_CHANGE_HINT_SIDES = {'slightLeft': 'left', 'left': 'left', 'sharpLeft': 'le
                           'slightRight': 'right', 'right': 'right', 'sharpRight': 'right'}
 LANE_CHANGE_HINT_SPEED_BP = [8.0, 15.0, 25.0, 35.0]  # m/s
 LANE_CHANGE_HINT_DIST = [150.0, 300.0, 600.0, 900.0]  # m
+# maneuvers that can only happen from a slip road or multi-lane carriageway, so the adjacent
+# lane is guaranteed to run our way; every other hint type can occur on a two-lane road where
+# the space beside us is oncoming traffic
+LANE_CHANGE_CONFIRM_TYPES = ('off ramp', 'merge')
 
 EARTH_MEAN_RADIUS = 6371007.2
 SPEED_CONVERSIONS = {
@@ -159,6 +163,28 @@ def lane_change_hint(progress: dict, v_ego: float) -> str:
     return 'none'
   window = np.interp(v_ego, LANE_CHANGE_HINT_SPEED_BP, LANE_CHANGE_HINT_DIST)
   return side if m['distance'] <= window else 'none'
+
+
+def lane_change_auto_confirm(progress: dict, banner_lanes: list | None) -> bool:
+  """Whether an active hint may stand in for the wheel nudge.
+
+  The display side is untouched by this: the banner prompts for every hint type, but only a
+  maneuver that proves a same-direction adjacent lane exists — by topology, or by the map
+  showing a multi-lane approach — lets the blinker alone start the change. The model's
+  road-edge check cannot make this call: an oncoming lane is a full-width lane.
+  """
+  maneuvers = progress['all_maneuvers']
+  if len(maneuvers) < 2:
+    return False
+  m = maneuvers[1]
+  # a u-turn's "adjacent lane" is oncoming by definition, whatever the map says
+  if m['modifier'] == 'uturn':
+    return False
+  if any(t in m['type'] for t in LANE_CHANGE_CONFIRM_TYPES):
+    return True
+  # Mapbox emits lane banners exactly at multi-lane approaches and omits them on
+  # two-lane roads, so they double as a same-direction discriminator
+  return banner_lanes is not None and len(banner_lanes) >= 2
 
 
 def string_to_direction(direction: str) -> str:

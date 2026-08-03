@@ -31,9 +31,11 @@ class NavigationDesires:
   # navigationd already only publishes a direction in Assist mode; the param check here is the
   # second half of the double gate, so a stale message can't confirm a lane change after the
   # mode is switched off. Reads the message received on the last update() cycle.
+  # autoConfirm carries navigationd's judgment that the adjacent lane runs our way — without
+  # it the hint keeps prompting on screen but never stands in for the wheel nudge.
   def lane_change_hint(self) -> str:
     nav_msg = self.sm['navigationd']
-    if self.lane_assist and nav_msg.valid:
+    if self.lane_assist and nav_msg.valid and nav_msg.laneChangeAutoConfirm:
       return str(nav_msg.laneChangeDirection)
     return 'none'
 
