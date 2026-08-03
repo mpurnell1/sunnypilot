@@ -15,7 +15,7 @@ from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
 
 from openpilot.sunnypilot.navd.constants import NAV_CV, NAV_RETRY
-from openpilot.sunnypilot.navd.helpers import Coordinate, lane_change_hint, parse_banner_instructions
+from openpilot.sunnypilot.navd.helpers import Coordinate, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
 from openpilot.sunnypilot.navd.navigation_helpers.nav_instructions import NavigationInstructions
@@ -135,21 +135,27 @@ class Navigationd:
         nav_data['current_speed_limit'] = speed_limit
         arrived = self.nav_instructions.arrived_at_destination(progress, v_ego)
 
+        banner_lanes = None
         if progress['current_step']:
           parsed = parse_banner_instructions(progress['current_step']['bannerInstructions'], progress['distance_to_end_of_step'])
           if parsed:
             banner_instructions = parsed['maneuverPrimaryText']
+            # the lane layout is a static property of the approach, so the confirm gate may
+            # read it from any of the step's banners, not just the active one
+            banner_lanes = parsed.get('lanes')
             # showFull means the banner for this distance is active; earlier banners on the same
             # step describe the maneuver from too far out for lane-level advice to apply yet
             if self.lane_guidance and parsed.get('showFull'):
-              nav_data['lanes'] = parsed.get('lanes', [])
+              nav_data['lanes'] = banner_lanes or []
 
         nav_data['distance_from_route'] = progress['distance_from_route']
         nav_data['distance_remaining'] = progress['distance_remaining']
         nav_data['time_remaining'] = progress['time_remaining']
 
         if self.lane_guidance >= LANE_GUIDANCE_ASSIST:
-          nav_data['lane_change_direction'] = lane_change_hint(progress, v_ego)
+          hint = lane_change_hint(progress, v_ego)
+          nav_data['lane_change_direction'] = hint
+          nav_data['lane_change_auto_confirm'] = hint != 'none' and lane_change_auto_confirm(progress, banner_lanes)
         speed_breakpoints: list = [0.0, 5.0, 10.0, 20.0, 40.0]
         distance_list: list = [100.0, 125.0, 150.0, 200.0, 250.0]
         large_distance: bool = progress['distance_from_route'] > float(interp(v_ego, speed_breakpoints, distance_list))
@@ -193,6 +199,7 @@ class Navigationd:
     msg.navigationd.distanceRemaining = nav_data.get('distance_remaining', 0.0)
     msg.navigationd.timeRemaining = nav_data.get('time_remaining', 0.0)
     msg.navigationd.laneChangeDirection = nav_data.get('lane_change_direction', 'none')
+    msg.navigationd.laneChangeAutoConfirm = nav_data.get('lane_change_auto_confirm', False)
     msg.navigationd.valid = self.valid
     msg.navigationd.routeFailures = min(self.failed_attempts, 0xffff)
 
