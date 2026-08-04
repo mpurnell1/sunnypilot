@@ -8,6 +8,7 @@ import pyray as rl
 from functools import partial
 
 from openpilot.common.params import Params
+from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.ui.sunnypilot.nav_status import NavState, NavStatus
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr
@@ -119,7 +120,9 @@ class NavigationLayout(Widget):
     InputDialogSP(title, current_text=self._params.get(param) or "", param=param).show()
 
   def _clear_route(self) -> None:
-    # navigationd drops the active route once the destination param is empty
+    # navigationd drops the active route once the destination param is empty; the log line
+    # attributes the clear to a deliberate tap, distinguishing it from a param glitch
+    cloudlog.warning("ui: destination cleared from navigation settings")
     self._params.put("MapboxRoute", "")
 
   def _handle_save_fav(self, key: str, is_fav: bool, res: DialogResult, text: str) -> None:
@@ -139,12 +142,14 @@ class NavigationLayout(Widget):
     InputDialogSP(tr("Favorite Name"), callback=self._add_fav_name_cb, min_text_size=1).show()
 
   def _set_mapbox_route_cb(self, favorites: dict, selection: str) -> None:
+    cloudlog.warning("ui: destination set from favorite %r", selection)
     self._params.put("MapboxRoute", favorites[selection])
 
   def _favorites_callback(self, index: int) -> None:
     favs = self._favs
     if index < 2:
       if route := favs.get(["home", "work"][index]):
+        cloudlog.warning("ui: destination set from favorite %r", ["home", "work"][index])
         self._params.put("MapboxRoute", route)
       else:
         gui_app.push_widget(alert_dialog(tr("No route set")))
