@@ -4,10 +4,37 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-from openpilot.sunnypilot.navd.helpers import Coordinate
+from openpilot.sunnypilot.navd.helpers import Coordinate, project_onto_geometry
 from openpilot.sunnypilot.navd.navigation_helpers.nav_instructions import NavigationInstructions
 
 LAT, LON = 32.7767, -96.797
+
+
+class TestProjectOntoGeometry:
+  def setup_method(self):
+    # one ~700m segment, the vertex spacing Mapbox uses on straight interstate
+    self.a, self.b = Coordinate(LAT, LON), Coordinate(LAT + 0.0063, LON)
+    self.cumulative = [0.0, self.a.distance_to(self.b)]
+
+  def test_car_between_sparse_vertices_is_on_route(self):
+    # the nearest vertex is ~350m away here; the crosstrack distance must not see it
+    distance, idx, along = project_onto_geometry([self.a, self.b], self.cumulative, Coordinate(LAT + 0.00315, LON))
+    assert distance < 1.0
+    assert idx == 0
+    assert abs(along - self.cumulative[1] / 2) < 1.0
+
+  def test_crosstrack_offset_is_measured(self):
+    east_30m = 30.0 / (111320.0 * 0.84)  # ~30m of longitude at this latitude
+    distance, _, along = project_onto_geometry([self.a, self.b], self.cumulative, Coordinate(LAT + 0.00315, LON + east_30m))
+    assert 25.0 < distance < 35.0
+    assert abs(along - self.cumulative[1] / 2) < 1.0
+
+  def test_position_before_the_start_clamps(self):
+    pos = Coordinate(LAT - 0.001, LON)
+    distance, idx, along = project_onto_geometry([self.a, self.b], self.cumulative, pos)
+    assert abs(distance - self.a.distance_to(pos)) < 1.0
+    assert idx == 0
+    assert along == 0.0
 
 
 def _progress(maneuver_type: str, modifier: str) -> dict:

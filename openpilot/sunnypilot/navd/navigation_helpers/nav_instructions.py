@@ -8,7 +8,7 @@ from numpy import interp
 
 from openpilot.common.params import Params
 
-from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES, Coordinate, bearing_between_two_points, string_to_direction, distance_along_geometry
+from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES, Coordinate, bearing_between_two_points, string_to_direction, project_onto_geometry
 
 
 class NavigationInstructions:
@@ -20,7 +20,7 @@ class NavigationInstructions:
     self._route_loaded = False
     self._no_route = False
 
-    self.closest_idx: float = 0
+    self.closest_idx: int = 0  # segment index: the car is between geometry[i] and geometry[i+1]
     self.min_distance: float = 0
 
   def get_route_progress(self, current_lat, current_lon) -> dict | None:
@@ -32,8 +32,7 @@ class NavigationInstructions:
     self.coord.longitude = current_lon
 
     # Find the closest point on the route relative to self
-    self.closest_idx, self.min_distance = min(((idx, self.coord.distance_to(coord)) for idx, coord in enumerate(route['geometry'])), key=lambda x: x[1])
-    closest_cumulative = distance_along_geometry(route['geometry'], self.coord)
+    self.min_distance, self.closest_idx, closest_cumulative = project_onto_geometry(route['geometry'], route['cumulative_distances'], self.coord)
 
     # Find the current step index, which is the HIGHEST idx where the step location cumulative less/equal closest cumulative
     current_step_idx = max((idx for idx, step in enumerate(route['steps']) if step['cumulative_distance'] <= closest_cumulative), default=-1)
@@ -129,8 +128,9 @@ class NavigationInstructions:
 
     if v_ego < 5.0:
       route_bearing_misalign = False
-    elif self.closest_idx > 0 and self.closest_idx < len(route['geometry']) -1:
-      route_bearing = route['bearings'][self.closest_idx -1]
+    elif self.closest_idx < len(route['bearings']):
+      # bearings[i] spans geometry[i] to geometry[i+2], which covers the current segment
+      route_bearing = route['bearings'][self.closest_idx]
       current_bearing_normalized = (bearing + 360) % 360
       bearing_difference = abs(current_bearing_normalized - route_bearing)
 
