@@ -14,6 +14,7 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.system import micd
 from openpilot.common.hardware import HARDWARE
 
+from openpilot.sunnypilot.selfdrive.ui.nav_sounds import NavAudioPlayer
 from openpilot.sunnypilot.selfdrive.ui.quiet_mode import QuietMode
 
 SAMPLE_RATE = 48000
@@ -92,6 +93,8 @@ class Soundd(QuietMode):
     self.selfdrive_timeout_alert = False
     self.pending_stop = False
 
+    self.nav_audio = NavAudioPlayer(SAMPLE_RATE)
+
     self.spl_filter_weighted = FirstOrderFilter(0, 2.5, FILTER_DT, initialized=False)
 
   def load_sounds(self):
@@ -113,6 +116,11 @@ class Soundd(QuietMode):
 
     ret = np.zeros(frames, dtype=np.float32)
 
+    # nav cues never wait for the channel: one interrupted by an alert, or muted by quiet
+    # mode, is dropped rather than played stale later
+    if self.current_alert != AudibleAlert.none or self.enabled:
+      self.nav_audio.cancel()
+
     if self.should_play_sound(self.current_alert):
       num_loops = sound_list[self.current_alert][1]
       sound_data = self.loaded_sounds[self.current_alert]
@@ -133,6 +141,8 @@ class Soundd(QuietMode):
           self.current_alert = AudibleAlert.none
           self.pending_stop = False
           break
+    elif self.current_alert == AudibleAlert.none and self.nav_audio.active:
+      ret[:] = self.nav_audio.get_frames(frames)
 
     return ret * self.current_volume
 
@@ -185,7 +195,7 @@ class Soundd(QuietMode):
     # sounddevice must be imported after forking processes
     import sounddevice as sd
 
-    sm = messaging.SubMaster(['selfdriveState', 'selfdriveStateSP', 'soundPressure'])
+    sm = messaging.SubMaster(['selfdriveState', 'selfdriveStateSP', 'soundPressure', 'navigationd'])
 
     with self.get_stream(sd) as stream:
       rk = Ratekeeper(20)
@@ -195,14 +205,16 @@ class Soundd(QuietMode):
         sm.update(0)
 
         self.load_param()
+        self.nav_audio.load_params()
 
         # freeze volume during alerts to avoid mic feedback increasing volume
         if sm.updated['soundPressure']:
           self.spl_filter_weighted.update(sm["soundPressure"].soundPressureWeightedDb)
-          if self.current_alert == AudibleAlert.none:
+          if self.current_alert == AudibleAlert.none and not self.nav_audio.active:
             self.current_volume = self.calculate_volume(float(self.spl_filter_weighted.x))
 
         self.get_audible_alert(sm)
+        self.nav_audio.update(sm)
 
         # Ramp up immediate warning sound over 4s
         if self.current_alert == AudibleAlert.warningImmediate:
