@@ -7,6 +7,7 @@ See the LICENSE.md file in the root directory for more details.
 from collections.abc import Callable
 
 from openpilot.common.params import Params
+from openpilot.common.swaglog import cloudlog
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.widgets import DialogResult
 from openpilot.system.ui.widgets.keyboard import Keyboard
@@ -35,6 +36,9 @@ class InputDialogSP:
     def internal_callback(result: DialogResult):
       text = self.keyboard.text if result == DialogResult.CONFIRM else ""
       if result == DialogResult.CONFIRM and self.param:
+        # a param that changes without one of these lines was written by something
+        # other than the screen, which matters when auditing surprise writes
+        cloudlog.warning("ui: param %s set from input dialog (%d chars)", self.param, len(text))
         self._params.put(self.param, text)
       if self.callback:
         self.callback(result, text)
