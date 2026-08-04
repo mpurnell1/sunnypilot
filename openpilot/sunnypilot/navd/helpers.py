@@ -185,6 +185,60 @@ def lane_change_auto_confirm(progress: dict, banner_lanes: list | None) -> bool:
   return banner_lanes is not None and len(banner_lanes) >= 2
 
 
+# texts Mapbox already writes as a full sentence, or that carry their own verb; composing
+# on top of these would double the action ("Turn right onto Turn right")
+BANNER_VERB_PREFIXES = ('turn ', 'bear ', 'keep ', 'merge', 'continue', 'head ', 'make ', 'take ', 'drive ', 'your destination', 'you have arrived')
+
+
+def compose_banner_text(text: str, maneuver_type: str, modifier: str) -> str:
+  """One "action + road" sentence for the turn card.
+
+  Raw Mapbox banner text alternates between a bare action ('Turn right') and a bare road
+  name ('Exit 179 I-57', 'South 5th Street / I 55 Business') depending on distance, which
+  reads as an instruction with the action missing. When the banner gives a road name, the
+  action is rebuilt from the maneuver type and modifier in front of it.
+  """
+  lowered = text.lower()
+  if not maneuver_type or lowered.startswith(BANNER_VERB_PREFIXES):
+    return text
+
+  side = 'left' if 'left' in modifier else 'right' if 'right' in modifier else ''
+  if 'uturn' in modifier:
+    return f"Make a U-turn onto {text}" if text else "Make a U-turn"
+
+  if maneuver_type in ('turn', 'end of road'):
+    if not side:
+      action = "Continue"
+    elif 'slight' in modifier:
+      action = f"Bear {side}"
+    elif 'sharp' in modifier:
+      action = f"Turn sharply {side}"
+    else:
+      action = f"Turn {side}"
+  elif maneuver_type == 'fork':
+    action = f"Keep {side}" if side else "Keep straight"
+    return f"{action} toward {text}" if text else action
+  elif maneuver_type == 'off ramp':
+    # exit-numbered texts ('Exit 179 I-57') already name the exit, so 'Take' is enough
+    if lowered.startswith('exit'):
+      return f"Take {text}"
+    action = f"Take the {side} exit" if side else "Take the exit"
+  elif maneuver_type == 'on ramp':
+    action = "Take the ramp"
+  elif maneuver_type == 'merge':
+    action = f"Merge {side}" if side else "Merge"
+  elif any(t in maneuver_type for t in ROUNDABOUT_TYPES):
+    return f"At the roundabout, exit onto {text}" if text else "Enter the roundabout"
+  elif maneuver_type in ('continue', 'new name'):
+    action = f"Continue {side}" if side else "Continue"
+    return f"{action} on {text}" if text else action
+  else:
+    # depart, arrive, notification: Mapbox writes these as sentences already
+    return text
+
+  return f"{action} onto {text}" if text else action
+
+
 def string_to_direction(direction: str) -> str:
   # matched before the left/right scan: Mapbox's uturn modifier contains neither word, and
   # flattening it to 'none' would render a u-turn as "continue straight"
@@ -228,7 +282,7 @@ def parse_banner_instructions(banners: Any, distance_to_maneuver: float = 0.0) -
   # Primary
   p = current_banner['primary']
   if field_valid(p, 'text'):
-    instruction['maneuverPrimaryText'] = p['text']
+    instruction['maneuverPrimaryText'] = compose_banner_text(p['text'], p.get('type') or '', p.get('modifier') or '')
   if field_valid(p, 'type'):
     instruction['maneuverType'] = p['type']
   if field_valid(p, 'modifier'):
