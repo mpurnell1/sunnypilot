@@ -89,7 +89,7 @@ class NavigationLayout(Widget):
       button_item(tr("Add Favorite"), tr("Add"), tr("Add a new favorite."), self._add_fav),
       button_item(tr("Remove Favorite"), tr("Remove"), tr("Remove a favorite."), self._remove_fav),
       toggle_item_sp(tr("Mapbox Recompute"), tr("Recompute the route automatically after leaving it."), param="MapboxRecompute"),
-      toggle_item_sp(tr("Navigation Desires"), tr("Allow navigation to steer through turns on the route."), param="NavDesiresAllowed"),
+      toggle_item_sp(tr("Navigation Desires"), tr("Steer through a turn on the route once you signal for it."), param="NavDesiresAllowed"),
       multiple_button_item_sp(tr("Navigation Banners"), self._get_banner_description,
                               NAV_BANNER_BUTTONS, param="NavBannerMode"),
     ]
