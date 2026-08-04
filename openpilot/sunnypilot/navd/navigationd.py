@@ -23,6 +23,7 @@ from openpilot.sunnypilot.navd.constants import NAV_RETRY
 HINT_STABLE_CYCLES = 3
 from openpilot.sunnypilot.navd.helpers import Coordinate, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST
+from openpilot.sunnypilot.navd.nav_audio import NavAudioCues
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
 from openpilot.sunnypilot.navd.navigation_helpers.nav_instructions import NavigationInstructions
 
@@ -32,6 +33,7 @@ class Navigationd:
     self.params = Params()
     self.mapbox = MapboxIntegration()
     self.nav_instructions = NavigationInstructions()
+    self.nav_audio = NavAudioCues()
 
     self.sm = messaging.SubMaster(['carState', 'liveLocationKalman'])
     self.pm = messaging.PubMaster(['navigationd'])
@@ -56,6 +58,7 @@ class Navigationd:
     self.failed_attempts: int = 0
     self.next_attempt_time: float = 0.0
     self.final_step: bool = False
+    self.rerouting: bool = False
 
     self.frame: int = -1
     self.last_position: Coordinate | None = None
@@ -125,6 +128,7 @@ class Navigationd:
       # stays pending instead of latching a destination that can never be recomputed
       pending = bool(self.new_destination) and self.new_destination != self.destination
       rerouting = bool(self.recompute_allowed and not self.final_step and self.reroute_counter > 9 and self.route)
+      self.rerouting = rerouting
       self.allow_recompute: bool = (pending or rerouting) and monotonic() >= self.next_attempt_time
 
       # requests run off the loop: geocoding + directions + timezone can block 15s on a dead
@@ -179,6 +183,7 @@ class Navigationd:
         speed_limit, _ = progress['current_maxspeed']
         nav_data['current_speed_limit'] = speed_limit
         arrived = self.nav_instructions.arrived_at_destination(progress, v_ego)
+        nav_data['arrived'] = arrived
 
         banner_lanes = None
         if progress['current_step']:
@@ -271,6 +276,9 @@ class Navigationd:
     msg.navigationd.laneChangeAutoConfirm = nav_data.get('lane_change_auto_confirm', False)
     msg.navigationd.valid = self.valid
     msg.navigationd.routeFailures = min(self.failed_attempts, 0xffff)
+    msg.navigationd.audioCueCode = self.nav_audio.code
+    msg.navigationd.audioCueStage = self.nav_audio.stage
+    msg.navigationd.audioCueId = self.nav_audio.cue_id
 
     all_maneuvers = (
       [custom.Navigationd.Maneuver.new_message(distance=m['distance'], type=m['type'], modifier=m['modifier'],
@@ -300,6 +308,7 @@ class Navigationd:
 
       self._update_params()
       banner_instructions, progress, nav_data = self._update_navigation()
+      self.nav_audio.update(self.route, progress, nav_data, float(max(self.sm['carState'].vEgo, 0.0)), self.rerouting)
 
       msg = self._build_navigation_message(banner_instructions, progress, nav_data, valid=localizer_valid)
 
