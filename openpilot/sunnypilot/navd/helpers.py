@@ -97,38 +97,36 @@ def bearing_between_two_points(point_one: Coordinate, point_two: Coordinate) -> 
   return bearing_normalized
 
 
-def minimum_distance(a: Coordinate, b: Coordinate, p: Coordinate):
-  if a.distance_to(b) < 0.01:
-    return a.distance_to(p)
+def project_onto_geometry(geometry: list[Coordinate], cumulative_distances: list[float], pos: Coordinate) -> tuple[float, int, float]:
+  """Closest point on the route polyline: (crosstrack distance, segment index, distance along the route).
 
-  ap = p - a
-  ab = b - a
-  t = np.clip(ap.dot(ab) / ab.dot(ab), 0.0, 1.0)
-  projection = a + ab * t
-  return projection.distance_to(p)
+  The distance to the nearest vertex is not usable as an off-route measure: interstate
+  polylines space vertices 400m+ apart, so a vertex distance sawtooths by hundreds of
+  meters while the car drives dead-centre on the route.
+  """
+  if len(geometry) < 2:
+    return (geometry[0].distance_to(pos) if geometry else 0.0), 0, 0.0
 
+  # equirectangular projection about the vehicle: over one segment the flat-earth error is
+  # negligible next to the thresholds these outputs feed, and longitude must be scaled by
+  # cos(lat) or east-west displacement outweighs north-south in the dot products
+  k = math.cos(math.radians(pos.latitude))
+  px, py = pos.longitude * k, pos.latitude
 
-def distance_along_geometry(geometry: list[Coordinate], pos: Coordinate) -> float:
-  if len(geometry) <= 2:
-    return geometry[0].distance_to(pos)
-
-  # 1. Find segment that is closest to current position
-  # 2. Total distance is sum of distance to start of closest segment
-  #    + all previous segments
-  total_distance = 0.0
-  total_distance_closest = 0.0
-  closest_distance = 1e9
-
+  best_distance, best_idx, best_t = float('inf'), 0, 0.0
   for i in range(len(geometry) - 1):
-    d = minimum_distance(geometry[i], geometry[i + 1], pos)
+    a, b = geometry[i], geometry[i + 1]
+    ax, ay = a.longitude * k, a.latitude
+    bx, by = b.longitude * k, b.latitude
+    seg2 = (bx - ax) ** 2 + (by - ay) ** 2
+    t = 0.0 if seg2 == 0.0 else min(max(((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / seg2, 0.0), 1.0)
+    projection = Coordinate(a.latitude + (b.latitude - a.latitude) * t, a.longitude + (b.longitude - a.longitude) * t)
+    d = projection.distance_to(pos)
+    if d < best_distance:
+      best_distance, best_idx, best_t = d, i, t
 
-    if d < closest_distance:
-      closest_distance = d
-      total_distance_closest = total_distance + geometry[i].distance_to(pos)
-
-    total_distance += geometry[i].distance_to(geometry[i + 1])
-
-  return total_distance_closest
+  along = cumulative_distances[best_idx] + best_t * (cumulative_distances[best_idx + 1] - cumulative_distances[best_idx])
+  return best_distance, best_idx, along
 
 
 def coordinate_from_param(param: str, params: Params = None) -> Coordinate | None:
