@@ -14,7 +14,7 @@ from openpilot.common.params import Params
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
 
-from openpilot.sunnypilot.navd.constants import NAV_CV, NAV_RETRY
+from openpilot.sunnypilot.navd.constants import NAV_RETRY
 from openpilot.sunnypilot.navd.helpers import Coordinate, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
@@ -40,7 +40,9 @@ class Navigationd:
     self.recompute_allowed: bool = False
     self.allow_recompute: bool = False
     self.reroute_counter: int = 0
-    self.cancel_route_counter: int = 0
+    self.arrival_counter: int = 0
+    self.empty_destination_reads: int = 0
+    self.observed_destination: str | None = None
     self.attempted_destination: str | None = None
     self.failed_attempts: int = 0
     self.next_attempt_time: float = 0.0
@@ -57,8 +59,9 @@ class Navigationd:
     self.nav_instructions.clear_route_cache()
     self.route = None
     self.destination = None
-    self.cancel_route_counter = 0
+    self.arrival_counter = 0
     self.reroute_counter = 0
+    self.empty_destination_reads = 0
     self.final_step = False
 
   def _reset_retry(self) -> None:
@@ -81,10 +84,23 @@ class Navigationd:
         self.new_destination = self.params.get('MapboxRoute')
         self.recompute_allowed = self.params.get('MapboxRecompute', return_default=True)
 
-      # the destination can be cleared externally (e.g. from the settings UI), so drop the active route.
-      # Params returns None for an unset or empty string param, so treat both as "no destination"
-      if not self.new_destination and self.route is not None:
-        self._drop_route()
+        # audit trail: an unattributed one-poll empty read killed a live highway route on
+        # 2026-08-03, so every observed destination change is worth a log line
+        if self.new_destination != self.observed_destination:
+          cloudlog.warning("navd: destination param changed %r -> %r", self.observed_destination, self.new_destination)
+          self.observed_destination = self.new_destination
+
+        # the destination can be cleared externally (e.g. from the settings UI), and Params
+        # returns None for an unset or empty string param, so treat both as "no destination".
+        # A single empty read is not proof of intent: the route only drops once the clear
+        # persists across polls, so a read glitch costs nothing but one poll of latency
+        if not self.new_destination and self.route is not None:
+          self.empty_destination_reads += 1
+          if self.empty_destination_reads >= 2:
+            cloudlog.warning("navd: destination stayed empty across polls, dropping the route")
+            self._drop_route()
+        else:
+          self.empty_destination_reads = 0
 
       # entering a different destination is a fresh request, so it must not inherit the
       # backoff accumulated by the previous one
@@ -110,14 +126,16 @@ class Navigationd:
         if route is not None:
           self.destination = self.new_destination
           self.route = route
-          self.cancel_route_counter = 0
+          self.arrival_counter = 0
           self.reroute_counter = 0
           self._reset_retry()
         else:
           # an existing route is left alone: only the request for a new one failed
           self._schedule_retry()
 
-      if self.cancel_route_counter == 30:
+      # arrival is the only condition that concludes a trip on its own; clearing the
+      # destination param here is what lets the same address start a fresh route later
+      if self.arrival_counter >= 30:
         self.params.put("MapboxRoute", "")
         self._drop_route()
 
@@ -162,19 +180,19 @@ class Navigationd:
 
         route_bearing_misalign: bool = self.nav_instructions.route_bearing_misalign(self.route, self.last_bearing, v_ego)
 
+        # being lost never cancels the route: off-route and misalignment only ask for a
+        # recompute, and with no network the route is held so guidance returns on its own
         if large_distance and not arrived:
-          self.cancel_route_counter = self.cancel_route_counter + 1 if progress['distance_from_route'] > NAV_CV.QUARTER_MILE else 0
           if self.recompute_allowed:
             self.reroute_counter += 1
         elif arrived:
-          self.cancel_route_counter += 1
+          self.arrival_counter += 1
           self.recompute_allowed = False
         elif route_bearing_misalign:
-          self.cancel_route_counter += 1
           if self.recompute_allowed:
             self.reroute_counter += 1
         else:
-          self.cancel_route_counter = 0
+          self.arrival_counter = 0
           self.reroute_counter = 0
 
         # recomputing from inside the final step causes reroute loops at the destination, so
