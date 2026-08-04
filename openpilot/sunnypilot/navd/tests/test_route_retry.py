@@ -6,6 +6,7 @@ See the LICENSE.md file in the root directory for more details.
 """
 import platform
 import pytest
+from concurrent.futures import Future
 
 from openpilot.common.params import Params
 from openpilot.sunnypilot.navd import navigationd as navigationd_module
@@ -48,6 +49,15 @@ class TestRouteRetry:
     mocker.patch.object(self.nav.nav_instructions, 'clear_route_cache')
     mocker.patch.object(self.nav.nav_instructions, 'get_current_route',
                         side_effect=lambda: ROUTE if self.route_ready else None)
+
+    # requests normally run on a worker thread; running them inline keeps the fake clock
+    # authoritative over when a request happens and when its result lands
+    def inline_submit(fn, *args, **kwargs):
+      future = Future()
+      future.set_result(fn(*args, **kwargs))
+      return future
+
+    mocker.patch.object(self.nav.executor, 'submit', side_effect=inline_submit)
 
   # the real loop runs at 3Hz, which is what makes an un-backed-off retry expensive
   def run_for(self, seconds: float) -> None:
@@ -151,6 +161,19 @@ class TestRouteRetry:
     assert self.nav.route is None
     assert self.nav.destination is None
     assert Params().get("MapboxSettings") is None, "stored route must not survive a clear"
+
+  def test_a_result_for_a_stale_destination_is_discarded(self):
+    self.route_ready = True
+    request = Future()
+    request.set_result(({}, True))
+    self.nav.route_request = request
+    self.nav.attempted_destination = "the old destination"
+    self.nav.frame = 0  # keep clear of the poll so new_destination stays as set
+    self.nav.new_destination = DESTINATION
+
+    self.nav._update_params()
+    assert self.nav.route is None, "a route for a destination the driver replaced must not land"
+    assert self.nav.failed_attempts == 0, "a discarded result is not a failure to back off from"
 
   def test_a_transient_empty_read_holds_the_route(self):
     self.route_ready = True
