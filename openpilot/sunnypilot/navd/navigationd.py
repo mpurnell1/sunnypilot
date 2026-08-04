@@ -16,6 +16,11 @@ from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
 
 from openpilot.sunnypilot.navd.constants import NAV_RETRY
+
+# a lane-change direction must hold this many 3Hz cycles before it publishes: hints were
+# observed flapping left/right within a second, and a flap that reaches the assist gate
+# flips which blinker can start a lane change
+HINT_STABLE_CYCLES = 3
 from openpilot.sunnypilot.navd.helpers import Coordinate, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
@@ -57,6 +62,10 @@ class Navigationd:
     self.last_bearing: float | None = None
     self.valid: bool = False
 
+    self.hint_candidate: str = 'none'
+    self.hint_stable_count: int = 0
+    self.published_hint: str = 'none'
+
   # MapboxSettings outlives the in-memory route, so a route left there can be reloaded later
   def _drop_route(self) -> None:
     self.params.remove("MapboxSettings")
@@ -67,6 +76,7 @@ class Navigationd:
     self.reroute_counter = 0
     self.empty_destination_reads = 0
     self.final_step = False
+    self._reset_hint()
 
   def _reset_retry(self) -> None:
     self.failed_attempts = 0
@@ -187,15 +197,19 @@ class Navigationd:
         nav_data['distance_remaining'] = progress['distance_remaining']
         nav_data['time_remaining'] = progress['time_remaining']
 
-        if self.lane_guidance >= LANE_GUIDANCE_ASSIST:
-          hint = lane_change_hint(progress, v_ego)
-          nav_data['lane_change_direction'] = hint
-          nav_data['lane_change_auto_confirm'] = hint != 'none' and lane_change_auto_confirm(progress, banner_lanes)
         speed_breakpoints: list = [0.0, 5.0, 10.0, 20.0, 40.0]
         distance_list: list = [100.0, 125.0, 150.0, 200.0, 250.0]
         large_distance: bool = progress['distance_from_route'] > float(interp(v_ego, speed_breakpoints, distance_list))
 
         route_bearing_misalign: bool = self.nav_instructions.route_bearing_misalign(self.route, self.last_bearing, v_ego)
+
+        if self.lane_guidance >= LANE_GUIDANCE_ASSIST:
+          # a hint is only as good as the route it came from: off it, pointed away from it,
+          # or waiting on a failed reroute, the stale route must not prompt lane changes
+          route_trusted = not large_distance and not route_bearing_misalign and self.failed_attempts == 0
+          hint = self._stable_hint(lane_change_hint(progress, v_ego) if route_trusted else 'none')
+          nav_data['lane_change_direction'] = hint
+          nav_data['lane_change_auto_confirm'] = hint != 'none' and lane_change_auto_confirm(progress, banner_lanes)
 
         # being lost never cancels the route: off-route and misalignment only ask for a
         # recompute, and with no network the route is held so guidance returns on its own
@@ -221,8 +235,28 @@ class Navigationd:
       banner_instructions = ''
       progress = None
       nav_data = {}
+      self._reset_hint()
 
     return banner_instructions, progress, nav_data
+
+  def _reset_hint(self) -> None:
+    self.hint_candidate = 'none'
+    self.hint_stable_count = 0
+    self.published_hint = 'none'
+
+  def _stable_hint(self, hint: str) -> str:
+    if hint == self.hint_candidate:
+      self.hint_stable_count += 1
+    else:
+      self.hint_candidate = hint
+      self.hint_stable_count = 1
+
+    if hint == 'none' or self.hint_stable_count >= HINT_STABLE_CYCLES:
+      self.published_hint = hint
+    elif self.published_hint != hint:
+      # between directions the safe output is no hint, not the stale one
+      self.published_hint = 'none'
+    return self.published_hint
 
   def _build_navigation_message(self, banner_instructions: str, progress: dict | None, nav_data: dict, valid: bool):
     msg = messaging.new_message('navigationd')
