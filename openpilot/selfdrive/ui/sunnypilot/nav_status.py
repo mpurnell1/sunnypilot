@@ -24,8 +24,9 @@ class NavState(IntEnum):
   ACTIVE = 5           # a route is loaded
 
 
-# navd's retry backoff puts the second failure ~10s in
-ROUTE_FAILURE_THRESHOLD = 2
+# a single failure already means tens of seconds without a route (5s of request timeouts
+# plus a 10s backoff), so the driver is told on the first one
+ROUTE_FAILURE_THRESHOLD = 1
 
 # navigationd sets msg.valid from the instantaneous localizer fix but keeps its last position
 # across short dropouts, so the display tolerates the same gaps the daemon does
