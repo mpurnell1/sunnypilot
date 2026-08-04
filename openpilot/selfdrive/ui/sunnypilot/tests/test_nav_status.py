@@ -157,12 +157,13 @@ class TestNavStatus:
     self.tick(0.1)
     assert not self.status.gps_locked
 
-  def test_repeated_failures_are_reported_as_no_route(self):
+  def test_failures_are_reported_as_no_route(self):
     self.set_destination("740 E Ventura Blvd")
-    self.sm.set(alive=True, gps_valid=True, failures=1)
+    self.sm.set(alive=True, gps_valid=True, failures=0)
     self.acquire_fix()
-    assert self.status.state == NavState.COMPUTING, "one failure is still worth calling 'trying'"
+    assert self.status.state == NavState.COMPUTING, "no failures yet, so it is still 'trying'"
 
+    # a single failure already means tens of seconds without a route, so it is shown
     self.sm.set(alive=True, gps_valid=True, failures=ROUTE_FAILURE_THRESHOLD)
     self.tick()
     assert self.status.state == NavState.NO_ROUTE
