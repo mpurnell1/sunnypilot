@@ -4,6 +4,7 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
+from concurrent.futures import Future, ThreadPoolExecutor
 from math import degrees
 from numpy import interp
 from time import monotonic
@@ -34,6 +35,9 @@ class Navigationd:
     self.route = None
     self.destination: str | None = None
     self.new_destination: str = ''
+
+    self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='navd_route')
+    self.route_request: Future | None = None
 
     self.allow_navigation: bool = False
     self.lane_guidance: int = 0  # 0 off, 1 display, 2 display + assist
@@ -113,25 +117,38 @@ class Navigationd:
       rerouting = bool(self.recompute_allowed and not self.final_step and self.reroute_counter > 9 and self.route)
       self.allow_recompute: bool = (pending or rerouting) and monotonic() >= self.next_attempt_time
 
-      if self.allow_recompute:
+      # requests run off the loop: geocoding + directions + timezone can block 15s on a dead
+      # LTE link, and an on-loop request once froze banners and hints for 6s at 81mph
+      if self.allow_recompute and self.route_request is None:
         self.attempted_destination = self.new_destination
         postvars = {'place_name': self.new_destination}
-        postvars, route_ready = self.mapbox.set_destination(postvars, self.last_position.longitude, self.last_position.latitude, self.last_bearing)
+        self.route_request = self.executor.submit(self.mapbox.set_destination, postvars,
+                                                  self.last_position.longitude, self.last_position.latitude, self.last_bearing)
 
-        route = None
-        if route_ready:
-          self.nav_instructions.clear_route_cache()
-          route = self.nav_instructions.get_current_route()
+      if self.route_request is not None and self.route_request.done():
+        request, self.route_request = self.route_request, None
+        try:
+          _, route_ready = request.result()
+        except Exception:
+          cloudlog.exception("navd: route request raised")
+          route_ready = False
 
-        if route is not None:
-          self.destination = self.new_destination
-          self.route = route
-          self.arrival_counter = 0
-          self.reroute_counter = 0
-          self._reset_retry()
-        else:
-          # an existing route is left alone: only the request for a new one failed
-          self._schedule_retry()
+        # a result for a destination the driver has since changed or cleared must not land
+        if self.attempted_destination == self.new_destination:
+          route = None
+          if route_ready:
+            self.nav_instructions.clear_route_cache()
+            route = self.nav_instructions.get_current_route()
+
+          if route is not None:
+            self.destination = self.new_destination
+            self.route = route
+            self.arrival_counter = 0
+            self.reroute_counter = 0
+            self._reset_retry()
+          else:
+            # an existing route is left alone: only the request for a new one failed
+            self._schedule_retry()
 
       # arrival is the only condition that concludes a trip on its own; clearing the
       # destination param here is what lets the same address start a fresh route later
