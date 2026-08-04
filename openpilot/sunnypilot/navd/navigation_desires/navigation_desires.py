@@ -50,8 +50,10 @@ class NavigationDesires:
         self.desire = log.Desire.keepLeft
       elif upcoming == 'slightRight' and not CS.leftBlinker and not CS.rightBlindspot and CS.steeringPressed and CS.steeringTorque < 0:
         self.desire = log.Desire.keepRight
-      elif upcoming == 'left' and not CS.rightBlinker and not CS.leftBlindspot and CS.vEgo < self._turn_speed_limit:
+      # the driver's matching blinker is required: without it the car would start the turn
+      # on its own, and six of those fully autonomous turns showed up in one day of logs
+      elif upcoming == 'left' and CS.leftBlinker and not CS.rightBlinker and not CS.leftBlindspot and CS.vEgo < self._turn_speed_limit:
         self.desire = log.Desire.turnLeft
-      elif upcoming == 'right' and not CS.leftBlinker and not CS.rightBlindspot and CS.vEgo < self._turn_speed_limit:
+      elif upcoming == 'right' and CS.rightBlinker and not CS.leftBlinker and not CS.rightBlindspot and CS.vEgo < self._turn_speed_limit:
         self.desire = log.Desire.turnRight
     return self.desire
