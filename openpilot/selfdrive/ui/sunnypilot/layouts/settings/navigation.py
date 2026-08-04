@@ -48,6 +48,14 @@ NAV_LANE_DESCRIPTIONS = [
   tr("Assist: Also confirm a lane change you signal toward the route immediately, without a steering nudge or delay. You still start every lane change with the blinker."),  # noqa: E501
 ]
 
+NAV_AUDIO_BUTTONS = [tr("Off"), tr("Tones"), tr("Morse")]
+
+NAV_AUDIO_DESCRIPTIONS = [
+  tr("Off: No navigation sounds."),
+  tr("Tones: Short pitch cues for each maneuver; rising means right, falling means left, wider means sharper."),
+  tr("Morse: Maneuver codes keyed in Morse, e.g. R for a right turn or O3 for a roundabout's third exit. Speed comes from the NavAudioWpm parameter."),
+]
+
 STATUS_GOOD_COLOR = rl.Color(0x2f, 0xc4, 0x6e, 0xff)
 STATUS_PENDING_COLOR = rl.Color(0xff, 0xb8, 0x2e, 0xff)
 STATUS_FAILED_COLOR = rl.Color(0xf2, 0x6d, 0x6d, 0xff)
@@ -76,6 +84,8 @@ class NavigationLayout(Widget):
                                                  NAV_HUD_BUTTONS, param="NavHudMode")
     self._lane_guidance_item = multiple_button_item_sp(tr("Lane Guidance"), self._get_lane_guidance_description,
                                                        NAV_LANE_BUTTONS, param="NavLaneGuidance")
+    self._nav_audio_item = multiple_button_item_sp(tr("Navigation Audio"), self._get_nav_audio_description,
+                                                   NAV_AUDIO_BUTTONS, param="NavigationAudio")
 
     self._mapbox_token_item = button_item(tr("Mapbox Token"), tr("Edit"), tr("Enter your Mapbox public token."),
                                           partial(self._show_param_input, "MapboxToken", tr("Enter Mapbox Token")))
@@ -107,7 +117,7 @@ class NavigationLayout(Widget):
                      param="AllowNavigation"),
       *self._vis_items[4:],
       self._gps_status_item, self._route_status_item,
-      self._nav_hud_item, self._lane_guidance_item,
+      self._nav_hud_item, self._lane_guidance_item, self._nav_audio_item,
     ]
     self._scroller = Scroller(items, line_separator=True, spacing=0)
 
@@ -190,6 +200,9 @@ class NavigationLayout(Widget):
 
   def _get_lane_guidance_description(self) -> str:
     return get_highlighted_description(self._params, "NavLaneGuidance", NAV_LANE_DESCRIPTIONS)
+
+  def _get_nav_audio_description(self) -> str:
+    return get_highlighted_description(self._params, "NavigationAudio", NAV_AUDIO_DESCRIPTIONS)
 
   def _update_state(self):
     self._nav_status.update()
