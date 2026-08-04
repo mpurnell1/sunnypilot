@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 from openpilot.common.params import Params
 from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST, LANE_GUIDANCE_DISPLAY
-from openpilot.sunnypilot.navd.helpers import Coordinate, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
+from openpilot.sunnypilot.navd.helpers import Coordinate, compose_banner_text, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.navigation_desires.navigation_desires import NavigationDesires
 from openpilot.sunnypilot.navd.navigationd import HINT_STABLE_CYCLES, Navigationd
 
@@ -118,6 +118,34 @@ class TestAutoConfirm:
     assert msg.navigationd.laneChangeAutoConfirm
     msg = nav._build_navigation_message('', None, {'lane_change_direction': 'left'}, True)
     assert not msg.navigationd.laneChangeAutoConfirm
+
+
+# the road names are real banner texts from the 2026-08-03 drives, where they appeared
+# on the turn card with no action attached
+class TestBannerWording:
+  def test_road_names_get_their_action_back(self):
+    assert compose_banner_text('South 5th Street / I 55 Business', 'turn', 'right') == 'Turn right onto South 5th Street / I 55 Business'
+    assert compose_banner_text('Exit 179 I-57', 'off ramp', 'slight right') == 'Take Exit 179 I-57'
+    assert compose_banner_text('I 72 East / US 51 North', 'merge', 'slight left') == 'Merge left onto I 72 East / US 51 North'
+    assert compose_banner_text('North Neil Street', 'turn', 'slight left') == 'Bear left onto North Neil Street'
+
+  def test_action_only_texts_pass_through(self):
+    assert compose_banner_text('Turn right', 'turn', 'right') == 'Turn right'
+    assert compose_banner_text('Bear left', 'turn', 'slight left') == 'Bear left'
+    assert compose_banner_text('Your destination is on the right', 'arrive', 'right') == 'Your destination is on the right'
+
+  def test_forks_and_unnumbered_exits(self):
+    assert compose_banner_text('I-74 West', 'fork', 'left') == 'Keep left toward I-74 West'
+    assert compose_banner_text('J. David Jones Parkway / IL 29', 'off ramp', 'right') == 'Take the right exit onto J. David Jones Parkway / IL 29'
+
+  def test_uturns_and_roundabouts(self):
+    assert compose_banner_text('Main Street', 'turn', 'uturn') == 'Make a U-turn onto Main Street'
+    assert compose_banner_text('Main Street', 'roundabout', 'slight right') == 'At the roundabout, exit onto Main Street'
+
+  def test_parse_composes_the_primary_text(self):
+    banners = [{'distanceAlongGeometry': 400, 'primary': {'text': 'South 4th Street', 'type': 'turn', 'modifier': 'left'}}]
+    parsed = parse_banner_instructions(banners, distance_to_maneuver=100)
+    assert parsed['maneuverPrimaryText'] == 'Turn left onto South 4th Street'
 
 
 class TestHintStability:
