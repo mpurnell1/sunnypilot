@@ -490,6 +490,13 @@ struct Navigationd @0xcb9fd56c7057593a {
   # mapped lane count says the adjacent lane runs our way, never toward oncoming traffic
   laneChangeAutoConfirm @11 :Bool;
 
+  # latest audio prompt: a maneuver code from the nav audio vocabulary ('R', 'SL', 'O3',
+  # 'QRX', ...), sticky until the next cue. Consumers edge-detect on audioCueId, which
+  # increments once per cue, so a late subscriber must not replay the first value it sees
+  audioCueCode @12 :Text;
+  audioCueStage @13 :Text;  # 'approach' | 'imminent' | 'lane' | 'reroute' | 'arrive' | 'digest'
+  audioCueId @14 :UInt32;
+
   struct Maneuver {
     distance @0 :Float32;
     type @1 :Text;
