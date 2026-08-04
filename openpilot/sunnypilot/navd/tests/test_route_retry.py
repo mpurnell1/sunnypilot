@@ -132,8 +132,8 @@ class TestRouteRetry:
     self.run_for(1.0)
     assert self.nav.destination == DESTINATION
 
-    # arrival drives cancel_route_counter to 30
-    self.nav.cancel_route_counter = 30
+    # arrival drives arrival_counter to 30
+    self.nav.arrival_counter = 30
     self.run_for(1 / 3)
     assert self.nav.route is None
     assert self.nav.destination is None, "re-entering the same address must be able to start a new route"
@@ -145,18 +145,34 @@ class TestRouteRetry:
 
     Params().put("MapboxSettings", {"navData": {"route": {"steps": [{}]}}}, block=True)
     Params().put("MapboxRoute", "", block=True)
-    self.run_for(6.0)
+    # the empty value must be seen on two consecutive 5s polls before the route drops
+    self.run_for(11.0)
 
     assert self.nav.route is None
     assert self.nav.destination is None
     assert Params().get("MapboxSettings") is None, "stored route must not survive a clear"
+
+  def test_a_transient_empty_read_holds_the_route(self):
+    self.route_ready = True
+    self.run_for(1.0)
+    assert self.nav.route == ROUTE
+
+    # one poll sees the destination empty, then the value is back — a glitch, not a clear
+    Params().put("MapboxRoute", "", block=True)
+    self.run_for(5.0)
+    Params().put("MapboxRoute", DESTINATION, block=True)
+    self.run_for(6.0)
+
+    assert self.nav.route == ROUTE, "a one-poll empty read must not kill the route"
+    assert self.nav.destination == DESTINATION
+    assert self.nav.empty_destination_reads == 0
 
   def test_arrival_forgets_the_stored_route(self):
     self.route_ready = True
     self.run_for(1.0)
     Params().put("MapboxSettings", {"navData": {"route": {"steps": [{}]}}}, block=True)
 
-    self.nav.cancel_route_counter = 30
+    self.nav.arrival_counter = 30
     self.run_for(1 / 3)
     assert self.nav.route is None
     assert Params().get("MapboxSettings") is None
