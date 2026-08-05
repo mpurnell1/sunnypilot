@@ -60,6 +60,10 @@ def maneuver_code(maneuver_type: str, modifier: str, instruction: str = '') -> s
       side = next((s for s, mods in SIDES.items() if modifier in mods), None)
       # a merge or fork with no stated side is a follow-the-road non-event
       return prefix + side if side else ''
+  if maneuver_type in ('continue', 'new name'):
+    # the road bends or changes name, which helpers.py renders as a non-maneuver; only the
+    # u-turn is real, and Mapbox files divided-road u-turns under 'continue'
+    return 'U' if modifier == 'uturn' else ''
   if maneuver_type in ('arrive', 'depart', 'notification'):
     return ''
   return MODIFIER_CODES.get(modifier, '')
