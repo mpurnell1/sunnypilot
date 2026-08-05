@@ -21,6 +21,9 @@ BASE_FREQ = 440.0
 AMPLITUDE = 0.85
 EDGE_S = 0.005  # raised-cosine attack/release
 
+# ticks count roundabout exits or digest miles; a longer run is a malformed code, not a cue
+MAX_TICKS = 9
+
 AUDIO_OFF = 0
 AUDIO_TONES = 1
 AUDIO_MORSE = 2
@@ -88,7 +91,7 @@ def morse_wave(code: str, wpm: int, freq: float = CW_FREQ, sr: int = SAMPLE_RATE
 
 def _ticks(count: int, sr: int) -> list[np.ndarray]:
   parts = []
-  for i in range(count):
+  for i in range(min(count, MAX_TICKS)):
     if i > 0:
       parts.append(_gap(0.07, sr))
     parts.append(_tone(880.0, 0.05, sr))
