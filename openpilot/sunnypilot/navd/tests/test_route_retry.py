@@ -148,6 +148,33 @@ class TestRouteRetry:
     assert self.nav.route is None
     assert self.nav.destination is None, "re-entering the same address must be able to start a new route"
 
+  def test_arrival_does_not_request_the_concluded_destination_again(self):
+    self.route_ready = True
+    self.run_for(1.0)
+    calls_before = self.set_destination_calls
+
+    # the destination param is cleared on arrival, but it is only re-read every 15 frames
+    self.nav.arrival_counter = 30
+    self.run_for(4.0)
+
+    assert self.set_destination_calls == calls_before, "arrival must not re-request the trip it just concluded"
+    assert self.nav.route is None
+    assert self.nav.destination is None
+
+  def test_the_same_address_still_routes_after_arrival(self):
+    self.route_ready = True
+    self.run_for(1.0)
+    self.nav.arrival_counter = 30
+    self.run_for(4.0)
+    assert self.nav.route is None
+
+    Params().put("MapboxRoute", DESTINATION, block=True)
+    calls_before = self.set_destination_calls
+    self.run_for(6.0)
+
+    assert self.nav.route == ROUTE, "re-entering the same address must start a new route"
+    assert self.set_destination_calls == calls_before + 1
+
   def test_clearing_the_destination_forgets_the_stored_route(self):
     self.route_ready = True
     self.run_for(1.0)
