@@ -9,6 +9,8 @@ sidetone for Morse mode, and a small pitch language for Tones mode: rising inter
 right, falling mean left, and the interval widens with the sharpness of the turn. Every
 tone edge is a raised-cosine ramp so nothing clicks on the speaker.
 """
+import threading
+
 import numpy as np
 
 from openpilot.common.params import Params
@@ -156,6 +158,10 @@ class NavAudioPlayer:
 
   Owns the edge detection on audioCueId and the mode/WPM params; soundd only asks for
   frames and decides whether the channel is free (no alert playing, quiet mode off).
+
+  update() runs on soundd's 20 Hz loop and the rest on the PortAudio callback thread, so
+  the buffer and the read position are only ever touched together, under _lock. Synthesis
+  stays outside it: the callback must never wait on a cue being built.
   """
 
   def __init__(self, sr: int = SAMPLE_RATE):
@@ -167,6 +173,7 @@ class NavAudioPlayer:
     self._last_cue_id: int | None = None
     self._buf = np.zeros(0, dtype=np.float32)
     self._pos = 0
+    self._lock = threading.Lock()
     self._read_params()
 
   def _read_params(self) -> None:
@@ -194,21 +201,26 @@ class NavAudioPlayer:
     if self.mode == AUDIO_OFF or not code:
       return
     # a newer cue carries newer information, so it replaces whatever was still playing
-    self._buf = cue_wave(code, str(nav.audioCueStage), self.mode, self.wpm, self.sr)
-    self._pos = 0
+    buf = cue_wave(code, str(nav.audioCueStage), self.mode, self.wpm, self.sr)
+    with self._lock:
+      self._buf = buf
+      self._pos = 0
 
   @property
   def active(self) -> bool:
-    return self._pos < len(self._buf)
+    with self._lock:
+      return self._pos < len(self._buf)
 
   def cancel(self) -> None:
-    self._buf = np.zeros(0, dtype=np.float32)
-    self._pos = 0
+    with self._lock:
+      self._buf = np.zeros(0, dtype=np.float32)
+      self._pos = 0
 
   def get_frames(self, frames: int) -> np.ndarray:
     out = np.zeros(frames, dtype=np.float32)
-    take = min(frames, len(self._buf) - self._pos)
-    if take > 0:
-      out[:take] = self._buf[self._pos:self._pos + take]
-      self._pos += take
+    with self._lock:
+      take = min(frames, len(self._buf) - self._pos)
+      if take > 0:
+        out[:take] = self._buf[self._pos:self._pos + take]
+        self._pos += take
     return out
