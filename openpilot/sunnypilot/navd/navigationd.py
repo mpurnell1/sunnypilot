@@ -75,6 +75,9 @@ class Navigationd:
     self.nav_instructions.clear_route_cache()
     self.route = None
     self.destination = None
+    # MapboxRoute is only re-read every 15 frames, so until the next poll the stale in-memory
+    # value still reads as a fresh destination and re-requests the trip that just concluded
+    self.new_destination = ''
     self.arrival_counter = 0
     self.reroute_counter = 0
     self.empty_destination_reads = 0
