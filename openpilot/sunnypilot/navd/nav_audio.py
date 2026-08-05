@@ -45,7 +45,9 @@ MODIFIER_CODES = {
 TYPE_PREFIXES = {'off ramp': 'X', 'merge': 'M', 'fork': 'K'}
 SIDES = {'L': ('uturn', 'left', 'slightLeft', 'sharpLeft'), 'R': ('right', 'slightRight', 'sharpRight')}
 
-ORDINAL_EXIT_RE = re.compile(r'(\d+)\w*\s+exit')
+# the ordinal suffix is required: without it road names ('onto A40 exit') read as exit numbers
+ORDINAL_EXIT_RE = re.compile(r'(\d+)(?:st|nd|rd|th)\s+exit')
+MAX_EXITS = 9  # the exit number is ticked out one beep at a time, so it cannot run away
 
 
 def maneuver_code(maneuver_type: str, modifier: str, instruction: str = '') -> str:
@@ -54,7 +56,7 @@ def maneuver_code(maneuver_type: str, modifier: str, instruction: str = '') -> s
     return ''
   if any(t in maneuver_type for t in ROUNDABOUT_TYPES):
     exit_num = ORDINAL_EXIT_RE.search(instruction)
-    return f'O{exit_num.group(1)}' if exit_num else 'O'
+    return f'O{min(MAX_EXITS, int(exit_num.group(1)))}' if exit_num else 'O'
   for prefix_type, prefix in TYPE_PREFIXES.items():
     if prefix_type in maneuver_type:
       side = next((s for s, mods in SIDES.items() if modifier in mods), None)
