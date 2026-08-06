@@ -232,3 +232,35 @@ class TestPlayer:
     player.cancel()
     assert not player.active
     assert np.all(player.get_frames(256) == 0)
+
+
+class _FakeParams:
+  def __init__(self, tour: bool):
+    self.tour = tour
+
+  def get_bool(self, _):
+    return self.tour
+
+  def put_bool(self, _, value):
+    self.tour = value
+
+
+class TestSoundTour:
+  def test_tour_renders_in_both_modes(self):
+    for mode in (nav_sounds.AUDIO_TONES, AUDIO_MORSE):
+      wave = nav_sounds.tour_wave(mode, 30)
+      assert len(wave) > 0 and np.all(np.isfinite(wave))
+
+  def test_tour_covers_the_vocabulary(self):
+    assert {code.split(' ')[0] for code, _ in nav_sounds.TOUR} >= set(ALL_CODES) - {'O'}
+
+  def test_request_plays_even_with_audio_off(self, monkeypatch):
+    monkeypatch.setattr(NavAudioPlayer, '_read_params', lambda self: None)
+    player = NavAudioPlayer()
+    player.mode = nav_sounds.AUDIO_OFF
+    player.params = _FakeParams(tour=True)
+    for _ in range(10):
+      player.load_params()
+    assert player.active
+    # the request is consumed, so the tour does not restart on the next poll
+    assert not player.params.tour
