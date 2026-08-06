@@ -46,10 +46,26 @@ class TestManeuverCodes:
     assert maneuver_code('depart', 'right') == ''
     assert maneuver_code('arrive', 'none') == ''
 
+  def test_bends_and_name_changes_are_not_turns(self):
+    assert maneuver_code('continue', 'left') == ''
+    assert maneuver_code('continue', 'slightRight') == ''
+    assert maneuver_code('new name', 'slightLeft') == ''
+    assert maneuver_code('new name', 'right') == ''
+    # a turn onto a road that also changes name still arrives as a turn
+    assert maneuver_code('turn', 'left') == 'L'
+
+  def test_a_continue_uturn_is_still_a_uturn(self):
+    assert maneuver_code('continue', 'uturn') == 'U'
+
   def test_roundabout_exit_number_comes_from_instruction(self):
     assert maneuver_code('roundabout', 'right', 'Enter the roundabout and take the 3rd exit') == 'O3'
     assert maneuver_code('rotary', 'right') == 'O'
     assert maneuver_code('exit roundabout', 'right') == ''
+
+  def test_only_an_ordinal_reads_as_an_exit_number(self):
+    assert maneuver_code('roundabout', 'right', 'At the roundabout, exit onto A40 exit') == 'O'
+    assert maneuver_code('roundabout', 'right', 'Take the 1st exit onto A40') == 'O1'
+    assert maneuver_code('roundabout', 'right', 'Take the 12th exit') == 'O9'
 
 
 class TestStages:
@@ -156,6 +172,10 @@ class TestSynthesis:
   def test_digest_appends_ticks(self):
     assert len(earcon_wave('R 5', 'digest')) > len(earcon_wave('R', 'digest'))
 
+  def test_tick_runs_are_clamped(self):
+    assert len(earcon_wave('O40', 'approach')) == len(earcon_wave('O9', 'approach'))
+    assert len(earcon_wave('R 40', 'digest')) == len(earcon_wave('R 9', 'digest'))
+
   def test_envelopes_kill_clicks(self):
     wave = earcon_wave('R', 'approach')
     assert abs(wave[0]) < 1e-3 and abs(wave[-1]) < 1e-3
@@ -189,6 +209,19 @@ class TestPlayer:
     player.update(_FakeSM(1))
     player.update(_FakeSM(2))
     assert not player.active
+
+  def test_an_unrenderable_code_stays_silent(self, monkeypatch):
+    logged = []
+    monkeypatch.setattr(nav_sounds.cloudlog, 'exception', lambda msg: logged.append(msg))
+    player = self._player(monkeypatch, nav_sounds.AUDIO_TONES)
+    player.update(_FakeSM(1, code='ZZ'))
+    player.update(_FakeSM(2, code='ZZ'))
+    player.update(_FakeSM(3, code='ZZ'))
+    assert not player.active
+    assert len(logged) == 1
+    # the next cue this build does understand still plays
+    player.update(_FakeSM(4, code='R'))
+    assert player.active
 
   def test_alert_cancel_drops_the_transmission(self, monkeypatch):
     player = self._player(monkeypatch, AUDIO_MORSE)
