@@ -14,6 +14,7 @@ import threading
 import numpy as np
 
 from openpilot.common.params import Params
+from openpilot.common.swaglog import cloudlog
 
 SAMPLE_RATE = 48000
 CW_FREQ = 700.0
@@ -177,6 +178,7 @@ class NavAudioPlayer:
     self._buf = np.zeros(0, dtype=np.float32)
     self._pos = 0
     self._lock = threading.Lock()
+    self._bad_codes: set[str] = set()
     self._read_params()
 
   def _read_params(self) -> None:
@@ -203,8 +205,16 @@ class NavAudioPlayer:
     code = str(nav.audioCueCode)
     if self.mode == AUDIO_OFF or not code:
       return
+    try:
+      buf = cue_wave(code, str(nav.audioCueStage), self.mode, self.wpm, self.sr)
+    except Exception:
+      # a newer navigationd, or a replayed log, can carry codes this build cannot render;
+      # letting that out would abort the stream and take soundd down with it
+      if code not in self._bad_codes:
+        self._bad_codes.add(code)
+        cloudlog.exception(f"nav audio: unrenderable cue code {code!r}")
+      return
     # a newer cue carries newer information, so it replaces whatever was still playing
-    buf = cue_wave(code, str(nav.audioCueStage), self.mode, self.wpm, self.sr)
     with self._lock:
       self._buf = buf
       self._pos = 0
