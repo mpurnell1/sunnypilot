@@ -9,7 +9,9 @@ from functools import partial
 
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
+from openpilot.selfdrive.ui.sunnypilot.nav_audio_tour import NavAudioTour
 from openpilot.selfdrive.ui.sunnypilot.nav_status import NavState, NavStatus
+from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.widgets import DialogResult, Widget
@@ -68,6 +70,7 @@ class NavigationLayout(Widget):
 
     self._params = Params()
     self._dialog: MultiOptionDialog | None = None
+    self._tour: NavAudioTour | None = None
     self._nav_status = NavStatus()
 
     # The two preconditions navigation waits on. Each row both reports its live state and
@@ -87,8 +90,8 @@ class NavigationLayout(Widget):
     self._nav_audio_item = multiple_button_item_sp(tr("Navigation Audio"), self._get_nav_audio_description,
                                                    NAV_AUDIO_BUTTONS, param="NavigationAudio")
     self._sound_tour_item = button_item(tr("Sound Tour"), tr("Play"),
-                                        tr("Play every navigation sound in your selected style, in this order: right turn approaching then imminent, left turn, slight and sharp turns, keep, exit, merge, U-turn, roundabout with an exit-count tick per exit, lane changes, a turn with mile ticks, rerouting, and arrival."),  # noqa: E501
-                                        self._play_sound_tour)
+                                        tr("Learn the navigation sounds: each cue plays in your selected style while the screen shows the card it will accompany."),  # noqa: E501
+                                        self._play_sound_tour, enabled=lambda: ui_state.is_offroad)
 
     self._mapbox_token_item = button_item(tr("Mapbox Token"), tr("Edit"), tr("Enter your Mapbox public token."),
                                           partial(self._show_param_input, "MapboxToken", tr("Enter Mapbox Token")))
@@ -205,8 +208,9 @@ class NavigationLayout(Widget):
     return get_highlighted_description(self._params, "NavLaneGuidance", NAV_LANE_DESCRIPTIONS)
 
   def _play_sound_tour(self) -> None:
-    # soundd polls this at 2 Hz and plays the tour through the normal nav audio channel
-    self._params.put_bool("NavAudioTourRequest", True)
+    if self._tour is None:
+      self._tour = NavAudioTour()
+    gui_app.push_widget(self._tour)
 
   def _get_nav_audio_description(self) -> str:
     return get_highlighted_description(self._params, "NavigationAudio", NAV_AUDIO_DESCRIPTIONS)
