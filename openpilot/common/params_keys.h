@@ -259,8 +259,6 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"NavigationAudio", {PERSISTENT | BACKUP, INT, "0"}},
     // Morse character speed; no UI, tune over SSH
     {"NavAudioWpm", {PERSISTENT | BACKUP, INT, "30"}},
-    // set by the Sound Tour settings button, consumed and cleared by soundd
-    {"NavAudioTourRequest", {CLEAR_ON_MANAGER_START, BOOL, "0"}},
 
     // mapd
     {"MapAdvisorySpeedLimit", {CLEAR_ON_ONROAD_TRANSITION, FLOAT}},
