@@ -86,6 +86,9 @@ class NavigationLayout(Widget):
                                                        NAV_LANE_BUTTONS, param="NavLaneGuidance")
     self._nav_audio_item = multiple_button_item_sp(tr("Navigation Audio"), self._get_nav_audio_description,
                                                    NAV_AUDIO_BUTTONS, param="NavigationAudio")
+    self._sound_tour_item = button_item(tr("Sound Tour"), tr("Play"),
+                                        tr("Play every navigation sound in your selected style, in this order: right turn approaching then imminent, left turn, slight and sharp turns, keep, exit, merge, U-turn, roundabout with an exit-count tick per exit, lane changes, a turn with mile ticks, rerouting, and arrival."),  # noqa: E501
+                                        self._play_sound_tour)
 
     self._mapbox_token_item = button_item(tr("Mapbox Token"), tr("Edit"), tr("Enter your Mapbox public token."),
                                           partial(self._show_param_input, "MapboxToken", tr("Enter Mapbox Token")))
@@ -117,7 +120,7 @@ class NavigationLayout(Widget):
                      param="AllowNavigation"),
       *self._vis_items[4:],
       self._gps_status_item, self._route_status_item,
-      self._nav_hud_item, self._lane_guidance_item, self._nav_audio_item,
+      self._nav_hud_item, self._lane_guidance_item, self._nav_audio_item, self._sound_tour_item,
     ]
     self._scroller = Scroller(items, line_separator=True, spacing=0)
 
@@ -200,6 +203,10 @@ class NavigationLayout(Widget):
 
   def _get_lane_guidance_description(self) -> str:
     return get_highlighted_description(self._params, "NavLaneGuidance", NAV_LANE_DESCRIPTIONS)
+
+  def _play_sound_tour(self) -> None:
+    # soundd polls this at 2 Hz and plays the tour through the normal nav audio channel
+    self._params.put_bool("NavAudioTourRequest", True)
 
   def _get_nav_audio_description(self) -> str:
     return get_highlighted_description(self._params, "NavigationAudio", NAV_AUDIO_DESCRIPTIONS)

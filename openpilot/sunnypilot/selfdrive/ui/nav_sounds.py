@@ -18,7 +18,7 @@ from openpilot.common.swaglog import cloudlog
 
 SAMPLE_RATE = 48000
 CW_FREQ = 700.0
-BASE_FREQ = 440.0
+BASE_FREQ = 587.33  # D5: the low anchor note has to clear road noise on the device speaker
 AMPLITUDE = 0.85
 EDGE_S = 0.005  # raised-cosine attack/release
 
@@ -157,6 +157,22 @@ def cue_wave(code: str, stage: str, mode: int, wpm: int, sr: int = SAMPLE_RATE) 
   return earcon_wave(code, stage, sr=sr)
 
 
+# every cue a drive can produce, in the order the Sound Tour settings copy lists them
+TOUR = [('R', 'approach'), ('R', 'imminent'), ('L', 'approach'),
+        ('SL', 'approach'), ('SR', 'approach'), ('HL', 'approach'), ('HR', 'approach'),
+        ('KL', 'approach'), ('KR', 'approach'), ('XL', 'approach'), ('XR', 'approach'),
+        ('ML', 'approach'), ('MR', 'approach'), ('U', 'approach'), ('O3', 'approach'),
+        ('CL', 'lane'), ('CR', 'lane'), ('R 3', 'digest'), ('QRX', 'reroute'), ('AR', 'arrive')]
+
+
+def tour_wave(mode: int, wpm: int, sr: int = SAMPLE_RATE) -> np.ndarray:
+  parts: list[np.ndarray] = []
+  for code, stage in TOUR:
+    parts.append(cue_wave(code, stage, mode, wpm, sr))
+    parts.append(_gap(1.3, sr))
+  return np.concatenate(parts)
+
+
 class NavAudioPlayer:
   """Feeds nav cue samples to soundd's mixer.
 
@@ -187,6 +203,14 @@ class NavAudioPlayer:
 
   def load_params(self) -> None:
     self._frame += 1
+    # the tour button should feel responsive, so its request polls faster than mode/WPM
+    if self._frame % 10 == 0 and self.params.get_bool('NavAudioTourRequest'):
+      self.params.put_bool('NavAudioTourRequest', False)
+      # the tour teaches the sounds, so it plays even before a mode is chosen
+      buf = tour_wave(self.mode if self.mode != AUDIO_OFF else AUDIO_TONES, self.wpm, self.sr)
+      with self._lock:
+        self._buf = buf
+        self._pos = 0
     if self._frame % 50 == 0:  # 2.5 seconds
       self._read_params()
 
