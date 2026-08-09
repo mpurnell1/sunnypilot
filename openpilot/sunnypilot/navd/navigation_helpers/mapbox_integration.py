@@ -125,7 +125,10 @@ class MapboxIntegration:
       params['bearings'] = f'{int((bearing + 360) % 360):.0f},90;'
 
     try:
-      response = requests.get(f'https://api.mapbox.com/directions/v5/mapbox/driving/{start_lon},{start_lat};{end_lon},{end_lat}', params=params, timeout=5)
+      # driving-traffic: durations include live traffic, so the ETA is an estimate rather
+      # than the free-flow floor the plain driving profile returns
+      url = f'https://api.mapbox.com/directions/v5/mapbox/driving-traffic/{start_lon},{start_lat};{end_lon},{end_lat}'
+      response = requests.get(url, params=params, timeout=5)
       if response.status_code != 200:
         cloudlog.error("navd: directions failed with HTTP %d", response.status_code)
       data = response.json() if response.status_code == 200 else {}
