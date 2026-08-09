@@ -47,6 +47,18 @@ SIDES = {'L': ('uturn', 'left', 'slightLeft', 'sharpLeft'), 'R': ('right', 'slig
 
 # the ordinal suffix is required: without it road names ('onto A40 exit') read as exit numbers
 ORDINAL_EXIT_RE = re.compile(r'(\d+)(?:st|nd|rd|th)\s+exit')
+
+LEFTISH = ('left', 'slightLeft', 'sharpLeft', 'uturn')
+RIGHTISH = ('right', 'slightRight', 'sharpRight')
+
+
+def modifier_side(modifier: str) -> str:
+  if modifier in LEFTISH:
+    return 'left'
+  if modifier in RIGHTISH:
+    return 'right'
+  return 'none'
+
 MAX_EXITS = 9  # the exit number is ticked out one beep at a time, so it cannot run away
 
 
@@ -81,6 +93,7 @@ class NavAudioCues:
   def __init__(self):
     self.code: str = ''
     self.stage: str = ''
+    self.direction: str = 'none'
     self.cue_id: int = 0
 
     self._route = None
@@ -88,9 +101,10 @@ class NavAudioCues:
     self._reroute_armed: bool = True
     self._arrived: bool = False
 
-  def _fire(self, code: str, stage: str, key: tuple | None = None) -> None:
+  def _fire(self, code: str, stage: str, direction: str = 'none', key: tuple | None = None) -> None:
     self.code = code
     self.stage = stage
+    self.direction = direction
     self.cue_id = (self.cue_id + 1) & 0xffffffff
     if key is not None:
       self._fired.add(key)
@@ -134,10 +148,11 @@ class NavAudioCues:
       imminent_at = float(interp(v_ego, STAGE_SPEED_BP, IMMINENT_DIST))
       approach_at = float(interp(v_ego, STAGE_SPEED_BP, APPROACH_DIST))
 
+      side = modifier_side(next_turn['modifier'])
       if distance <= imminent_at and (nt_idx, 'imminent') not in self._fired:
         # a late approach after this would only echo it
         self._fired.add((nt_idx, 'approach'))
-        self._fire(code, 'imminent', (nt_idx, 'imminent'))
+        self._fire(code, 'imminent', side, (nt_idx, 'imminent'))
         return
 
       if distance <= approach_at and (nt_idx, 'approach') not in self._fired and not crawling:
@@ -146,16 +161,16 @@ class NavAudioCues:
           # chained to the previous maneuver: the imminent cue alone carries it
           self._fired.add((nt_idx, 'approach'))
         else:
-          self._fire(code, 'approach', (nt_idx, 'approach'))
+          self._fire(code, 'approach', side, (nt_idx, 'approach'))
           return
 
     hint = nav_data.get('lane_change_direction', 'none')
     if hint in ('left', 'right') and (nt_idx, 'lane', hint) not in self._fired and not crawling:
-      self._fire('C' + hint[0].upper(), 'lane', (nt_idx, 'lane', hint))
+      self._fire('C' + hint[0].upper(), 'lane', hint, (nt_idx, 'lane', hint))
       return
 
     # over a mile of quiet ahead earns one 'code + miles' digest; being far from the
     # maneuver already guarantees this plays early in the step
     if code and not crawling and distance > DIGEST_MILE and (nt_idx, 'digest') not in self._fired:
       miles = int(min(9, max(1, round(distance / DIGEST_MILE))))
-      self._fire(f'{code} {miles}', 'digest', (nt_idx, 'digest'))
+      self._fire(f'{code} {miles}', 'digest', modifier_side(next_turn['modifier']), (nt_idx, 'digest'))

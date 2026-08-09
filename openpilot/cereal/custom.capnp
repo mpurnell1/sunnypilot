@@ -496,6 +496,9 @@ struct Navigationd @0xcb9fd56c7057593a {
   audioCueCode @12 :Text;
   audioCueStage @13 :Text;  # 'approach' | 'imminent' | 'lane' | 'reroute' | 'arrive' | 'digest'
   audioCueId @14 :UInt32;
+  # 'left' | 'right' | 'none': the maneuver's side (a roundabout's exit heading), for tone
+  # renderers whose whole language is directional contour; Morse ignores it
+  audioCueDirection @15 :Text;
 
   struct Maneuver {
     distance @0 :Float32;
