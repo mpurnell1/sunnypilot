@@ -217,7 +217,7 @@ class Navigationd:
           route_trusted = not large_distance and not route_bearing_misalign and self.failed_attempts == 0
           hint = self._stable_hint(lane_change_hint(progress, v_ego) if route_trusted else 'none')
           nav_data['lane_change_direction'] = hint
-          nav_data['lane_change_auto_confirm'] = hint != 'none' and lane_change_auto_confirm(progress, banner_lanes)
+          nav_data['lane_change_auto_confirm'] = hint != 'none' and lane_change_auto_confirm(progress)
 
         # being lost never cancels the route: off-route and misalignment only ask for a
         # recompute, and with no network the route is held so guidance returns on its own
@@ -282,6 +282,7 @@ class Navigationd:
     msg.navigationd.audioCueCode = self.nav_audio.code
     msg.navigationd.audioCueStage = self.nav_audio.stage
     msg.navigationd.audioCueId = self.nav_audio.cue_id
+    msg.navigationd.audioCueDirection = self.nav_audio.direction
 
     all_maneuvers = (
       [custom.Navigationd.Maneuver.new_message(distance=m['distance'], type=m['type'], modifier=m['modifier'],
