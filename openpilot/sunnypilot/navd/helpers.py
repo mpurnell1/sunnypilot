@@ -163,13 +163,15 @@ def lane_change_hint(progress: dict, v_ego: float) -> str:
   return side if m['distance'] <= window else 'none'
 
 
-def lane_change_auto_confirm(progress: dict, banner_lanes: list | None) -> bool:
+def lane_change_auto_confirm(progress: dict) -> bool:
   """Whether an active hint may stand in for the wheel nudge.
 
-  The display side is untouched by this: the banner prompts for every hint type, but only a
-  maneuver that proves a same-direction adjacent lane exists — by topology, or by the map
-  showing a multi-lane approach — lets the blinker alone start the change. The model's
-  road-edge check cannot make this call: an oncoming lane is a full-width lane.
+  Only for maneuvers whose topology guarantees the adjacent lane runs our way: an off-ramp
+  or a merge. Turns never qualify, however many lanes the approach shows — near a turn the
+  only legitimate lateral target is the turn itself, at the turn, and an auto lane change
+  toward the turn side can aim at a lane that does not exist. The display side is
+  untouched: the banner still prompts for every hint type, and a blinker plus the usual
+  wheel nudge still changes lanes anywhere.
   """
   maneuvers = progress['all_maneuvers']
   if len(maneuvers) < 2:
@@ -178,11 +180,7 @@ def lane_change_auto_confirm(progress: dict, banner_lanes: list | None) -> bool:
   # a u-turn's "adjacent lane" is oncoming by definition, whatever the map says
   if m['modifier'] == 'uturn':
     return False
-  if any(t in m['type'] for t in LANE_CHANGE_CONFIRM_TYPES):
-    return True
-  # Mapbox emits lane banners exactly at multi-lane approaches and omits them on
-  # two-lane roads, so they double as a same-direction discriminator
-  return banner_lanes is not None and len(banner_lanes) >= 2
+  return any(t in m['type'] for t in LANE_CHANGE_CONFIRM_TYPES)
 
 
 # texts Mapbox already writes as a full sentence, or that carry their own verb; composing
