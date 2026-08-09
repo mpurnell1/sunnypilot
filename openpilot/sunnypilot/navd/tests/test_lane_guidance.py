@@ -91,26 +91,22 @@ class TestLaneChangeHint:
     assert lane_change_hint({'all_maneuvers': [{'type': 'arrive', 'modifier': 'none', 'distance': 50.0}]}, 30.0) == 'none'
 
 
-TWO_LANES = [{'active': True, 'directions': ['left']}, {'active': False, 'directions': ['straight']}]
-
-
 class TestAutoConfirm:
-  def test_slip_road_types_confirm_without_lane_data(self):
-    assert lane_change_auto_confirm(_hint_progress('off ramp', 'slightRight', 200.0), None)
-    assert lane_change_auto_confirm(_hint_progress('merge', 'slightLeft', 200.0), None)
+  def test_slip_road_topology_confirms(self):
+    assert lane_change_auto_confirm(_hint_progress('off ramp', 'slightRight', 200.0))
+    assert lane_change_auto_confirm(_hint_progress('merge', 'slightLeft', 200.0))
 
-  def test_ambiguous_types_need_a_multi_lane_approach(self):
+  def test_turns_never_confirm(self):
+    # near a turn the blinker means the turn: an auto lane change would aim at a lane
+    # that may not exist, so only the wheel nudge starts one, however many lanes the map shows
     for maneuver_type in ('turn', 'fork', 'continue', 'end of road'):
-      progress = _hint_progress(maneuver_type, 'left', 200.0)
-      assert not lane_change_auto_confirm(progress, None)
-      assert not lane_change_auto_confirm(progress, [TWO_LANES[0]])
-      assert lane_change_auto_confirm(progress, TWO_LANES)
+      assert not lane_change_auto_confirm(_hint_progress(maneuver_type, 'left', 200.0))
 
   def test_uturn_never_confirms(self):
-    assert not lane_change_auto_confirm(_hint_progress('turn', 'uturn', 200.0), TWO_LANES)
+    assert not lane_change_auto_confirm(_hint_progress('turn', 'uturn', 200.0))
 
   def test_lone_maneuver_does_not_confirm(self):
-    assert not lane_change_auto_confirm({'all_maneuvers': [{'type': 'arrive', 'modifier': 'none', 'distance': 50.0}]}, None)
+    assert not lane_change_auto_confirm({'all_maneuvers': [{'type': 'arrive', 'modifier': 'none', 'distance': 50.0}]})
 
   def test_flag_reaches_the_message(self):
     nav = Navigationd()
