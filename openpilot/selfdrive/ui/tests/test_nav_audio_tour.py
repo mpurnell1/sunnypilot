@@ -33,3 +33,8 @@ class TestTourSteps:
     for step in STEPS:
       line = morse_text(step.code)
       assert line and set(line) <= set('.- /'), step.code
+
+  def test_tones_tour_only_teaches_existing_sounds(self):
+    tones = [step for step in STEPS if not step.morse_only]
+    assert {step.code.split(' ')[0] for step in tones} == {'R', 'L', 'CL', 'CR', 'QRX', 'AR'}
+    assert {step.direction for step in tones} >= {'left', 'right'}
