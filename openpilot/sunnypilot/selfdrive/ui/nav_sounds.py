@@ -5,9 +5,12 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
 Synthesis for navigation audio cues. Everything is generated at runtime — a 700 Hz CW
-sidetone for Morse mode, and a small pitch language for Tones mode: rising intervals mean
-right, falling mean left, and the interval widens with the sharpness of the turn. Every
-tone edge is a raised-cosine ramp so nothing clicks on the speaker.
+sidetone for Morse mode, and four sounds total in Tones mode: a two-note pair whose
+contour is the direction (rising = right, falling = left, doubled and faster = the turn
+is now), a soft short blip pair for lane changes, a low pair for rerouting, and an
+arrival arpeggio. Every maneuver type shares the directional pair — what kind of turn it
+is lives on the screen, not in the driver's memory. Every tone edge is a raised-cosine
+ramp so nothing clicks on the speaker.
 """
 import threading
 
@@ -99,62 +102,35 @@ def _ticks(count: int, sr: int) -> list[np.ndarray]:
   return parts
 
 
-def _motif(code: str, note_dur: float, gap_dur: float, sr: int) -> list[np.ndarray]:
-  """One pass of the tone motif for a vocabulary code."""
+def _pair(direction: str, note_dur: float, gap_dur: float, sr: int) -> list[np.ndarray]:
+  """The directional two-note shape: contour is the entire message."""
+  step = {'right': 7, 'left': -7}.get(direction, 0)
+  return [_note(0, note_dur, sr), _gap(gap_dur, sr), _note(step, note_dur, sr)]
+
+
+def earcon_wave(code: str, stage: str, direction: str = 'none', sr: int = SAMPLE_RATE) -> np.ndarray:
   if code == 'QRX':
-    return [_note(-2, 0.12, sr, amp=0.55), _gap(gap_dur, sr), _note(-3, 0.12, sr, amp=0.55)]
+    return np.concatenate([_note(-2, 0.12, sr, amp=0.55), _gap(0.03, sr), _note(-3, 0.12, sr, amp=0.55)])
   if code == 'AR':
-    return [_note(0, note_dur, sr), _gap(gap_dur, sr), _note(4, note_dur, sr), _gap(gap_dur, sr), _note(7, note_dur, sr)]
-  if code == 'U':
-    return [_note(4, note_dur, sr), _gap(gap_dur, sr), _note(-8, note_dur, sr), _gap(gap_dur, sr), _note(4, note_dur, sr)]
-  if code[0] == 'O':
-    exits = int(code[1:]) if len(code) > 1 else 0
-    parts = [_note(0, note_dur, sr), _gap(gap_dur, sr), _note(3, note_dur, sr), _gap(gap_dur, sr), _note(0, note_dur, sr)]
-    if exits:
-      parts.append(_gap(0.12, sr))
-      parts.extend(_ticks(exits, sr))
-    return parts
-
-  sign = 1 if code[-1] == 'R' else -1
-  kind = code[:-1]
-  if kind == 'C':
-    return [_note(3, 0.06, sr), _gap(0.03, sr), _note(3 + sign * 4, 0.06, sr)]
-  if kind == 'M':
-    return [_chirp(BASE_FREQ, BASE_FREQ * 2 ** (sign * 7 / 12), 0.25, sr)]
-
-  interval = {'': 7, 'S': 3, 'H': 12, 'K': 3, 'X': 3}[kind]
-  parts = []
-  if kind == 'X':
-    parts += [_tone(880.0, 0.04, sr), _gap(gap_dur, sr)]
-  elif kind == 'K':
-    parts += [_note(0, note_dur, sr), _gap(gap_dur, sr)]
-  parts += [_note(0, note_dur, sr), _gap(gap_dur, sr), _note(sign * interval, note_dur, sr)]
-  return parts
-
-
-def earcon_wave(code: str, stage: str, sr: int = SAMPLE_RATE) -> np.ndarray:
-  # digest cues carry a mileage suffix rendered as ticks: 'R 5' -> right motif + 5 ticks
-  miles = 0
-  if ' ' in code:
-    code, miles_str = code.split(' ', 1)
-    miles = int(miles_str)
+    return np.concatenate([_note(0, 0.09, sr), _gap(0.03, sr), _note(4, 0.09, sr), _gap(0.03, sr), _note(7, 0.09, sr)])
+  if code.startswith('C'):
+    blip_dir = direction if direction != 'none' else ('left' if code.endswith('L') else 'right')
+    step = 4 if blip_dir == 'right' else -4
+    return np.concatenate([_note(3, 0.06, sr), _gap(0.03, sr), _note(3 + step, 0.06, sr)])
 
   fast = stage == 'imminent'
   note_dur = 0.055 if fast else 0.09
   gap_dur = 0.02 if fast else 0.03
-
-  parts = _motif(code, note_dur, gap_dur, sr)
+  parts = _pair(direction, note_dur, gap_dur, sr)
   if fast:
-    parts += [_gap(0.12, sr)] + _motif(code, note_dur, gap_dur, sr)
-  if miles:
-    parts += [_gap(0.15, sr)] + _ticks(miles, sr)
+    parts += [_gap(0.12, sr)] + _pair(direction, note_dur, gap_dur, sr)
   return np.concatenate(parts)
 
 
-def cue_wave(code: str, stage: str, mode: int, wpm: int, sr: int = SAMPLE_RATE) -> np.ndarray:
+def cue_wave(code: str, stage: str, mode: int, wpm: int, direction: str = 'none', sr: int = SAMPLE_RATE) -> np.ndarray:
   if mode == AUDIO_MORSE:
     return morse_wave(code, wpm, sr=sr)
-  return earcon_wave(code, stage, sr=sr)
+  return earcon_wave(code, stage, direction, sr=sr)
 
 
 class NavAudioPlayer:
@@ -203,10 +179,14 @@ class NavAudioPlayer:
       return
     self._last_cue_id = cue_id
     code = str(nav.audioCueCode)
+    stage = str(nav.audioCueStage)
     if self.mode == AUDIO_OFF or not code:
       return
+    # counting mile-beeps is a Morse skill; in tones the approach prompt covers the turn
+    if self.mode == AUDIO_TONES and stage == 'digest':
+      return
     try:
-      buf = cue_wave(code, str(nav.audioCueStage), self.mode, self.wpm, self.sr)
+      buf = cue_wave(code, stage, self.mode, self.wpm, str(nav.audioCueDirection), self.sr)
     except Exception:
       # a newer navigationd, or a replayed log, can carry codes this build cannot render;
       # letting that out would abort the stream and take soundd down with it
