@@ -490,15 +490,18 @@ struct Navigationd @0xcb9fd56c7057593a {
   # mapped lane count says the adjacent lane runs our way, never toward oncoming traffic
   laneChangeAutoConfirm @11 :Bool;
 
-  # latest audio prompt: a maneuver code from the nav audio vocabulary ('R', 'SL', 'O3',
-  # 'QRX', ...), sticky until the next cue. Consumers edge-detect on audioCueId, which
-  # increments once per cue, so a late subscriber must not replay the first value it sees
-  audioCueCode @12 :Text;
+  # latest audio prompt, as semantics rather than any rendering — soundd owns how a cue
+  # sounds. Sticky until the next cue: consumers edge-detect on audioCueId, which
+  # increments once per cue, so a late subscriber must not replay the first value it sees.
+  # kind: 'turn' | 'slightTurn' | 'sharpTurn' | 'uturn' | 'keep' | 'exit' | 'merge' |
+  #       'roundabout' | 'laneChange' | 'reroute' | 'arrive'
+  audioCueKind @12 :Text;
   audioCueStage @13 :Text;  # 'approach' | 'imminent' | 'lane' | 'reroute' | 'arrive' | 'digest'
   audioCueId @14 :UInt32;
-  # 'left' | 'right' | 'none': the maneuver's side (a roundabout's exit heading), for tone
-  # renderers whose whole language is directional contour; Morse ignores it
+  # 'left' | 'right' | 'none': the maneuver's side (a roundabout's exit heading)
   audioCueDirection @15 :Text;
+  # a roundabout's exit number, or the mile figure on a digest cue; 0 when meaningless
+  audioCueCount @16 :UInt8;
 
   struct Maneuver {
     distance @0 :Float32;

@@ -47,7 +47,7 @@ NAV_LANE_BUTTONS = [tr("Off"), tr("Display"), tr("Assist")]
 NAV_LANE_DESCRIPTIONS = [
   tr("Off: No lane guidance."),
   tr("Display: Show which lanes lead to the next maneuver on the turn card."),
-  tr("Assist: Also confirm a lane change you signal toward the route immediately, without a steering nudge or delay. You still start every lane change with the blinker."),  # noqa: E501
+  tr("Assist: Also confirm a signaled lane change toward an exit or merge immediately, without a steering nudge. Lane changes before turns keep the nudge, and every lane change starts with the blinker."),  # noqa: E501
 ]
 
 NAV_AUDIO_BUTTONS = [tr("Off"), tr("Tones"), tr("Morse")]
