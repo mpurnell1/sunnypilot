@@ -279,10 +279,11 @@ class Navigationd:
     msg.navigationd.laneChangeAutoConfirm = nav_data.get('lane_change_auto_confirm', False)
     msg.navigationd.valid = self.valid
     msg.navigationd.routeFailures = min(self.failed_attempts, 0xffff)
-    msg.navigationd.audioCueCode = self.nav_audio.code
+    msg.navigationd.audioCueKind = self.nav_audio.kind
     msg.navigationd.audioCueStage = self.nav_audio.stage
     msg.navigationd.audioCueId = self.nav_audio.cue_id
     msg.navigationd.audioCueDirection = self.nav_audio.direction
+    msg.navigationd.audioCueCount = self.nav_audio.count
 
     all_maneuvers = (
       [custom.Navigationd.Maneuver.new_message(distance=m['distance'], type=m['type'], modifier=m['modifier'],
