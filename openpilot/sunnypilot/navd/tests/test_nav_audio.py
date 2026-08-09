@@ -75,6 +75,7 @@ class TestStages:
     assert cues.cue_id == 0
     cues.update(route, _progress(450.0), {}, V_CRUISE, False)
     assert (cues.code, cues.stage, cues.cue_id) == ('R', 'approach', 1)
+    assert cues.direction == 'right'
     cues.update(route, _progress(440.0), {}, V_CRUISE, False)
     assert cues.cue_id == 1
     cues.update(route, _progress(100.0), {}, V_CRUISE, False)
@@ -169,8 +170,12 @@ class TestSynthesis:
         assert np.all(np.isfinite(wave)) and np.max(np.abs(wave)) <= nav_sounds.AMPLITUDE + 1e-6
       assert len(morse_wave(code, 30)) > 0
 
-  def test_digest_appends_ticks(self):
-    assert len(earcon_wave('R 5', 'digest')) > len(earcon_wave('R', 'digest'))
+  def test_direction_carries_the_tone_contour(self):
+    # left and right are the same length but different contours; both differ from flat
+    right = earcon_wave('R', 'approach', 'right')
+    left = earcon_wave('L', 'approach', 'left')
+    assert len(right) == len(left)
+    assert not np.array_equal(right, left)
 
   def test_tick_runs_are_clamped(self):
     assert len(earcon_wave('O40', 'approach')) == len(earcon_wave('O9', 'approach'))
@@ -182,9 +187,9 @@ class TestSynthesis:
 
 
 class _FakeSM:
-  def __init__(self, cue_id: int, code: str = 'R', stage: str = 'approach'):
+  def __init__(self, cue_id: int, code: str = 'R', stage: str = 'approach', direction: str = 'right'):
     self.updated = {'navigationd': True}
-    self._msg = SimpleNamespace(audioCueId=cue_id, audioCueCode=code, audioCueStage=stage)
+    self._msg = SimpleNamespace(audioCueId=cue_id, audioCueCode=code, audioCueStage=stage, audioCueDirection=direction)
 
   def __getitem__(self, _):
     return self._msg
@@ -211,8 +216,18 @@ class TestPlayer:
     assert not player.active
 
   def test_an_unrenderable_code_stays_silent(self, monkeypatch):
+    # nothing in the current vocabulary raises, so force it: the guard is for cue codes
+    # from a newer navigationd than this build
     logged = []
     monkeypatch.setattr(nav_sounds.cloudlog, 'exception', lambda msg: logged.append(msg))
+    real_cue_wave = nav_sounds.cue_wave
+
+    def picky_cue_wave(code, *args, **kwargs):
+      if code == 'ZZ':
+        raise KeyError(code)
+      return real_cue_wave(code, *args, **kwargs)
+
+    monkeypatch.setattr(nav_sounds, 'cue_wave', picky_cue_wave)
     player = self._player(monkeypatch, nav_sounds.AUDIO_TONES)
     player.update(_FakeSM(1, code='ZZ'))
     player.update(_FakeSM(2, code='ZZ'))
@@ -221,6 +236,17 @@ class TestPlayer:
     assert len(logged) == 1
     # the next cue this build does understand still plays
     player.update(_FakeSM(4, code='R'))
+    assert player.active
+
+  def test_tones_skip_the_digest(self, monkeypatch):
+    player = self._player(monkeypatch, nav_sounds.AUDIO_TONES)
+    player.update(_FakeSM(1))
+    player.update(_FakeSM(2, code='R 3', stage='digest'))
+    assert not player.active
+    # Morse mode keeps it: digits are natural there
+    player = self._player(monkeypatch, AUDIO_MORSE)
+    player.update(_FakeSM(1))
+    player.update(_FakeSM(2, code='R 3', stage='digest'))
     assert player.active
 
   def test_alert_cancel_drops_the_transmission(self, monkeypatch):
