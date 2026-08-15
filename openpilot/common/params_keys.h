@@ -264,8 +264,6 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"NavDesiresAllowed", {PERSISTENT | BACKUP, BOOL, "0"}},
     // 0 = off, 1 = at distance increments approaching the turn, 2 = always on screen
     {"NavBannerMode", {PERSISTENT | BACKUP, INT, "1"}},
-    {"NavShowGpsIcon", {PERSISTENT | BACKUP, BOOL, "1"}},
-    {"NavShowRouteIcon", {PERSISTENT | BACKUP, BOOL, "1"}},
     // bitmask: 1 = next-turn card, 2 = route summary pill; 0 off, 3 both
     {"NavHudMode", {PERSISTENT | BACKUP, INT, "3"}},
     // 0 = off, 1 = display lanes on the turn card, 2 = also confirm signaled lane changes

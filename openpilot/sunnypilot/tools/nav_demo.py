@@ -383,8 +383,6 @@ def run_ui(names, save_shots: bool, speedup: float, metric: bool) -> None:
   # the real params store always has a DongleId; the isolated prefix store never does
   assert params.get('DongleId') is None, 'params are not isolated, refusing to run'
   params.put_bool('AllowNavigation', True)
-  params.put_bool('NavShowGpsIcon', True)
-  params.put_bool('NavShowRouteIcon', True)
   params.put('NavHudMode', 3)
   params.put('NavLaneGuidance', 1)
   params.put('MapboxRoute', DEST)
@@ -420,7 +418,6 @@ def run_ui(names, save_shots: bool, speedup: float, metric: bool) -> None:
 
   def render_frame(caption: str | None) -> None:
     ui_state.sm.update(0)
-    nav.update()
     summary.update()
     rl.begin_drawing()
     draw_scene()
