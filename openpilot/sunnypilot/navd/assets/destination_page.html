@@ -47,7 +47,8 @@
   li.item:first-child { border-top: none; }
   .tap { cursor: pointer; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-  .routecard { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
+  .routecard { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 8px; cursor: pointer; }
+  .routecard.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   .banner { border-radius: 10px; padding: 8px 12px; margin: 10px 0; font-size: 0.9rem; display: none; }
   .banner.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); display: block; }
   #toast {
@@ -88,6 +89,7 @@
     <button id="save-work" class="small">Set as Work</button>
     <button id="save-fav" class="small">Save favorite</button>
   </div>
+  <div id="bind-hint" class="muted" style="margin-top:6px"></div>
 </div>
 
 <div class="row" style="margin-top:20px">
@@ -106,6 +108,8 @@
 const $ = id => document.getElementById(id);
 let state = { canSet: false, favorites: [], recents: [] };
 let picked = null;   // {name, longitude, latitude} from search, or {name, dest} from a saved entry
+let pickedRoute = null;  // the tapped (not yet navigated) route card; saving a favorite binds to it
+let lastRoutes = [];
 let editingFavs = false;
 
 function toast(msg) {
@@ -170,7 +174,7 @@ function renderSaved() {
   favs.replaceChildren();
   for (const f of state.favorites) {
     const spec = f.kind === "favorite" ? { name: f.name } : { kind: f.kind };
-    favs.appendChild(savedItem(f, f.dest, spec));
+    favs.appendChild(savedItem(f, f.summary ? "via " + f.summary : f.dest, spec));
   }
   if (!state.favorites.length) favs.innerHTML = "<li class='item muted'>No favorites saved.</li>";
   const recents = $("recents");
@@ -218,24 +222,28 @@ function destString(place) { return place.longitude.toFixed(6) + "," + place.lat
 
 async function pickPlace(place) {
   picked = place;
+  pickedRoute = null;
+  lastRoutes = [];
   $("routes-name").textContent = place.name;
   $("routes-panel").hidden = false;
   const list = $("routes-list");
   list.innerHTML = "<div class='muted'>Loading routes...</div>";
   try {
     const body = await api("/api/routes?lon=" + place.longitude + "&lat=" + place.latitude);
-    renderRoutes(body.routes);
+    lastRoutes = body.routes;
+    renderRoutes();
   } catch (e) {
     // no device position or preview failure still allows the fastest-route send
     list.replaceChildren();
     list.appendChild(routeCard(null, e.message + ". Navigate anyway with the fastest route."));
+    updateBindHint();
   }
   $("routes-panel").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 function routeCard(route, note) {
   const div = document.createElement("div");
-  div.className = "routecard row";
+  div.className = "routecard row" + (route && route === pickedRoute ? " selected" : "");
   const info = document.createElement("div");
   info.className = "grow";
   if (route) {
@@ -243,6 +251,8 @@ function routeCard(route, note) {
     info.innerHTML = "<div class='clip'>" + esc(route.summary || "Route") + "</div>" +
       "<div class='muted'>" + mins(route.duration) + " (" + miles(route.distance) + ")" +
       (delay >= 2 ? ", +" + delay + " min traffic" : "") + "</div>";
+    // tapping the card (not Go) marks the route a favorite save should bind to
+    div.onclick = () => { pickedRoute = pickedRoute === route ? null : route; renderRoutes(); };
   } else {
     info.innerHTML = "<div class='muted'>" + esc(note) + "</div>";
   }
@@ -250,16 +260,28 @@ function routeCard(route, note) {
   go.className = "primary";
   go.textContent = "Go";
   go.disabled = !state.canSet;
-  go.onclick = () => navigateTo(picked.name, destString(picked), route && route.summary ? route.summary : "");
+  go.onclick = ev => { ev.stopPropagation(); navigateTo(picked.name, destString(picked), route && route.summary ? route.summary : ""); };
   div.appendChild(info);
   div.appendChild(go);
   return div;
 }
 
-function renderRoutes(routes) {
+function renderRoutes() {
   const list = $("routes-list");
   list.replaceChildren();
-  for (const r of routes) list.appendChild(routeCard(r));
+  for (const r of lastRoutes) list.appendChild(routeCard(r));
+  updateBindHint();
+}
+
+function updateBindHint() {
+  const hint = $("bind-hint");
+  if (pickedRoute && pickedRoute.summary) {
+    hint.textContent = "Saving now binds the favorite to " + pickedRoute.summary + "; it will navigate on that route immediately.";
+  } else if (lastRoutes.length > 1) {
+    hint.textContent = "Tap a route first to save a favorite bound to it.";
+  } else {
+    hint.textContent = "";
+  }
 }
 
 async function navigateTo(name, dest, summary) {
@@ -272,11 +294,25 @@ async function navigateTo(name, dest, summary) {
 }
 
 async function pickSaved(entry) {
-  // a lon,lat favorite gets the route chooser; free text goes straight to navd's geocoder
+  // a route-bound favorite navigates immediately on its saved route; everything else
+  // opens the route chooser, geocoding free text first so there are routes to choose
+  if (entry.summary) {
+    await navigateTo(entry.name, entry.dest, entry.summary);
+    return;
+  }
   const m = entry.dest.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
   if (m) {
     pickPlace({ name: entry.name, longitude: parseFloat(m[1]), latitude: parseFloat(m[2]) });
-  } else if (confirm("Navigate to " + entry.name + "?")) {
+    return;
+  }
+  try {
+    const body = await api("/api/search?q=" + encodeURIComponent(entry.dest));
+    if (body.results.length) {
+      pickPlace({ name: entry.name, longitude: body.results[0].longitude, latitude: body.results[0].latitude });
+      return;
+    }
+  } catch (e) { /* fall through to the direct send below */ }
+  if (confirm("Navigate to " + entry.name + "?")) {
     await navigateTo(entry.name, entry.dest, "");
   }
 }
@@ -288,11 +324,12 @@ async function saveFavorite(kind) {
     name = prompt("Favorite name", picked.name);
     if (!name) return;
   }
+  const summary = pickedRoute && pickedRoute.summary ? pickedRoute.summary : "";
   try {
-    const body = await api("/api/favorites", post({ action: "set", kind, name, dest: destString(picked) }));
+    const body = await api("/api/favorites", post({ action: "set", kind, name, dest: destString(picked), summary }));
     state.favorites = body.favorites;
     renderSaved();
-    toast("Saved");
+    toast(summary ? "Saved, bound to " + summary : "Saved");
   } catch (e) { toast(e.message); }
 }
 
