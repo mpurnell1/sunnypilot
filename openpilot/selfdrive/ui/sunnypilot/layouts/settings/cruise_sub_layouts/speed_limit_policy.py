@@ -51,7 +51,8 @@ class SpeedLimitPolicyLayout(Widget):
 
   @staticmethod
   def _get_policy_description():
-    return get_highlighted_description(ui_state.params, "SpeedLimitPolicy", SPEED_LIMIT_POLICY_DESCRIPTIONS)
+    description = get_highlighted_description(ui_state.params, "SpeedLimitPolicy", SPEED_LIMIT_POLICY_DESCRIPTIONS)
+    return description + "<br>" + tr("While navigating, the route's speed limit fills in whenever the sources above have none.")
 
   def _render(self, rect):
     self._back_button.set_position(self._rect.x, self._rect.y + 20)
