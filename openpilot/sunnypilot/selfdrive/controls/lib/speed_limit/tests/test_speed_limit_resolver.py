@@ -11,6 +11,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from openpilot.cereal import custom
+from openpilot.common.constants import CV
 from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit import LIMIT_MAX_MAP_DATA_AGE
 
 from openpilot.sunnypilot.selfdrive.controls.lib.speed_limit.speed_limit_resolver import SpeedLimitResolver, ALL_SOURCES
@@ -26,7 +27,7 @@ def create_mock(properties, mocker: MockerFixture):
   return mock
 
 
-def setup_sm_mock(mocker: MockerFixture):
+def setup_sm_mock(mocker: MockerFixture, nav_limit_kph=0, nav_valid=True):
   cruise_speed_limit = random.uniform(0, 120)
   live_map_data_limit = random.uniform(0, 120)
 
@@ -48,12 +49,18 @@ def setup_sm_mock(mocker: MockerFixture):
   gps_data = create_mock({
     'unixTimestampMillis': time.monotonic() * 1e3,
   }, mocker)
+  nav_data = create_mock({
+    'valid': nav_valid,
+    'currentSpeedLimit': nav_limit_kph,
+  }, mocker)
   sm_mock = mocker.MagicMock()
+  sm_mock.rcv_time = {'navigationd': time.monotonic()}
   sm_mock.__getitem__.side_effect = lambda key: {
     'carState': car_state,
     'liveMapDataSP': live_map_data,
     'carStateSP': car_state_sp,
     'gpsLocation': gps_data,
+    'navigationd': nav_data,
   }[key]
   return sm_mock
 
@@ -132,6 +139,42 @@ class TestSpeedLimitResolverValidation:
     assert resolver.speed_limit is not None
     assert resolver.distance is not None
     assert resolver.source is not None
+
+  @pytest.mark.parametrize("policy", list(Policy), ids=lambda policy: policy.name)
+  def test_nav_fallback_when_policy_sources_empty(self, resolver_class, policy, mocker: MockerFixture):
+    resolver = resolver_class()
+    resolver.policy = policy
+    sm_mock = setup_sm_mock(mocker, nav_limit_kph=50)
+    sm_mock['carStateSP'].speedLimit = 0.
+    sm_mock['liveMapDataSP'].speedLimitValid = False
+
+    resolver.update(10., sm_mock)
+    assert resolver.source == SpeedLimitSource.nav
+    assert resolver.speed_limit == pytest.approx(50 * CV.KPH_TO_MS)
+
+  @parametrized_policies
+  def test_nav_never_preempts_policy_sources(self, resolver_class, policy, sm_key, function_key, mocker: MockerFixture):
+    resolver = resolver_class()
+    resolver.policy = policy
+    sm_mock = setup_sm_mock(mocker, nav_limit_kph=50)
+    source_speed_limit = sm_mock[sm_key].speedLimit
+
+    resolver.update(source_speed_limit, sm_mock)
+    assert resolver.source == ALL_SOURCES[function_key]
+    assert resolver.speed_limit == source_speed_limit
+
+  def test_stale_nav_ignored(self, resolver_class, mocker: MockerFixture):
+    resolver = resolver_class()
+    sm_mock = setup_sm_mock(mocker, nav_limit_kph=50)
+    sm_mock.rcv_time = {'navigationd': time.monotonic() - 2 * LIMIT_MAX_MAP_DATA_AGE}
+    resolver._get_from_nav(sm_mock)
+    assert resolver.limit_solutions[SpeedLimitSource.nav] == 0.
+
+  def test_invalid_nav_ignored(self, resolver_class, mocker: MockerFixture):
+    resolver = resolver_class()
+    sm_mock = setup_sm_mock(mocker, nav_limit_kph=50, nav_valid=False)
+    resolver._get_from_nav(sm_mock)
+    assert resolver.limit_solutions[SpeedLimitSource.nav] == 0.
 
   @pytest.mark.parametrize("policy", list(Policy), ids=lambda policy: policy.name)
   def test_old_map_data_ignored(self, resolver_class, policy, mocker: MockerFixture):
