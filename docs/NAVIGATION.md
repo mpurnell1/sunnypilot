@@ -11,9 +11,14 @@ that groundwork is why it exists.
 
 ## What it does
 
-- A quiet chip in the onroad UI carries the route state: absent means no route, dimmed
-  means searching, a glyph with a distance means routing. It expands into a banner as a
-  maneuver approaches and gets out of the way after.
+- A quiet chip in the onroad UI carries the route state: absent means no route, a glyph
+  with a distance means routing. While searching, the destination flag raises in stages:
+  a bare pole until GPS has a fix, pole and banner while the route is requested, and red
+  if requests are failing. It expands into a banner as a maneuver approaches and gets
+  out of the way after.
+- The display is honest about being lost: off the route, the glyph dims and the
+  distance disappears rather than counting down to a turn you are not approaching;
+  while rerouting, the searching flag returns until the new route lands.
 - Audio cues, if enabled, sound as maneuvers approach. The sound tells you what and
   when; the screen tells you where.
 - The arrival pill shows remaining time, distance, and arrival time.
@@ -23,10 +28,35 @@ that groundwork is why it exists.
   and lane changes to the driving model, but only after your own blinker or steering
   input agrees. Nothing acts without a driver signal.
 
+## On the comma four
+
+The four's screen is small and its UI keeps itself out of the way, so navigation there
+is a corner, not a card:
+
+- Between maneuvers the screen shows nothing (a faint hint glyph is available behind
+  the `NavMiciQuietGlyph` parameter for those who want it). Audio carries the street
+  names; the corner carries the shape of the turn.
+- As a maneuver approaches, a glyph, the distance, and a small lane row fade into the
+  top-left corner, in the slot the set-speed circle uses. They fade back out once the
+  turn is made. Alerts and the set-speed circle take the slot with priority.
+- Tap the corner to pin it as a persistent corner across maneuvers; tap again to let
+  it breathe. There is no hold-to-cancel on the four: cancel from the phone page,
+  athena, or by toggling navigation off in settings.
+- The same status language applies: the searching flag with its stages, red when
+  requests fail, a dimmed glyph when off route.
+
+Setup on the four is deliberately one switch: settings has a single **navigation**
+toggle, and everything else (destinations, HUD and audio choices, the Mapbox token)
+lives on the phone page the device serves once that toggle is on. The page has a real
+keyboard and room for descriptions; the car has one decision to make. Options that
+influence steering never appear on the page, so consent for them happens in the car.
+
 ## Setup
 
-1. Set a Mapbox token in Settings, then enable **Allow Navigation** under
-   Settings, Navigation.
+1. Enable navigation: on the 3X, set a Mapbox token in Settings and enable
+   **Allow Navigation** under Settings, Navigation. On the four, turn on the
+   **navigation** toggle in settings, then set the token from the phone page's
+   Settings section.
 2. Set a destination:
    - From a phone on the same network or the device hotspot, open
      `http://<device-ip>:5050`. Search, compare routes with live traffic, and go.
