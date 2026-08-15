@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 import pyray as rl
 
 from openpilot.common.filter_simple import FirstOrderFilter
-from openpilot.selfdrive.ui.sunnypilot.nav_status import NavStatus
+from openpilot.selfdrive.ui.sunnypilot.nav_status import ROUTE_FAILURE_THRESHOLD, NavStatus
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import (
   ARROW_ANGLES, _draw_flag, _draw_maneuver_icon, _draw_turn, _draw_uturn, format_distance, lane_direction,
 )
@@ -85,10 +85,22 @@ def corner_content(state: TransientNavState, mode: ChipMode, msg,
     return CornerContent('failure', FAILURE_ALPHA)
   if mode != ChipMode.LIVE:
     return None
+  if msg.routeState == 'rerouting':
+    # the searching flag is the reroute cue's visual; failing recompute requests turn it
+    # into the failure flag, because red outranks everything
+    if msg.routeFailures >= ROUTE_FAILURE_THRESHOLD:
+      return CornerContent('failure', FAILURE_ALPHA)
+    return CornerContent('searching', SEARCH_ALPHA)
   maneuver = pick_upcoming_maneuver(msg.allManeuvers)
   if maneuver is None:
     return None
   maneuver_type, modifier, distance = maneuver
+  if msg.routeState == 'offRoute':
+    # off route the glyph dims to the quiet alpha even with the quiet glyph param off: a
+    # lost route is worth a hint the steady state is not. The distance and the lane row
+    # drop because they describe a maneuver the car is no longer approaching; PINNED
+    # wears this same treatment rather than collapsing, staying up was the driver's call
+    return CornerContent('maneuver', QUIET_ALPHA, maneuver_type, modifier)
   if state in (TransientNavState.APPROACH, TransientNavState.PINNED):
     lanes = tuple(msg.lanes) if lane_guidance else ()
     return CornerContent('maneuver', FULL_ALPHA, maneuver_type, modifier, distance, lanes)
@@ -135,7 +147,8 @@ class MiciNavRenderer(Widget):
     self.nav_status.update()
     self._mode = chip_mode(self.nav_status)
     msg = ui_state.sm['navigationd']
-    self.transient.update(self._mode == ChipMode.LIVE, msg.allManeuvers, msg.audioCueId, msg.audioCueStage)
+    self.transient.update(self._mode == ChipMode.LIVE, msg.allManeuvers, msg.audioCueId, msg.audioCueStage,
+                          off_route=msg.routeState != 'onRoute')
     self._content = corner_content(self.transient.state, self._mode, msg,
                                    self.nav_status.lane_guidance, self.nav_status.mici_quiet_glyph,
                                    flag_raised(self.nav_status.state))

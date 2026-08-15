@@ -13,8 +13,10 @@ from openpilot.selfdrive.ui.sunnypilot.mici.onroad.nav_corner import (
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import ChipMode, TransientNavState
 
 
-def _msg(maneuvers=(), lane_count: int = 0):
+def _msg(maneuvers=(), lane_count: int = 0, route_state: str = 'onRoute', failures: int = 0):
   msg = custom.Navigationd.new_message()
+  msg.routeState = route_state
+  msg.routeFailures = failures
   msg.init('allManeuvers', len(maneuvers))
   for slot, (maneuver_type, modifier, distance) in zip(msg.allManeuvers, maneuvers, strict=True):
     slot.type = maneuver_type
@@ -52,6 +54,26 @@ class TestStatusStates:
   def test_failure_flag_always_flies_full(self):
     content = corner_content(TransientNavState.QUIET, ChipMode.FAILURE, _msg(), 0, False, raised=False)
     assert content is not None and content.raised
+
+
+class TestRouteStateTreatments:
+  def test_off_route_dims_to_a_bare_glyph_even_with_quiet_glyph_off(self):
+    # PINNED wears the same treatment instead of collapsing; APPROACH never sees offRoute
+    # because the machine force-collapses it first
+    for state in (TransientNavState.QUIET, TransientNavState.PINNED):
+      content = corner_content(state, ChipMode.LIVE, _msg(TWO_STEPS, 2, route_state='offRoute'), 1, False)
+      assert content is not None and content.kind == 'maneuver'
+      assert content.alpha == QUIET_ALPHA
+      assert content.distance is None and content.lanes == ()
+
+  def test_rerouting_shows_the_searching_flag(self):
+    content = corner_content(TransientNavState.PINNED, ChipMode.LIVE, _msg(TWO_STEPS, route_state='rerouting'), 0, False)
+    assert content is not None and content.kind == 'searching'
+
+  def test_rerouting_failures_turn_the_flag_red(self):
+    content = corner_content(TransientNavState.QUIET, ChipMode.LIVE,
+                             _msg(TWO_STEPS, route_state='rerouting', failures=1), 0, False)
+    assert content is not None and content.kind == 'failure'
 
   def test_hidden_mode_is_an_empty_corner(self):
     assert corner_content(TransientNavState.APPROACH, ChipMode.HIDDEN, _msg(TWO_STEPS), 1, True) is None

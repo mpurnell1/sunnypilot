@@ -54,10 +54,11 @@ class TestTransientNav:
     self.nav = TransientNav()
     self.cue_id = 7  # arbitrary: the machine must treat the first value it sees as stale
 
-  def drive(self, specs=FULL_ROUTE, stage: str = '', active: bool = True, cue: bool = False) -> TransientNavState:
+  def drive(self, specs=FULL_ROUTE, stage: str = '', active: bool = True, cue: bool = False,
+            off_route: bool = False) -> TransientNavState:
     if cue:
       self.cue_id += 1
-    return self.nav.update(active, _maneuvers(*specs), self.cue_id, stage)
+    return self.nav.update(active, _maneuvers(*specs), self.cue_id, stage, off_route=off_route)
 
   def test_starts_off_and_wakes_quiet(self):
     assert self.nav.state == TransientNavState.OFF
@@ -119,6 +120,28 @@ class TestTransientNav:
     assert self.drive(active=False) == TransientNavState.OFF
     # pinning was a choice about the old route; a new one starts quiet
     assert self.drive() == TransientNavState.QUIET
+
+  def test_off_route_collapses_an_approach(self):
+    self.drive()
+    self.drive(stage='approach', cue=True)
+    assert self.nav.state == TransientNavState.APPROACH
+    assert self.drive(off_route=True) == TransientNavState.QUIET
+
+  def test_off_route_blocks_expansion(self):
+    self.drive()
+    assert self.drive(stage='approach', cue=True, off_route=True) == TransientNavState.QUIET
+
+  def test_pinned_rides_through_off_route(self):
+    # staying up was the driver's choice; the box wears the treatment instead of dropping
+    self.drive()
+    self.nav.on_tap()
+    assert self.drive(off_route=True) == TransientNavState.PINNED
+
+  def test_back_on_route_expands_again(self):
+    self.drive()
+    self.drive(stage='approach', cue=True, off_route=True)
+    assert self.nav.state == TransientNavState.QUIET
+    assert self.drive(stage='imminent', cue=True) == TransientNavState.APPROACH
 
   def test_signature_tells_apart_identical_consecutive_turns(self):
     # two right turns in a row: the list length is what distinguishes them
