@@ -41,6 +41,24 @@ class TestFavoritesFunctions:
   def test_set_favorite_ignores_empty_dest(self):
     assert ds.set_favorite({}, "Gym", "   ") == {}
 
+  def test_route_binding_lives_and_dies_with_its_favorite(self):
+    favs = ds.set_favorite({}, "", "-122.1,47.6", kind="work", summary="I-5 South")
+    assert favs["routes"] == {"-122.1,47.6": "I-5 South"}
+    assert ds.favorites_view(favs)[0]["summary"] == "I-5 South"
+    favs = ds.remove_favorite(favs, kind="work")
+    assert favs == {}
+
+  def test_saving_without_a_route_unbinds(self):
+    favs = ds.set_favorite({}, "", "-122.1,47.6", kind="work", summary="I-5 South")
+    favs = ds.set_favorite(favs, "", "-122.1,47.6", kind="work")
+    assert "routes" not in favs
+    assert "summary" not in ds.favorites_view(favs)[0]
+
+  def test_binding_for_an_overwritten_dest_is_pruned(self):
+    favs = ds.set_favorite({}, "", "old dest", kind="home", summary="I-5 South")
+    favs = ds.set_favorite(favs, "", "new dest", kind="home")
+    assert favs == {"home": "new dest"}
+
 
 class TestRecentsFunctions:
   def test_most_recent_first_and_dedupe_on_dest(self):

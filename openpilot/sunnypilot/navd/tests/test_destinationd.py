@@ -123,6 +123,13 @@ class TestDestinationd:
     assert res.json()["favorites"] == []
     assert self.post("/api/favorites", {"action": "set"}).status_code == 400
 
+  def test_route_bound_favorite_round_trip(self):
+    res = self.post("/api/favorites", {"action": "set", "kind": "work", "dest": "-119.1,34.2", "summary": "US-101 North"})
+    assert res.json()["favorites"] == [{"kind": "work", "name": "Work", "dest": "-119.1,34.2", "summary": "US-101 North"}]
+    # re-saving with no route picked returns the favorite to fastest-route behavior
+    res = self.post("/api/favorites", {"action": "set", "kind": "work", "dest": "-119.1,34.2"})
+    assert res.json()["favorites"] == [{"kind": "work", "name": "Work", "dest": "-119.1,34.2"}]
+
   def test_token_never_reaches_the_browser(self):
     # the whole point of proxying Mapbox through the device: sweep every endpoint, including
     # error paths, and require the token to be absent from every response body
