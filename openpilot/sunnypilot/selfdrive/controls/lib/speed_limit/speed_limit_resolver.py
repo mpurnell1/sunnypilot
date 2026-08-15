@@ -124,7 +124,7 @@ class SpeedLimitResolver:
     nav = sm['navigationd']
     # navigationd is on plannerd's ignore list, so staleness must be checked here:
     # a dead navd would otherwise leave its last limit latched with valid still set
-    nav_age = time.monotonic() - sm.rcv_time['navigationd']
+    nav_age = time.monotonic() - sm.recv_time['navigationd']
     if nav.valid and nav.currentSpeedLimit > 0 and nav_age <= LIMIT_MAX_MAP_DATA_AGE:
       self.limit_solutions[SpeedLimitSource.nav] = nav.currentSpeedLimit * CV.KPH_TO_MS
 

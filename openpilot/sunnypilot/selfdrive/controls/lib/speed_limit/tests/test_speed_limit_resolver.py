@@ -54,7 +54,7 @@ def setup_sm_mock(mocker, nav_limit_kph=0, nav_valid=True):
     'currentSpeedLimit': nav_limit_kph,
   }, mocker)
   sm_mock = mocker.MagicMock()
-  sm_mock.rcv_time = {'navigationd': time.monotonic()}
+  sm_mock.recv_time = {'navigationd': time.monotonic()}
   sm_mock.__getitem__.side_effect = lambda key: {
     'carState': car_state,
     'liveMapDataSP': live_map_data,
@@ -169,7 +169,7 @@ class TestSpeedLimitResolverValidation(OpenpilotTestCase):
   def test_stale_nav_ignored(self, resolver_class, mocker):
     resolver = resolver_class()
     sm_mock = setup_sm_mock(mocker, nav_limit_kph=50)
-    sm_mock.rcv_time = {'navigationd': time.monotonic() - 2 * LIMIT_MAX_MAP_DATA_AGE}
+    sm_mock.recv_time = {'navigationd': time.monotonic() - 2 * LIMIT_MAX_MAP_DATA_AGE}
     resolver._get_from_nav(sm_mock)
     assert resolver.limit_solutions[SpeedLimitSource.nav] == 0.
 
