@@ -100,7 +100,8 @@ class RouteSummaryRenderer:
     if status.gps_locked:
       # aware arithmetic in UTC, converted last, so a DST change before arrival is honored
       eta = (datetime.now(UTC) + timedelta(seconds=float(msg.timeRemaining))).astimezone(self._destination_tz())
-      rows.append((eta.strftime('%-I:%M %p').lower(), self._font_semi, ETA_COLOR))
+      # %-I is glibc-only; strip the %I zero-pad by hand so non-glibc platforms agree
+      rows.append((eta.strftime('%I:%M %p').lstrip('0').lower(), self._font_semi, ETA_COLOR))
 
     # the space below still ends at the driver monitoring icon, which rides up over the
     # bottom developer UI bar (DriverStateRendererSP)
