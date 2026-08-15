@@ -14,9 +14,11 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import ChipMode, Tra
 from openpilot.sunnypilot.navd.helpers import string_to_direction
 
 
-def _msg(maneuvers=(), banner: str = '', lane_count: int = 0):
+def _msg(maneuvers=(), banner: str = '', lane_count: int = 0, route_state: str = 'onRoute', failures: int = 0):
   msg = custom.Navigationd.new_message()
   msg.bannerInstructions = banner
+  msg.routeState = route_state
+  msg.routeFailures = failures
   msg.init('allManeuvers', len(maneuvers))
   for slot, (maneuver_type, modifier, distance, instruction) in zip(msg.allManeuvers, maneuvers, strict=True):
     slot.type = maneuver_type
@@ -142,6 +144,17 @@ class TestBannerContent:
     content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(THREE_STEPS[:2]), 0)
     assert content is not None
     assert content.then_type is None
+
+  def test_route_state_rides_along_for_the_pinned_treatments(self):
+    content = banner_content(TransientNavState.PINNED, ChipMode.LIVE, _msg(THREE_STEPS, route_state='offRoute'), 0)
+    assert content is not None
+    assert content.route_state == 'offRoute' and not content.failing
+
+  def test_rerouting_failures_are_flagged(self):
+    content = banner_content(TransientNavState.PINNED, ChipMode.LIVE,
+                             _msg(THREE_STEPS, route_state='rerouting', failures=1), 0)
+    assert content is not None
+    assert content.route_state == 'rerouting' and content.failing
 
   def test_lone_arrive_still_shows(self):
     content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE,

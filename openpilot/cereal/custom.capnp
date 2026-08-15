@@ -504,6 +504,18 @@ struct Navigationd @0xcb9fd56c7057593a {
   # a roundabout's exit number, or the mile figure on a digest cue; 0 when meaningless
   audioCueCount @16 :UInt8;
 
+  # where the car stands relative to the loaded route, from signals navigationd already
+  # computes. offRoute is the debounced lost condition (large distance or bearing misalign,
+  # held a few ticks); rerouting means a recompute is underway; with recompute off the state
+  # parks at offRoute. distanceFromRoute stays telemetry: raw meters are never drawn.
+  routeState @17 :RouteState;
+
+  enum RouteState {
+    onRoute @0;
+    offRoute @1;
+    rerouting @2;
+  }
+
   struct Maneuver {
     distance @0 :Float32;
     type @1 :Text;
