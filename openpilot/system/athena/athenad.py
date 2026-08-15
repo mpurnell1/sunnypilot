@@ -41,6 +41,7 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.common.version import get_build_metadata
 from openpilot.common.hardware.hw import Paths
 from openpilot.system.athena.rpc import dispatcher, handle, is_call, is_response, loads
+from openpilot.sunnypilot.navd.navigation_helpers.destination_store import DestinationStore
 
 
 ATHENA_HOST = os.getenv('ATHENA_HOST', 'wss://athena.comma.ai')
@@ -379,16 +380,19 @@ def getVersion() -> dict[str, str]:
 @dispatcher.add_method
 def setNavDestination(latitude: float = 0, longitude: float = 0, place_name: str | None = None, place_details: str | None = None) -> dict[str, int]:
   # navigationd geocodes whatever text lands in MapboxRoute, and Mapbox resolves a "lon,lat"
-  # query to that exact point — so an explicit pin from the caller wins over a text search,
+  # query to that exact point, so an explicit pin from the caller wins over a text search,
   # which could match a different location than the one picked on the phone
   if latitude or longitude:
     destination = f"{longitude},{latitude}"
+    # a pin's coordinates say nothing readable, so the caller's label is the recents label
+    label = place_name or place_details or ""
   elif place_name:
     destination = place_name
+    label = ""
   else:
     return {"success": 0}
 
-  Params().put("MapboxRoute", destination)
+  DestinationStore().set_destination(destination, name=label)
 
   return {"success": 1}
 

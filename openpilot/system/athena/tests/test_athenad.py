@@ -412,11 +412,24 @@ class TestAthenadMethods:
     resp = dispatcher["setNavDestination"](latitude=32.7767, longitude=-96.797, place_name="Taco Bell")
     assert resp == {"success": 1}
     assert self.params.get("MapboxRoute") == "-96.797,32.7767"
+    assert self.params.get("MapboxRecents") == [{"name": "Taco Bell", "dest": "-96.797,32.7767"}]
+
+  def test_set_nav_destination_place_details_labels_a_pin(self):
+    resp = dispatcher["setNavDestination"](latitude=32.7767, longitude=-96.797, place_details="1234 Main St, Dallas")
+    assert resp == {"success": 1}
+    assert self.params.get("MapboxRecents") == [{"name": "1234 Main St, Dallas", "dest": "-96.797,32.7767"}]
 
   def test_set_nav_destination_place_name_only(self):
     resp = dispatcher["setNavDestination"](place_name="Taco Bell")
     assert resp == {"success": 1}
     assert self.params.get("MapboxRoute") == "Taco Bell"
+    assert self.params.get("MapboxRecents") == [{"name": "Taco Bell", "dest": "Taco Bell"}]
+
+  def test_set_nav_destination_clears_route_preference(self):
+    self.params.put("MapboxRoutePreference", {"dest": "elsewhere", "summary": "I-35"}, block=True)
+    resp = dispatcher["setNavDestination"](place_name="Taco Bell")
+    assert resp == {"success": 1}
+    assert self.params.get("MapboxRoutePreference") is None
 
   def test_set_nav_destination_empty(self):
     self.params.put("MapboxRoute", "unchanged", block=True)
