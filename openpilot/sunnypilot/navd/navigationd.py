@@ -11,6 +11,7 @@ from time import monotonic
 
 import openpilot.cereal.messaging as messaging
 from openpilot.cereal import custom
+from openpilot.common.constants import CV
 from openpilot.common.params import Params
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
@@ -194,8 +195,9 @@ class Navigationd:
         v_ego = float(max(self.sm['carState'].vEgo, 0.0))
         nav_data['upcoming_turn'] = self.nav_instructions.get_upcoming_turn_from_progress(progress, self.last_position.latitude,
                                                                                           self.last_position.longitude, v_ego)
-        speed_limit, _ = progress['current_maxspeed']
-        nav_data['current_speed_limit'] = speed_limit
+        speed_limit, speed_unit = progress['current_maxspeed']
+        # Mapbox annotates maxspeed in the road's posted unit; the message field is kph
+        nav_data['current_speed_limit'] = round(speed_limit * CV.MPH_TO_KPH) if speed_unit == 'mph' else int(speed_limit)
         arrived = self.nav_instructions.arrived_at_destination(progress, v_ego)
         nav_data['arrived'] = arrived
 
