@@ -390,17 +390,19 @@ def run_ui(names, save_shots: bool, speedup: float, metric: bool) -> None:
 
   import pyray as rl
   from openpilot.system.ui.lib.application import gui_app, FontWeight
+  from openpilot.system.ui.lib.text_measure import measure_text_cached
   gui_app.init_window('nav demo')
   from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
-  from openpilot.selfdrive.ui.onroad.hud_renderer import HudRenderer
-  from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import NavIndicatorRenderer
-  from openpilot.selfdrive.ui.sunnypilot.onroad.route_summary import RouteSummaryRenderer
+  from openpilot.selfdrive.ui.sunnypilot.onroad.hud_renderer import HudRendererSP
 
   ui_state.is_metric = metric
   ui_state.status = UIStatus.ENGAGED
-  hud = HudRenderer()
-  nav = NavIndicatorRenderer()
-  summary = RouteSummaryRenderer()
+  # the real UI loop polls settings into ui_state; the bench reads them once, after the
+  # nav params above are in the isolated store
+  ui_state.update_params()
+  # the production HUD stack: chip, banner, speed pill reflow, and route summary all hang
+  # off HudRendererSP exactly as they do onroad
+  hud = HudRendererSP()
   w, h = gui_app.width, gui_app.height
   rect = rl.Rectangle(0, 0, w, h)
   caption_font = gui_app.font(FontWeight.MEDIUM)
@@ -418,14 +420,11 @@ def run_ui(names, save_shots: bool, speedup: float, metric: bool) -> None:
 
   def render_frame(caption: str | None) -> None:
     ui_state.sm.update(0)
-    summary.update()
     rl.begin_drawing()
     draw_scene()
     hud.render(rect)
-    nav.render(rect)
-    summary.render(rect, nav.stack_bottom)
     if caption:
-      size = rl.measure_text_ex(caption_font, caption, 30, 0)
+      size = measure_text_cached(caption_font, caption, 30)
       rl.draw_text_ex(caption_font, caption, rl.Vector2((w - size.x) / 2, h - 44), 30, 0,
                       rl.Color(255, 255, 255, 140))
     rl.end_drawing()

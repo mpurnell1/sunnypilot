@@ -35,18 +35,6 @@ CHIP_GAP = 14
 CHIP_DIM = rl.Color(255, 255, 255, 170)
 CHIP_SEARCHING = rl.Color(255, 255, 255, 110)
 
-# the expanded card is double height so the maneuver icon and the distance stack instead of
-# sharing a row the column is too narrow for
-TURN_BOX_HEIGHT = BOX_HEIGHT * 2
-TURN_ICON_WIDTH = 64
-TURN_ICON_CY = 60
-TURN_TEXT_TOP = 108
-TURN_FONT_SIZE = 36
-
-# extra card row for lane guidance, one small arrow per lane
-LANE_ROW_HEIGHT = 56
-LANE_ICON_SIZE = 28
-LANE_GAP = 10
 LANE_INACTIVE = rl.Color(255, 255, 255, 80)
 
 BACKGROUND = rl.Color(0, 0, 0, 140)
@@ -67,6 +55,14 @@ ARROW_ANGLES = {
   'slightRight': 45, 'right': 90, 'sharpRight': 135,
   'slightLeft': -45, 'left': -90, 'sharpLeft': -135,
 }
+
+
+# a lane can serve several directions; when it's the one to take, show the direction the
+# maneuver uses, otherwise its first listed direction
+def lane_direction(lane) -> str:
+  if lane.active and lane.activeDirection:
+    return lane.activeDirection
+  return lane.directions[0] if len(lane.directions) else 'straight'
 
 
 def format_distance(distance_m: float, is_metric: bool) -> str:
@@ -269,9 +265,9 @@ def _draw_maneuver_icon(cx: float, cy: float, maneuver_type: str, modifier: str,
 
 
 # The transient rail: the quiet chip hints at the next maneuver and doubles as the status
-# indicator; the TransientNav machine decides when the double-height card takes its place.
-# The widget's rect is set to exactly what was drawn, so the touch target and the visible
-# chip can never disagree.
+# indicator; when the TransientNav machine expands, the top-center banner (nav_banner) takes
+# over and the rail stays clear. The widget's rect is set to exactly what was drawn, so the
+# touch target and the visible chip can never disagree.
 class NavIndicatorRenderer(Widget):
   def __init__(self):
     super().__init__()
@@ -279,14 +275,27 @@ class NavIndicatorRenderer(Widget):
     self.transient = TransientNav()
     self._font = gui_app.font(FontWeight.SEMI_BOLD)
     self._mode = ChipMode.HIDDEN
+    self._update_frame = -1
     # where the card stack ends this frame, so the route summary below can stay clear of it
     self.stack_bottom: float = 0.0
 
-  def _update_state(self) -> None:
+  @property
+  def mode(self) -> ChipMode:
+    return self._mode
+
+  def update_state(self) -> None:
+    """Advance the nav state once per SubMaster frame; the HUD calls this before its own
+    layout so the banner and speed pill reflow on the same frame the machine expands."""
+    if self._update_frame == ui_state.sm.frame:
+      return
+    self._update_frame = ui_state.sm.frame
     self.nav_status.update()
     self._mode = chip_mode(self.nav_status)
     msg = ui_state.sm['navigationd']
     self.transient.update(self._mode == ChipMode.LIVE, msg.allManeuvers, msg.audioCueId, msg.audioCueStage)
+
+  def _update_state(self) -> None:
+    self.update_state()
 
   def _handle_mouse_release(self, mouse_pos) -> None:
     super()._handle_mouse_release(mouse_pos)
@@ -311,44 +320,6 @@ class NavIndicatorRenderer(Widget):
     rl.draw_text_ex(self._font, text, rl.Vector2(x + CHIP_ICON_SIZE + CHIP_GAP, cy - text_size.y / 2),
                     CHIP_FONT_SIZE, 0, CHIP_DIM)
 
-  def _render_lanes(self, box: rl.Rectangle, lanes) -> None:
-    n = len(lanes)
-    size = min(LANE_ICON_SIZE, (box.width - 24 - (n - 1) * LANE_GAP) / n)
-    span = size * n + LANE_GAP * (n - 1)
-    cy = box.y + box.height - LANE_ROW_HEIGHT / 2
-    x = box.x + (box.width - span) / 2 + size / 2
-
-    for lane in lanes:
-      # a lane can serve several directions; when it's the one to take, show the direction
-      # the maneuver uses, otherwise its first listed direction
-      direction = lane.activeDirection if lane.active and lane.activeDirection else \
-        (lane.directions[0] if len(lane.directions) else 'straight')
-      color = TURN_COLOR if lane.active else LANE_INACTIVE
-      if direction == 'uturn':
-        _draw_uturn(x, cy, color, size)
-      else:
-        # same elbow glyphs as the turn card, so the lane row matches overhead lane signage
-        _draw_turn(x, cy, ARROW_ANGLES.get(direction, 0), color, size)
-      x += size + LANE_GAP
-
-  def _render_turn(self, box: rl.Rectangle, maneuver: tuple[str, str, float], lanes) -> None:
-    maneuver_type, modifier, distance = maneuver
-    # roundness is a fraction of the box's short side, so halve it to keep the same corner
-    # radius as the single-height chip
-    rl.draw_rectangle_rounded(box, 0.175, 10, BACKGROUND)
-
-    # icon above, distance below, both centered
-    icon_cx = box.x + box.width / 2
-    _draw_maneuver_icon(icon_cx, box.y + TURN_ICON_CY, maneuver_type, modifier, TURN_COLOR, TURN_ICON_WIDTH)
-
-    text = format_distance(distance, ui_state.is_metric)
-    text_size = measure_text_cached(self._font, text, TURN_FONT_SIZE)
-    origin = rl.Vector2(icon_cx - text_size.x / 2, box.y + TURN_TEXT_TOP)
-    rl.draw_text_ex(self._font, text, origin, TURN_FONT_SIZE, 0, TURN_COLOR)
-
-    if len(lanes):
-      self._render_lanes(box, lanes)
-
   def _render(self, rect: rl.Rectangle) -> None:
     top = rect.y + TOP_OFFSET
     self.stack_bottom = top
@@ -372,13 +343,10 @@ class NavIndicatorRenderer(Widget):
       return
 
     if self.transient.state in (TransientNavState.APPROACH, TransientNavState.PINNED):
-      # double-gated: navigationd only publishes lanes while NavLaneGuidance is on, and the
-      # card only grows for them while it is, so a stale message can't resize the HUD
-      lanes = ui_state.sm['navigationd'].lanes if self.nav_status.lane_guidance else []
-      box = rl.Rectangle(x, top, width, TURN_BOX_HEIGHT + (LANE_ROW_HEIGHT if len(lanes) else 0))
-      self._render_turn(box, maneuver, lanes)
-    else:
-      box = rl.Rectangle(x, top, width, BOX_HEIGHT)
-      self._render_chip(box, maneuver)
+      # the top-center banner is the expanded skin; the rail stays clear while it is up
+      return
+
+    box = rl.Rectangle(x, top, width, BOX_HEIGHT)
+    self._render_chip(box, maneuver)
     self.stack_bottom = top + box.height
     self.set_rect(box)

@@ -53,13 +53,19 @@ def chip_mode(status) -> ChipMode:
 # allManeuvers[0] is the step being driven, whose maneuver is already behind the car; the turn
 # that lies ahead is the second entry. Near the destination the 'arrive' step can be the only
 # one left, and that one is still worth showing.
-def pick_upcoming_maneuver(maneuvers) -> tuple[str, str, float] | None:
+def pick_upcoming_index(maneuvers) -> int | None:
   if len(maneuvers) > 1:
-    m = maneuvers[1]
-  elif len(maneuvers) == 1 and maneuvers[0].type == 'arrive':
-    m = maneuvers[0]
-  else:
+    return 1
+  if len(maneuvers) == 1 and maneuvers[0].type == 'arrive':
+    return 0
+  return None
+
+
+def pick_upcoming_maneuver(maneuvers) -> tuple[str, str, float] | None:
+  idx = pick_upcoming_index(maneuvers)
+  if idx is None:
     return None
+  m = maneuvers[idx]
   return m.type, m.modifier, m.distance
 
 
