@@ -8,6 +8,7 @@ import os
 import pytest
 
 from openpilot.common.constants import CV
+from openpilot.common.prefix import OpenpilotPrefix
 
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
 from openpilot.sunnypilot.navd.navigation_helpers.nav_instructions import NavigationInstructions
@@ -15,22 +16,26 @@ from openpilot.sunnypilot.navd.navigation_helpers.nav_instructions import Naviga
 
 @pytest.mark.skipif(not os.environ.get('MAPBOX_TOKEN_CI'), reason="requires a Mapbox token, set MAPBOX_TOKEN_CI to run")
 class TestMapbox:
-  @classmethod
-  def setup_class(cls):
-    cls.mapbox = MapboxIntegration()
-    cls.nav = NavigationInstructions()
+  # Params bind their path at construction, and the conftest prefix fixture is
+  # function-scoped, so class setup must open its own prefix before anything
+  # touches params or the test destination lands in the real param space.
+  @pytest.fixture(scope="class", autouse=True)
+  def route_setup(self, request):
+    with OpenpilotPrefix():
+      cls = request.cls
+      cls.mapbox = MapboxIntegration()
+      cls.nav = NavigationInstructions()
 
-    token = os.environ.get('MAPBOX_TOKEN_CI')
-    if token:
-      cls.mapbox.params.put('MapboxToken', token, block=True)
+      cls.mapbox.params.put('MapboxToken', os.environ['MAPBOX_TOKEN_CI'], block=True)
 
-    # route setup
-    cls.current_lon, cls.current_lat = -119.17557, 34.23305
-    cls.mapbox.params.put('MapboxRoute', '740 E Ventura Blvd. Camarillo, CA', block=True)
-    cls.postvars = {"place_name": cls.mapbox.params.get('MapboxRoute')}
-    cls.postvars, cls.route_ready = cls.mapbox.set_destination(cls.postvars, cls.current_lon, cls.current_lat)
-    cls.route = cls.nav.get_current_route()
-    cls.progress = cls.nav.get_route_progress(cls.current_lat, cls.current_lon)
+      # route setup
+      cls.current_lon, cls.current_lat = -119.17557, 34.23305
+      cls.mapbox.params.put('MapboxRoute', '740 E Ventura Blvd. Camarillo, CA', block=True)
+      cls.postvars = {"place_name": cls.mapbox.params.get('MapboxRoute')}
+      cls.postvars, cls.route_ready = cls.mapbox.set_destination(cls.postvars, cls.current_lon, cls.current_lat)
+      cls.route = cls.nav.get_current_route()
+      cls.progress = cls.nav.get_route_progress(cls.current_lat, cls.current_lon)
+      yield
 
   def test_set_destination(self):
     # set_destination reports that a route was stored, not just that the address geocoded
