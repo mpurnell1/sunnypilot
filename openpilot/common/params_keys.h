@@ -258,6 +258,8 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"NavHudMode", {PERSISTENT | BACKUP, INT, "3"}},
     // 0 = off, 1 = display lanes on the turn card, 2 = also confirm signaled lane changes
     {"NavLaneGuidance", {PERSISTENT | BACKUP, INT, "0"}},
+    // mici only: faint next-turn glyph in the quiet state between maneuvers; no UI, set over SSH
+    {"NavMiciQuietGlyph", {PERSISTENT | BACKUP, BOOL, "0"}},
     // 0 = off, 1 = tone cues, 2 = Morse code cues
     {"NavigationAudio", {PERSISTENT | BACKUP, INT, "0"}},
     // Morse character speed; no UI, tune over SSH

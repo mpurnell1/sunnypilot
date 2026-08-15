@@ -25,6 +25,10 @@ Screenshot mode (same, but writes rotated navdemo_*.png at each labeled moment):
 Live mode (publishes only navigationd into the running UI's namespace; the car must be
 onroad and the real navigationd process stopped so the socket is free):
   /usr/local/venv/bin/python openpilot/sunnypilot/tools/nav_demo.py approach --live
+
+On a PC the window comes up at the mici 536x240 and the bench drives the mici HUD stack,
+so the comma four skin can be exercised with no four on hand (BIG=1 for the 3X stack):
+  OPENPILOT_PREFIX=navdemo python openpilot/sunnypilot/tools/nav_demo.py tour --shots
 """
 import argparse
 import os
@@ -340,7 +344,16 @@ def _publish_support(socks, v_ego: float) -> None:
   msg = messaging.new_message('deviceState')
   msg.valid = True
   msg.deviceState.networkType = 'wifi'
+  # started plus ignition below lets the real ui.py, run against this prefix on a PC,
+  # treat the session as onroad and show its onroad view
+  msg.deviceState.started = True
   socks['deviceState'].send(msg.to_bytes())
+
+  msg = messaging.new_message('pandaStates', 1)
+  msg.valid = True
+  msg.pandaStates[0].pandaType = 'dos'
+  msg.pandaStates[0].ignitionLine = True
+  socks['pandaStates'].send(msg.to_bytes())
 
   msg = messaging.new_message('carState')
   msg.valid = True
@@ -370,14 +383,16 @@ def _publish_support(socks, v_ego: float) -> None:
   socks['carOutput'].send(msg.to_bytes())
 
 
-def run_ui(names, save_shots: bool, speedup: float, metric: bool) -> None:
+def run_ui(names, save_shots: bool, speedup: float, metric: bool, quiet_glyph: bool = False) -> None:
   prefix = os.environ.get('OPENPILOT_PREFIX')
   if not prefix:
     sys.exit('bench mode needs OPENPILOT_PREFIX for msgq and params isolation (or pass --live)')
   os.chdir(BASEDIR)
-  # every SubMaster in the UI stack must find its msgq segment in this prefix
+  # every SubMaster in the UI stack must find its msgq segment in this prefix. uiDebug is
+  # left unclaimed: it is the UI's own publication, and holding it would stop a real ui.py
+  # from running against this prefix on a PC
   os.makedirs(f"/dev/shm/msgq_{prefix}", exist_ok=True)
-  socks = {s: messaging.pub_sock(s) for s in SERVICE_LIST}
+  socks = {s: messaging.pub_sock(s) for s in SERVICE_LIST if s != 'uiDebug'}
 
   params = Params()
   # the real params store always has a DongleId; the isolated prefix store never does
@@ -387,13 +402,19 @@ def run_ui(names, save_shots: bool, speedup: float, metric: bool) -> None:
   params.put('NavLaneGuidance', 1)
   params.put('MapboxRoute', DEST)
   params.put('NavDestinationTimezone', DEST_TZ)
+  params.put_bool('NavMiciQuietGlyph', quiet_glyph)
 
   import pyray as rl
   from openpilot.system.ui.lib.application import gui_app, FontWeight
   from openpilot.system.ui.lib.text_measure import measure_text_cached
   gui_app.init_window('nav demo')
   from openpilot.selfdrive.ui.ui_state import ui_state, UIStatus
-  from openpilot.selfdrive.ui.sunnypilot.onroad.hud_renderer import HudRendererSP
+  # the window size picked the skin: the 3X rail-and-banner stack on a big display, the
+  # mici corner stack at 536x240
+  if gui_app.big_ui():
+    from openpilot.selfdrive.ui.sunnypilot.onroad.hud_renderer import HudRendererSP
+  else:
+    from openpilot.selfdrive.ui.sunnypilot.mici.onroad.hud_renderer import HudRendererSP
 
   ui_state.is_metric = metric
   ui_state.status = UIStatus.ENGAGED
@@ -406,6 +427,8 @@ def run_ui(names, save_shots: bool, speedup: float, metric: bool) -> None:
   w, h = gui_app.width, gui_app.height
   rect = rl.Rectangle(0, 0, w, h)
   caption_font = gui_app.font(FontWeight.MEDIUM)
+  caption_size = 30 if gui_app.big_ui() else 18
+  caption_y = h - 44 if gui_app.big_ui() else h - 24
 
   def draw_scene() -> None:
     # synthetic road, just enough context for the HUD to read as onroad
@@ -424,8 +447,8 @@ def run_ui(names, save_shots: bool, speedup: float, metric: bool) -> None:
     draw_scene()
     hud.render(rect)
     if caption:
-      size = measure_text_cached(caption_font, caption, 30)
-      rl.draw_text_ex(caption_font, caption, rl.Vector2((w - size.x) / 2, h - 44), 30, 0,
+      size = measure_text_cached(caption_font, caption, caption_size)
+      rl.draw_text_ex(caption_font, caption, rl.Vector2((w - size.x) / 2, caption_y), caption_size, 0,
                       rl.Color(255, 255, 255, 140))
     rl.end_drawing()
 
@@ -456,7 +479,12 @@ def run_ui(names, save_shots: bool, speedup: float, metric: bool) -> None:
       if state.label:
         print(f"  [{name}] {state.label}")
         if save_shots:
-          for _ in range(3):
+          # a labeled state needs real time, not just frames, before the capture shows the
+          # settled look: the shared status polls params at 1 Hz, the mici corner walks its
+          # alpha on a FirstOrderFilter, and at a run's start the corner yields to the
+          # set-speed circle for its 2.5 s persistence window
+          settle_end = time.monotonic() + 3.0
+          while time.monotonic() < settle_end:
             render_frame(None)
           # raylib resolves the path against the working directory, so keep it bare
           fn = f"navdemo_{name}_{state.label}.png"
@@ -471,11 +499,13 @@ def run_ui(names, save_shots: bool, speedup: float, metric: bool) -> None:
     gui_app.close()
 
   if shots:
-    # the panel framebuffer is portrait; the captures need a 90 degree clockwise rotation
-    from PIL import Image
-    for fn in shots:
-      path = os.path.join(BASEDIR, fn)
-      Image.open(path).transpose(Image.ROTATE_270).transpose(Image.ROTATE_180).save(path)
+    from openpilot.common.hardware import TICI
+    if TICI:
+      # the panel framebuffer is portrait; the captures need a 90 degree clockwise rotation
+      from PIL import Image
+      for fn in shots:
+        path = os.path.join(BASEDIR, fn)
+        Image.open(path).transpose(Image.ROTATE_270).transpose(Image.ROTATE_180).save(path)
     print("wrote " + " ".join(shots))
 
 
@@ -540,15 +570,17 @@ def main() -> None:
   parser.add_argument('--speedup', type=float, default=1.0,
                       help='sim time multiplier; wall rate stays 3 Hz (default 1.0)')
   parser.add_argument('--metric', action='store_true', help='render metric units in bench mode')
+  parser.add_argument('--quiet-glyph', action='store_true',
+                      help='set NavMiciQuietGlyph so the mici quiet state shows the faint glyph (bench mode only)')
   args = parser.parse_args()
-  if args.live and args.shots:
-    parser.error('--shots needs bench mode, drop --live')
+  if args.live and (args.shots or args.quiet_glyph):
+    parser.error('--shots and --quiet-glyph need bench mode, drop --live')
 
   names = list(SCENARIOS) if args.scenario == 'tour' else [args.scenario]
   if args.live:
     run_live(names, args.speedup)
   else:
-    run_ui(names, args.shots, args.speedup, args.metric)
+    run_ui(names, args.shots, args.speedup, args.metric, args.quiet_glyph)
 
 
 if __name__ == '__main__':

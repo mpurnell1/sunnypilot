@@ -45,6 +45,7 @@ class NavStatus:
     self.allow_navigation: bool = False
     self.nav_hud_mode: int = 3
     self.lane_guidance: int = 0  # 0 off, 1 display, 2 display + assist; the card shows lanes when >= 1
+    self.mici_quiet_glyph: bool = False  # mici only: faint glyph in the quiet state
     self.destination_timezone: str = ""  # IANA TZID from navd, empty when the lookup failed
     self.gps_locked: bool = False
     self.online: bool = False
@@ -75,6 +76,7 @@ class NavStatus:
       self.allow_navigation = self._params.get_bool("AllowNavigation")
       self.nav_hud_mode = self._params.get("NavHudMode", return_default=True)
       self.lane_guidance = self._params.get("NavLaneGuidance", return_default=True)
+      self.mici_quiet_glyph = self._params.get_bool("NavMiciQuietGlyph")
       self.destination_timezone = self._params.get("NavDestinationTimezone") or ""
 
     sm = ui_state.sm
