@@ -101,6 +101,33 @@
 <h2>Recent</h2>
 <ul id="recents"></ul>
 
+<h2>Settings</h2>
+<div class="card">
+  <div class="muted">Navigation HUD</div>
+  <div class="chips" id="set-hud"></div>
+  <div class="muted" style="margin-top:12px">Audio cues</div>
+  <div class="chips" id="set-audio"></div>
+  <div class="row" style="margin-top:12px">
+    <div class="grow">Lane guidance display</div>
+    <button id="set-lanes" class="small"></button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <div class="grow">Automatic reroute</div>
+    <button id="set-recompute" class="small"></button>
+  </div>
+  <div style="margin-top:14px">
+    <div class="muted">Mapbox token: <span id="token-state"></span></div>
+    <form id="token-form" class="row" style="margin-top:6px">
+      <input id="token-input" type="password" placeholder="pk. public token" autocomplete="off">
+      <button type="submit" class="small">Save</button>
+    </form>
+  </div>
+  <div class="muted" style="margin-top:10px">
+    Options that influence steering stay on the device, so that consent happens in the car.
+    Settings save while parked, like destinations.
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -348,7 +375,57 @@ $("edit-favs").onclick = () => {
   renderSaved();
 };
 
+// --- settings: display and audio only; the token is write-only and never echoed back ---
+let settings = null;
+const HUD_LABELS = ["Off", "Turns", "ETA", "Both"];
+const AUDIO_LABELS = ["Off", "Tones", "Morse"];
+
+function segmented(el, labels, value, save) {
+  el.replaceChildren();
+  labels.forEach((label, i) => {
+    const b = document.createElement("button");
+    b.className = "small" + (i === value ? " primary" : "");
+    b.textContent = label;
+    b.onclick = () => { if (i !== value) save(i); };
+    el.appendChild(b);
+  });
+}
+
+function onOff(btn, value, save) {
+  btn.textContent = value ? "On" : "Off";
+  btn.className = "small" + (value ? " primary" : "");
+  btn.onclick = () => save(!value);
+}
+
+function renderSettings() {
+  if (!settings) return;
+  segmented($("set-hud"), HUD_LABELS, settings.navHudMode, v => saveSettings({ navHudMode: v }));
+  segmented($("set-audio"), AUDIO_LABELS, settings.navAudio, v => saveSettings({ navAudio: v }));
+  onOff($("set-lanes"), settings.laneGuidanceDisplay, v => saveSettings({ laneGuidanceDisplay: v }));
+  onOff($("set-recompute"), settings.recompute, v => saveSettings({ recompute: v }));
+  $("token-state").textContent = settings.tokenSet ? "set" : "not set";
+}
+
+async function loadSettings() {
+  try { settings = await api("/api/settings"); renderSettings(); }
+  catch (e) { /* the status poll already toasts unreachability */ }
+}
+
+async function saveSettings(change) {
+  try { settings = await api("/api/settings", post(change)); renderSettings(); toast("Saved"); }
+  catch (e) { toast(e.message); }
+}
+
+$("token-form").onsubmit = async ev => {
+  ev.preventDefault();
+  const token = $("token-input").value.trim();
+  if (!token) return;
+  await saveSettings({ token });
+  $("token-input").value = "";
+};
+
 refresh();
+loadSettings();
 setInterval(refresh, 10000);
 </script>
 </body>
