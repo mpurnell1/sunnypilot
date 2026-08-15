@@ -49,7 +49,8 @@ class NavigationInstructions:
     effective_step_idx = current_step_idx if current_step_idx >= 0 else 0
     distance_remaining = max(0.0, route['total_distance'] - closest_cumulative)
     # remaining time scales the current step's duration by how much of it is left, then adds
-    # the untouched steps; Mapbox durations carry no live traffic, so this is a floor estimate
+    # the untouched steps; durations reflect traffic at request time, so the estimate drifts
+    # between reroutes rather than tracking live conditions
     step_fraction = min(1.0, distance_to_end_of_step / current_step['distance']) if current_step['distance'] > 0 else 0.0
     time_remaining = current_step['duration'] * step_fraction + sum(step['duration'] for step in route['steps'][effective_step_idx + 1:])
 
