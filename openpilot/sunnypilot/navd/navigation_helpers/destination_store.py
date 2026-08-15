@@ -11,6 +11,8 @@ from openpilot.common.swaglog import cloudlog
 
 # MapboxFavorites keeps the shape the settings UI already reads and writes:
 # {"home": "<dest>", "work": "<dest>", "favorites": {"<name>": "<dest>"}}.
+# A route-bound favorite adds "routes": {"<dest>": "<summary>"}; the settings UI rewrites
+# the dict wholesale so the extra key survives its edits untouched.
 # MapboxRecents is a most-recent-first list of {"name": "<label>", "dest": "<dest>"}.
 # A dest is whatever MapboxRoute accepts: free text or a "lon,lat" string.
 
@@ -20,6 +22,10 @@ FAVORITE_KINDS = ("home", "work")
 
 def _clean(value: Any) -> str:
   return str(value).strip() if isinstance(value, str) else ""
+
+
+def _favorite_dests(favs: dict) -> set[str]:
+  return {favs[kind] for kind in FAVORITE_KINDS if kind in favs} | set(favs.get("favorites", {}).values())
 
 
 def normalize_favorites(favs: Any) -> dict:
@@ -34,19 +40,30 @@ def normalize_favorites(favs: Any) -> dict:
     cleaned = {name: dest for name, dest in ((_clean(k), _clean(v)) for k, v in named.items()) if name and dest}
     if cleaned:
       normalized["favorites"] = cleaned
+  routes = favs.get("routes")
+  if isinstance(routes, dict):
+    # a binding lives only as long as some favorite still points at its dest
+    referenced = _favorite_dests(normalized)
+    cleaned = {dest: summary for dest, summary in ((_clean(k), _clean(v)) for k, v in routes.items()) if dest and summary and dest in referenced}
+    if cleaned:
+      normalized["routes"] = cleaned
   return normalized
 
 
 def favorites_view(favs: Any) -> list[dict]:
   """Flat listing for the API: home, then work, then named favorites by name."""
   favs = normalize_favorites(favs)
+  routes = favs.get("routes", {})
   view = [{"kind": kind, "name": kind.capitalize(), "dest": favs[kind]} for kind in FAVORITE_KINDS if kind in favs]
   view += [{"kind": "favorite", "name": name, "dest": dest}
            for name, dest in sorted(favs.get("favorites", {}).items(), key=lambda item: item[0].casefold())]
+  for entry in view:
+    if summary := routes.get(entry["dest"]):
+      entry["summary"] = summary
   return view
 
 
-def set_favorite(favs: Any, name: str, dest: str, kind: str | None = None) -> dict:
+def set_favorite(favs: Any, name: str, dest: str, kind: str | None = None, summary: str = "") -> dict:
   favs = normalize_favorites(favs)
   dest = _clean(dest)
   name = _clean(name)
@@ -56,7 +73,16 @@ def set_favorite(favs: Any, name: str, dest: str, kind: str | None = None) -> di
     favs[kind] = dest
   elif name:
     favs.setdefault("favorites", {})[name] = dest
-  return favs
+  else:
+    return favs
+  # the save captures the current route pick exactly: a summary binds it, no summary unbinds,
+  # so re-saving a favorite without a picked route predictably returns it to fastest-route
+  routes = favs.setdefault("routes", {})
+  if summary := _clean(summary):
+    routes[dest] = summary
+  else:
+    routes.pop(dest, None)
+  return normalize_favorites(favs)
 
 
 def remove_favorite(favs: Any, name: str = "", kind: str | None = None) -> dict:
@@ -68,7 +94,8 @@ def remove_favorite(favs: Any, name: str = "", kind: str | None = None) -> dict:
     named.pop(_clean(name), None)
     if not named:
       favs.pop("favorites", None)
-  return favs
+  # re-normalizing prunes any binding the removed favorite was the last reference to
+  return normalize_favorites(favs)
 
 
 def normalize_recents(recents: Any) -> list[dict]:
@@ -113,8 +140,8 @@ class DestinationStore:
   def favorites(self) -> list[dict]:
     return favorites_view(self.params.get("MapboxFavorites"))
 
-  def set_favorite(self, name: str, dest: str, kind: str | None = None) -> None:
-    self.params.put("MapboxFavorites", set_favorite(self.params.get("MapboxFavorites"), name, dest, kind), block=True)
+  def set_favorite(self, name: str, dest: str, kind: str | None = None, summary: str = "") -> None:
+    self.params.put("MapboxFavorites", set_favorite(self.params.get("MapboxFavorites"), name, dest, kind, summary), block=True)
 
   def remove_favorite(self, name: str = "", kind: str | None = None) -> None:
     self.params.put("MapboxFavorites", remove_favorite(self.params.get("MapboxFavorites"), name, kind), block=True)
