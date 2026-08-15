@@ -9,7 +9,7 @@ import pytest
 
 import openpilot.cereal.messaging as messaging
 
-from openpilot.sunnypilot.navd.navigationd import Navigationd
+from openpilot.sunnypilot.navd.navigationd import OFF_ROUTE_DEBOUNCE_TICKS, Navigationd
 from openpilot.sunnypilot.navd.helpers import Coordinate
 
 
@@ -73,6 +73,56 @@ class TestNavigationd:
     nav.final_step = True
     nav._drop_route()
     assert not nav.final_step
+
+  def test_route_state_debounce_ignores_a_blip(self):
+    nav = Navigationd()
+    for _ in range(OFF_ROUTE_DEBOUNCE_TICKS - 1):
+      nav._update_route_standing(True, False, False)
+      assert not nav.off_route, "a blip against the thresholds must not dim the display"
+    nav._update_route_standing(True, False, False)
+    assert nav.off_route
+
+  def test_route_state_exits_via_the_counter_reset(self):
+    nav = Navigationd()
+    for _ in range(OFF_ROUTE_DEBOUNCE_TICKS):
+      nav._update_route_standing(True, False, False)
+    assert nav.off_route
+    nav._update_route_standing(False, False, False)
+    assert not nav.off_route
+    assert nav.reroute_counter == 0
+
+  def test_bearing_misalign_counts_toward_off_route(self):
+    nav = Navigationd()
+    for _ in range(OFF_ROUTE_DEBOUNCE_TICKS):
+      nav._update_route_standing(False, True, False)
+    assert nav.off_route
+
+  def test_recompute_off_parks_at_off_route(self):
+    # with recompute off there is no reroute to hope for, but the display must still say
+    # the route is not being followed; the reroute trigger itself stays gated elsewhere
+    nav = Navigationd()
+    nav.recompute_allowed = False
+    for _ in range(OFF_ROUTE_DEBOUNCE_TICKS):
+      nav._update_route_standing(True, False, False)
+    assert nav.off_route
+    assert nav.reroute_counter == OFF_ROUTE_DEBOUNCE_TICKS
+
+  def test_arrival_hold_reports_on_route(self):
+    # the last meters to the flag routinely leave the mapped line, and that is not lost
+    nav = Navigationd()
+    for _ in range(OFF_ROUTE_DEBOUNCE_TICKS):
+      nav._update_route_standing(True, False, False)
+    assert nav.off_route
+    nav._update_route_standing(True, False, True)
+    assert not nav.off_route
+
+  def test_route_state_publishes_with_rerouting_outranking(self):
+    nav = Navigationd()
+    assert nav._build_navigation_message('', None, {}, True).navigationd.routeState == 'onRoute'
+    nav.off_route = True
+    assert nav._build_navigation_message('', None, {}, True).navigationd.routeState == 'offRoute'
+    nav.rerouting = True
+    assert nav._build_navigation_message('', None, {}, True).navigationd.routeState == 'rerouting'
 
   def test_build_navigation_message(self):
     if self.is_darwin:

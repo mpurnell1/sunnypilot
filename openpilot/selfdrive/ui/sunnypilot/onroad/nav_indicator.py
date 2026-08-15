@@ -9,7 +9,7 @@ from math import cos, radians, sin
 import pyray as rl
 
 from openpilot.selfdrive.ui.onroad.hud_renderer import UI_CONFIG
-from openpilot.selfdrive.ui.sunnypilot.nav_status import NavStatus
+from openpilot.selfdrive.ui.sunnypilot.nav_status import ROUTE_FAILURE_THRESHOLD, NavStatus
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import (
   ChipMode, TransientNav, TransientNavState, chip_mode, flag_raised, pick_upcoming_maneuver,
 )
@@ -294,7 +294,8 @@ class NavIndicatorRenderer(Widget):
     self.nav_status.update()
     self._mode = chip_mode(self.nav_status)
     msg = ui_state.sm['navigationd']
-    self.transient.update(self._mode == ChipMode.LIVE, msg.allManeuvers, msg.audioCueId, msg.audioCueStage)
+    self.transient.update(self._mode == ChipMode.LIVE, msg.allManeuvers, msg.audioCueId, msg.audioCueStage,
+                          off_route=msg.routeState != 'onRoute')
 
   def _update_state(self) -> None:
     self.update_state()
@@ -310,9 +311,16 @@ class NavIndicatorRenderer(Widget):
     rl.draw_rectangle_rounded(box, 0.35, 10, BACKGROUND)
     _draw_flag(box.x + box.width / 2, box.y + box.height / 2, color, CHIP_ICON_SIZE, banner=banner)
 
-  def _render_chip(self, box: rl.Rectangle, maneuver: tuple[str, str, float]) -> None:
+  def _render_chip(self, box: rl.Rectangle, maneuver: tuple[str, str, float], dimmed: bool = False) -> None:
     maneuver_type, modifier, distance = maneuver
     rl.draw_rectangle_rounded(box, 0.35, 10, BACKGROUND)
+
+    if dimmed:
+      # off route: the glyph dims and the distance drops, because that number counts down
+      # to a maneuver the car is no longer approaching
+      _draw_maneuver_icon(box.x + box.width / 2, box.y + box.height / 2,
+                          maneuver_type, modifier, CHIP_SEARCHING, CHIP_ICON_SIZE)
+      return
 
     text = format_distance(distance, ui_state.is_metric)
     text_size = measure_text_cached(self._font, text, CHIP_FONT_SIZE)
@@ -343,15 +351,24 @@ class NavIndicatorRenderer(Widget):
       self.stack_bottom = top + BOX_HEIGHT
       return
 
-    maneuver = pick_upcoming_maneuver(ui_state.sm['navigationd'].allManeuvers)
-    if maneuver is None:
-      return
-
     if self.transient.state in (TransientNavState.APPROACH, TransientNavState.PINNED):
       # the top-center banner is the expanded skin; the rail stays clear while it is up
       return
 
+    msg = ui_state.sm['navigationd']
+    if msg.routeState == 'rerouting':
+      # the searching flag is the reroute cue's visual: the route being counted against is
+      # being replaced. Failing recompute requests turn it red, like any other failure.
+      failing = msg.routeFailures >= ROUTE_FAILURE_THRESHOLD
+      self._render_status_chip(rl.Rectangle(x, top, width, BOX_HEIGHT), BAD if failing else CHIP_SEARCHING)
+      self.stack_bottom = top + BOX_HEIGHT
+      return
+
+    maneuver = pick_upcoming_maneuver(msg.allManeuvers)
+    if maneuver is None:
+      return
+
     box = rl.Rectangle(x, top, width, BOX_HEIGHT)
-    self._render_chip(box, maneuver)
+    self._render_chip(box, maneuver, dimmed=msg.routeState == 'offRoute')
     self.stack_bottom = top + box.height
     self.set_rect(box)

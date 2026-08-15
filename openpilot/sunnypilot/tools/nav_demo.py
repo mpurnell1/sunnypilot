@@ -180,6 +180,9 @@ def _build_msg(state: TickState, cues: NavAudioCues, stub: SimpleNamespace):
   cues.update(state.route, progress, nav_data, state.v, state.rerouting)
   stub.valid = state.route is not None
   stub.failed_attempts = state.failures
+  stub.rerouting = state.rerouting
+  # the daemon debounces this over ticks; the demo reads it straight off the drift meters
+  stub.off_route = state.route is not None and not state.arrived and state.off_route > 210.0
   # the production builder, called with a stub in place of the daemon, so the message
   # shape can never drift from what navigationd publishes
   return Navigationd._build_navigation_message(stub, banner, progress, nav_data, state.gps_ok)
@@ -324,7 +327,7 @@ SCENARIOS = {
 def message_stream(names, speedup: float = 1.0, hold_ticks: int = 0):
   """(scenario, state, message) per tick; one cue engine spans the whole run, like the daemon."""
   cues = NavAudioCues()
-  stub = SimpleNamespace(valid=False, failed_attempts=0, nav_audio=cues)
+  stub = SimpleNamespace(valid=False, failed_attempts=0, nav_audio=cues, rerouting=False, off_route=False)
   for name in names:
     last = None
     for state in SCENARIOS[name](speedup):

@@ -75,6 +75,14 @@ class TestReroute:
     off = next(i for i, s in enumerate(states) if s.label == 'off_route')
     assert msgs[off].navigationd.distanceFromRoute > 200.0
 
+  def test_route_state_tracks_the_drift(self):
+    states, msgs, _ = run(['reroute'])
+    by_label = {s.label: m for s, m in zip(states, msgs, strict=True) if s.label}
+    assert by_label['on_route'].navigationd.routeState == 'onRoute'
+    assert by_label['off_route'].navigationd.routeState == 'offRoute'
+    assert by_label['reroute'].navigationd.routeState == 'rerouting'
+    assert by_label['rerouted'].navigationd.routeState == 'onRoute'
+
 
 class TestArrival:
   def test_one_arrive_cue_then_cleanup(self):
