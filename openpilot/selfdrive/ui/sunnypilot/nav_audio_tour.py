@@ -4,8 +4,8 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-The navigation audio tour: plays every cue while showing the same turn card the drive
-would, so each sound is learned against the exact screen it will accompany. Audio runs on
+The navigation audio tour: plays every cue while showing a maneuver card drawn with the
+HUD's own glyph vocabulary, so each sound is learned against the shapes it will accompany. Audio runs on
 raylib's own device in the UI process — soundd is not up offroad, where the tour is used,
 and owning playback is also what keeps the card and the sound exactly together.
 """
@@ -20,8 +20,7 @@ import pyray as rl
 
 from openpilot.common.params import Params
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import (
-  ARROW_ANGLES, BACKGROUND, METERS_PER_MILE, TURN_BOX_HEIGHT, TURN_COLOR, TURN_FONT_SIZE,
-  TURN_ICON_CY, TURN_ICON_WIDTH, TURN_TEXT_TOP, _draw_flag, _draw_fork, _draw_merge,
+  ARROW_ANGLES, BACKGROUND, METERS_PER_MILE, TURN_COLOR, _draw_flag, _draw_fork, _draw_merge,
   _draw_roundabout, _draw_turn, _draw_uturn, format_distance)
 from openpilot.selfdrive.ui.onroad.hud_renderer import UI_CONFIG
 from openpilot.selfdrive.ui.ui_state import ui_state
@@ -34,7 +33,14 @@ from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.lib.wrap_text import wrap_text
 from openpilot.system.ui.widgets import Widget
 
-# the tour card is the onroad card scaled up to presentation size
+# the tour card is a schematic maneuver card scaled to presentation size, built from the
+# same glyphs the quiet chip and lane rows use; the drive's expanded skin is the top-center
+# banner (nav_banner), whose PNG icons the glyphs deliberately echo
+TURN_BOX_HEIGHT = 168
+TURN_ICON_WIDTH = 64
+TURN_ICON_CY = 60
+TURN_TEXT_TOP = 108
+TURN_FONT_SIZE = 36
 CARD_SCALE = 2.5
 HOLD_S = 1.2  # quiet time after each cue before the next
 PROGRESS_COLOR = rl.Color(70, 91, 234, 255)
