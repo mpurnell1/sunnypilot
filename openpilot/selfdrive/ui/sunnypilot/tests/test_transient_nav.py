@@ -10,7 +10,7 @@ from openpilot.cereal import custom
 
 from openpilot.selfdrive.ui.sunnypilot.nav_status import NavState
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import (
-  ChipMode, TransientNav, TransientNavState, chip_mode, maneuver_signature, pick_upcoming_maneuver,
+  ChipMode, TransientNav, TransientNavState, chip_mode, flag_raised, maneuver_signature, pick_upcoming_maneuver,
 )
 
 
@@ -153,3 +153,15 @@ class TestChipMode:
 
   def test_live_while_routing(self):
     assert chip_mode(_status(NavState.ACTIVE)) == ChipMode.LIVE
+
+
+class TestFlagRaised:
+  def test_pole_only_until_the_fix(self):
+    assert not flag_raised(NavState.WAITING_FOR_GPS)
+
+  def test_raised_once_the_wait_is_on_mapbox(self):
+    assert flag_raised(NavState.COMPUTING)
+
+  def test_failure_and_live_fly_it_full(self):
+    assert flag_raised(NavState.NO_ROUTE)
+    assert flag_raised(NavState.ACTIVE)

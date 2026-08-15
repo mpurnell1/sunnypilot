@@ -42,6 +42,17 @@ class TestStatusStates:
     assert content is not None and content.kind == 'failure'
     assert content.alpha == FAILURE_ALPHA
 
+  def test_searching_flag_carries_its_stage(self):
+    # pole only until the GPS fix, pole plus banner once the wait is on Mapbox
+    lowered = corner_content(TransientNavState.QUIET, ChipMode.SEARCHING, _msg(), 0, False, raised=False)
+    assert lowered is not None and not lowered.raised
+    raised = corner_content(TransientNavState.QUIET, ChipMode.SEARCHING, _msg(), 0, False, raised=True)
+    assert raised is not None and raised.raised
+
+  def test_failure_flag_always_flies_full(self):
+    content = corner_content(TransientNavState.QUIET, ChipMode.FAILURE, _msg(), 0, False, raised=False)
+    assert content is not None and content.raised
+
   def test_hidden_mode_is_an_empty_corner(self):
     assert corner_content(TransientNavState.APPROACH, ChipMode.HIDDEN, _msg(TWO_STEPS), 1, True) is None
 
