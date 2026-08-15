@@ -207,3 +207,22 @@ class TestNavStatus:
     self.params.put("AllowNavigation", True, block=True)
     self.tick()
     assert self.status.allow_navigation
+
+
+class TestNavStatusLine:
+  """The settings panel's status line; it shares NavStatus with the chip, so the mapping
+  from state to words is the only logic it owns."""
+
+  def test_every_state_has_a_line(self):
+    from openpilot.selfdrive.ui.sunnypilot.layouts.settings.navigation import NAV_STATUS_TEXTS, nav_status_line
+    for state in NavState:
+      assert nav_status_line(state, online=True) == NAV_STATUS_TEXTS[state]
+
+  def test_offline_outranks_only_the_blocked_states(self):
+    from openpilot.selfdrive.ui.sunnypilot.layouts.settings.navigation import (
+      NAV_STATUS_OFFLINE, NAV_STATUS_TEXTS, nav_status_line)
+    # a route request is what needs the network; a GPS wait or an active route reads the same
+    assert nav_status_line(NavState.COMPUTING, online=False) == NAV_STATUS_OFFLINE
+    assert nav_status_line(NavState.NO_ROUTE, online=False) == NAV_STATUS_OFFLINE
+    for state in (NavState.OFFLINE, NavState.NO_DESTINATION, NavState.WAITING_FOR_GPS, NavState.ACTIVE):
+      assert nav_status_line(state, online=False) == NAV_STATUS_TEXTS[state]

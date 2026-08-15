@@ -9,12 +9,13 @@ from functools import partial
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.ui.sunnypilot.nav_audio_tour import NavAudioTour
+from openpilot.selfdrive.ui.sunnypilot.nav_status import NavState, NavStatus
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.widgets import DialogResult, Widget
 from openpilot.system.ui.widgets.confirm_dialog import alert_dialog
-from openpilot.system.ui.widgets.list_view import button_item
+from openpilot.system.ui.widgets.list_view import button_item, text_item
 from openpilot.system.ui.widgets.option_dialog import MultiOptionDialog
 from openpilot.system.ui.widgets.scroller_tici import Scroller
 
@@ -56,6 +57,28 @@ NAV_AUDIO_DESCRIPTIONS = [
   tr("Morse: Maneuver codes keyed in Morse, e.g. R for a right turn or O3 for a roundabout's third exit. Speed comes from the NavAudioWpm parameter."),
 ]
 
+# the status line says in words what the onroad chip says in stages; it shares NavStatus
+# with the chip so the two can never disagree
+NAV_STATUS_TEXTS = {
+  NavState.OFFLINE: tr("Waiting for a drive"),
+  NavState.NO_DESTINATION: tr("No destination set"),
+  NavState.WAITING_FOR_GPS: tr("Waiting for a GPS fix"),
+  NavState.COMPUTING: tr("Searching for a route"),
+  NavState.NO_ROUTE: tr("Route requests are failing"),
+  NavState.ACTIVE: tr("Route active"),
+}
+
+NAV_STATUS_OFFLINE = tr("Offline, waiting for a connection")
+
+
+def nav_status_line(state: NavState, online: bool) -> str:
+  # being offline only outranks the states a route request is actually blocked in; a GPS
+  # wait or an active route reads the same with or without a connection
+  if not online and state in (NavState.COMPUTING, NavState.NO_ROUTE):
+    return NAV_STATUS_OFFLINE
+  return NAV_STATUS_TEXTS[state]
+
+
 class NavigationLayout(Widget):
   def __init__(self):
     super().__init__()
@@ -63,6 +86,7 @@ class NavigationLayout(Widget):
     self._params = Params()
     self._dialog: MultiOptionDialog | None = None
     self._tour: NavAudioTour | None = None
+    self._nav_status = NavStatus()
 
     self._nav_hud_item = multiple_button_item_sp(tr("Navigation HUD"), self._get_nav_hud_description,
                                                  NAV_HUD_BUTTONS, param="NavHudMode")
@@ -79,12 +103,14 @@ class NavigationLayout(Widget):
     self._mapbox_route_item = button_item(tr("Mapbox Route"), tr("Edit"), "",
                                           partial(self._show_param_input, "MapboxRoute", tr("Enter Mapbox Route")))
 
-    # only shown while navigation is enabled
+    # only shown while navigation is enabled; the first four ride above the master toggle
+    # in the final layout and the rest below it, so additions belong after index 3
     self._vis_items = [
       button_item(tr("Set Home"), tr("Set"), "", partial(self._open_fav_dialog, "home", tr("Set Home Route"))),
       button_item(tr("Set Work"), tr("Set"), "", partial(self._open_fav_dialog, "work", tr("Set Work Route"))),
       button_item(tr("Add Favorite"), tr("Add"), tr("Add a new favorite."), self._add_fav),
       button_item(tr("Remove Favorite"), tr("Remove"), tr("Remove a favorite."), self._remove_fav),
+      text_item(tr("Status"), self._get_nav_status_text),
       toggle_item_sp(tr("Mapbox Recompute"), tr("Recompute the route automatically after leaving it."), param="MapboxRecompute"),
       toggle_item_sp(tr("Navigation Desires"), tr("Steer through a turn on the route once you signal for it."), param="NavDesiresAllowed"),
       multiple_button_item_sp(tr("Navigation Banners"), self._get_banner_description,
@@ -195,7 +221,11 @@ class NavigationLayout(Widget):
   def _get_nav_audio_description(self) -> str:
     return get_highlighted_description(self._params, "NavigationAudio", NAV_AUDIO_DESCRIPTIONS)
 
+  def _get_nav_status_text(self) -> str:
+    return nav_status_line(self._nav_status.state, self._nav_status.online)
+
   def _update_state(self):
+    self._nav_status.update()
     self._mapbox_token_item.action_item.set_value(self._params.get("MapboxToken") or tr("Mapbox token not set"))
     self._mapbox_route_item.action_item.set_value(self._params.get("MapboxRoute") or tr("Destination not set"))
     self._update_navigation_visibility(self._params.get_bool("AllowNavigation"))

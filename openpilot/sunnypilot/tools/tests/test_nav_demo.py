@@ -95,10 +95,16 @@ class TestFailure:
     states, msgs, edges = run(['failure'])
     assert edges == []
     assert max(m.navigationd.routeFailures for m in msgs) == 2
-    # invalid while failing, valid once a route lands, localizer fine throughout
+    # invalid while failing, valid once a route lands
     assert not msgs[0].navigationd.valid
     assert msgs[-1].navigationd.valid
-    assert all(m.valid for m in msgs)
+    # the scenario opens without a localizer fix (the pole stage of the searching flag)
+    # and the fix holds from the moment it lands
+    no_fix = next(i for i, s in enumerate(states) if s.label == 'no_fix')
+    fix_in = next(i for i, s in enumerate(states) if s.gps_ok)
+    assert not any(m.valid for m in msgs[:fix_in])
+    assert no_fix < fix_in
+    assert all(m.valid for m in msgs[fix_in:])
 
 
 class TestTour:
