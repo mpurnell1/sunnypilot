@@ -81,13 +81,21 @@ def normalize_recents(recents: Any) -> list[dict]:
   return normalized[:RECENTS_LIMIT]
 
 
-def update_recents(recents: Any, name: str, dest: str, limit: int = RECENTS_LIMIT) -> list[dict]:
-  """Most-recent-first, deduplicated on the dest string so a re-set trip moves up instead of doubling."""
+def update_recents(recents: Any, name: str, dest: str, limit: int = RECENTS_LIMIT, keep_existing_name: bool = False) -> list[dict]:
+  """Most-recent-first, deduplicated on the dest string so a re-set trip moves up instead of doubling.
+
+  keep_existing_name is for backfill writers (navd's acceptance record): a label the phone or
+  page chose deliberately must not be clobbered by a geocoder's address for the same dest.
+  """
   dest = _clean(dest)
   current = normalize_recents(recents)
   if not dest:
     return current
-  updated = [{"name": _clean(name) or dest, "dest": dest}]
+  name = _clean(name) or dest
+  if keep_existing_name:
+    existing = next((entry["name"] for entry in current if entry["dest"] == dest and entry["name"] != entry["dest"]), "")
+    name = existing or name
+  updated = [{"name": name, "dest": dest}]
   updated += [entry for entry in current if entry["dest"] != dest]
   return updated[:limit]
 
@@ -114,8 +122,9 @@ class DestinationStore:
   def recents(self) -> list[dict]:
     return normalize_recents(self.params.get("MapboxRecents"))
 
-  def record_recent(self, name: str, dest: str) -> None:
-    self.params.put("MapboxRecents", update_recents(self.params.get("MapboxRecents"), name, dest), block=True)
+  def record_recent(self, name: str, dest: str, keep_existing_name: bool = False) -> None:
+    self.params.put("MapboxRecents", update_recents(self.params.get("MapboxRecents"), name, dest,
+                                                    keep_existing_name=keep_existing_name), block=True)
 
   def active_destination(self) -> str:
     return self.params.get("MapboxRoute") or ""

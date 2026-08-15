@@ -169,7 +169,9 @@ class Navigationd:
             # Reroutes re-accept the destination they already hold and are skipped
             if self.destination != self.new_destination:
               name = postvars.get('resolved_name') or postvars.get('name') or self.new_destination
-              self.destination_store.record_recent(name, self.new_destination)
+              # acceptance is a backfill so athena/CLI/settings destinations get a label at
+              # all; a friendly label already recorded by the page or athena wins over it
+              self.destination_store.record_recent(name, self.new_destination, keep_existing_name=True)
             self.destination = self.new_destination
             self.route = route
             self.arrival_counter = 0
