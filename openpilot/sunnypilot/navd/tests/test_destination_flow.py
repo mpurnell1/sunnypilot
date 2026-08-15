@@ -69,6 +69,12 @@ class TestDestinationFlow:
     recents = self.params.get("MapboxRecents")
     assert recents == [{"name": RESOLVED, "dest": DESTINATION}]
 
+  def test_acceptance_keeps_a_label_chosen_by_the_page_or_phone(self):
+    self.nav.destination_store.record_recent("Library", DESTINATION)
+    self.run_for(1.0)
+    recents = self.params.get("MapboxRecents")
+    assert recents == [{"name": "Library", "dest": DESTINATION}]
+
   def test_reacceptance_does_not_duplicate_the_recent(self):
     self.run_for(1.0)
     # re-acceptance of the same destination, as after a navd restart mid-trip
