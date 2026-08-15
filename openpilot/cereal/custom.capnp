@@ -283,6 +283,7 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
       none @0;
       car @1;
       map @2;
+      nav @3;  # the active route's Mapbox maxspeed, fallback when car and map have nothing
     }
 
     enum AssistState {
@@ -473,7 +474,7 @@ struct ModelDataV2SP @0xa1680744031fdb2d {
 
 struct Navigationd @0xcb9fd56c7057593a {
   upcomingTurn @0 :Text;
-  currentSpeedLimit @1 :UInt16;
+  currentSpeedLimit @1 :UInt16;  # kph regardless of the road's posted unit; 0 = unknown
   bannerInstructions @2 :Text;
   distanceFromRoute @3 :Float32;
   allManeuvers @4 :List(Maneuver);

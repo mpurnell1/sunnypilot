@@ -119,6 +119,15 @@ class SpeedLimitResolver:
     self._reset_limit_sources(SpeedLimitSource.map)
     self._process_map_data(sm)
 
+  def _get_from_nav(self, sm: messaging.SubMaster) -> None:
+    self._reset_limit_sources(SpeedLimitSource.nav)
+    nav = sm['navigationd']
+    # navigationd is on plannerd's ignore list, so staleness must be checked here:
+    # a dead navd would otherwise leave its last limit latched with valid still set
+    nav_age = time.monotonic() - sm.rcv_time['navigationd']
+    if nav.valid and nav.currentSpeedLimit > 0 and nav_age <= LIMIT_MAX_MAP_DATA_AGE:
+      self.limit_solutions[SpeedLimitSource.nav] = nav.currentSpeedLimit * CV.KPH_TO_MS
+
   def _process_map_data(self, sm: messaging.SubMaster) -> None:
     gps_data = sm[self._gps_location_service]
     map_data = sm['liveMapDataSP']
@@ -154,23 +163,27 @@ class SpeedLimitResolver:
   def _get_source_solution_according_to_policy(self) -> custom.LongitudinalPlanSP.SpeedLimit.Source:
     sources_for_policy = self._policy_to_sources_map[Policy(self.policy)]
 
+    source = SpeedLimitSource.none
     if Policy(self.policy) != Policy.combined:
       # They are ordered in the order of preference, so we pick the first that's non-zero
-      for source in sources_for_policy:
-        if self.limit_solutions[source] > 0.:
-          return source
-      return SpeedLimitSource.none
+      source = next((s for s in sources_for_policy if self.limit_solutions[s] > 0.), SpeedLimitSource.none)
+    else:
+      sources_with_limits = [(s, limit) for s, limit in [(s, self.limit_solutions[s]) for s in sources_for_policy] if limit > 0.]
+      if sources_with_limits:
+        source = min(sources_with_limits, key=lambda x: x[1])[0]
 
-    sources_with_limits = [(s, limit) for s, limit in [(s, self.limit_solutions[s]) for s in sources_for_policy] if limit > 0.]
-    if sources_with_limits:
-      return min(sources_with_limits, key=lambda x: x[1])[0]
+    # the route's Mapbox limit is the weakest signal, so it only fills in when every
+    # source the policy asked for came up empty; no policy's ordering is disturbed
+    if source == SpeedLimitSource.none and self.limit_solutions[SpeedLimitSource.nav] > 0.:
+      source = SpeedLimitSource.nav
 
-    return SpeedLimitSource.none
+    return source
 
   def _resolve_limit_sources(self, sm: messaging.SubMaster) -> tuple[float, float, custom.LongitudinalPlanSP.SpeedLimit.Source]:
     """Get limit solutions from each data source"""
     self._get_from_car_state(sm)
     self._get_from_map_data(sm)
+    self._get_from_nav(sm)
 
     source = self._get_source_solution_according_to_policy()
     speed_limit = self.limit_solutions[source] if source else 0.
