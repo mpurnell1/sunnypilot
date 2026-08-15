@@ -11,7 +11,7 @@ import pyray as rl
 from openpilot.selfdrive.ui.onroad.hud_renderer import UI_CONFIG
 from openpilot.selfdrive.ui.sunnypilot.nav_status import NavStatus
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import (
-  ChipMode, TransientNav, TransientNavState, chip_mode, pick_upcoming_maneuver,
+  ChipMode, TransientNav, TransientNavState, chip_mode, flag_raised, pick_upcoming_maneuver,
 )
 from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES
 from openpilot.selfdrive.ui.ui_state import ui_state
@@ -79,14 +79,16 @@ def format_distance(distance_m: float, is_metric: bool) -> str:
   return f"{miles:.0f} mi" if miles >= 10 else f"{miles:.1f} mi"
 
 
-def _draw_flag(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH) -> None:
+def _draw_flag(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH, banner: bool = True) -> None:
+  """The destination flag; a bare pole is the not-yet stage of the searching progression."""
   pole_w = max(3.0, size * 0.12)
   height = size * 1.05
   x = cx - size / 2
   top = cy - height / 2
 
   rl.draw_rectangle_rec(rl.Rectangle(x, top, pole_w, height), color)
-  rl.draw_rectangle_rec(rl.Rectangle(x + pole_w, top, size - pole_w, height * 0.45), color)
+  if banner:
+    rl.draw_rectangle_rec(rl.Rectangle(x + pole_w, top, size - pole_w, height * 0.45), color)
 
 
 # glyphs are composed of strokes that meet flush instead of overlapping: the card colors are
@@ -301,11 +303,12 @@ class NavIndicatorRenderer(Widget):
     super()._handle_mouse_release(mouse_pos)
     self.transient.on_tap()
 
-  def _render_status_chip(self, box: rl.Rectangle, color: rl.Color) -> None:
+  def _render_status_chip(self, box: rl.Rectangle, color: rl.Color, banner: bool = True) -> None:
     # no route yet: the flag that will mark the destination, dimmed while searching and
-    # in the failure color once route requests are actually failing
+    # in the failure color once route requests are actually failing; while searching the
+    # flag raises in stages, a bare pole until the GPS fix comes in
     rl.draw_rectangle_rounded(box, 0.35, 10, BACKGROUND)
-    _draw_flag(box.x + box.width / 2, box.y + box.height / 2, color, CHIP_ICON_SIZE)
+    _draw_flag(box.x + box.width / 2, box.y + box.height / 2, color, CHIP_ICON_SIZE, banner=banner)
 
   def _render_chip(self, box: rl.Rectangle, maneuver: tuple[str, str, float]) -> None:
     maneuver_type, modifier, distance = maneuver
@@ -333,8 +336,10 @@ class NavIndicatorRenderer(Widget):
 
     if self._mode in (ChipMode.SEARCHING, ChipMode.FAILURE):
       # informational only, so it never swallows a tap meant for the road view
+      searching = self._mode == ChipMode.SEARCHING
       self._render_status_chip(rl.Rectangle(x, top, width, BOX_HEIGHT),
-                               CHIP_SEARCHING if self._mode == ChipMode.SEARCHING else BAD)
+                               CHIP_SEARCHING if searching else BAD,
+                               banner=not searching or flag_raised(self.nav_status.state))
       self.stack_bottom = top + BOX_HEIGHT
       return
 
