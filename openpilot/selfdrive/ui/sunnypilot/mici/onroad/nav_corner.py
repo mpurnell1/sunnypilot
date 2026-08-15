@@ -25,7 +25,7 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import (
   ARROW_ANGLES, _draw_flag, _draw_maneuver_icon, _draw_turn, _draw_uturn, format_distance, lane_direction,
 )
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import (
-  ChipMode, TransientNav, TransientNavState, chip_mode, pick_upcoming_maneuver,
+  ChipMode, TransientNav, TransientNavState, chip_mode, flag_raised, pick_upcoming_maneuver,
 )
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight
@@ -63,22 +63,24 @@ LANE_INACTIVE_ALPHA = 0.35
 @dataclass(frozen=True)
 class CornerContent:
   """One frame's corner, or None for an empty corner. kind is 'maneuver' for a live route
-  and 'searching' or 'failure' for the status flags; alpha is the fade target."""
+  and 'searching' or 'failure' for the status flags; alpha is the fade target. raised is
+  the searching flag's stage: a bare pole until the GPS fix, pole plus banner after."""
   kind: str
   alpha: float
   maneuver_type: str = ''
   modifier: str = ''
   distance: float | None = None
   lanes: tuple = field(default_factory=tuple)
+  raised: bool = True
 
 
 def corner_content(state: TransientNavState, mode: ChipMode, msg,
-                   lane_guidance: int, quiet_glyph: bool) -> CornerContent | None:
+                   lane_guidance: int, quiet_glyph: bool, raised: bool = True) -> CornerContent | None:
   """Pure gate for what the corner shows. Expanded states carry the distance and the lane
   row; the quiet state carries a faint glyph only when the param asks for it; searching
   and failure show the destination flag so a set destination is never silently ignored."""
   if mode == ChipMode.SEARCHING:
-    return CornerContent('searching', SEARCH_ALPHA)
+    return CornerContent('searching', SEARCH_ALPHA, raised=raised)
   if mode == ChipMode.FAILURE:
     return CornerContent('failure', FAILURE_ALPHA)
   if mode != ChipMode.LIVE:
@@ -135,7 +137,8 @@ class MiciNavRenderer(Widget):
     msg = ui_state.sm['navigationd']
     self.transient.update(self._mode == ChipMode.LIVE, msg.allManeuvers, msg.audioCueId, msg.audioCueStage)
     self._content = corner_content(self.transient.state, self._mode, msg,
-                                   self.nav_status.lane_guidance, self.nav_status.mici_quiet_glyph)
+                                   self.nav_status.lane_guidance, self.nav_status.mici_quiet_glyph,
+                                   flag_raised(self.nav_status.state))
 
   def _update_state(self) -> None:
     self.update_state()
@@ -163,7 +166,7 @@ class MiciNavRenderer(Widget):
 
     if drawn.kind in ('searching', 'failure'):
       r, g, b = FAILURE_COLOR if drawn.kind == 'failure' else (255, 255, 255)
-      _draw_flag(cx, rect.y + GLYPH_CY, rl.Color(r, g, b, int(255 * a)), GLYPH_SIZE * 0.8)
+      _draw_flag(cx, rect.y + GLYPH_CY, rl.Color(r, g, b, int(255 * a)), GLYPH_SIZE * 0.8, banner=drawn.raised)
       return
 
     color = rl.Color(255, 255, 255, int(255 * a))

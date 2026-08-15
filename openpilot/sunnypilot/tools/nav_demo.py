@@ -290,7 +290,13 @@ def scenario_arrival(speedup: float = 1.0):
 
 
 def scenario_failure(speedup: float = 1.0):
-  """A destination with no route: computing, failing with backoff, then recovery."""
+  """A destination with no route: no fix, computing, failing with backoff, then recovery."""
+  # the pole stage: a destination is set but the localizer has no fix yet, so the searching
+  # flag is a bare pole. The UI loses a confirmed fix on a wall-clock hold, so this stretch
+  # ignores speedup and the label lands at its end.
+  no_fix = _ticks(3.0, 1.0)
+  for i in range(no_fix):
+    yield TickState(route=None, gps_ok=False, label='no_fix' if i == no_fix - 1 else None)
   for i in range(_ticks(3.0, speedup)):
     yield TickState(route=None, label='requesting' if i == 0 else None)
   for fails in (1, 2):
