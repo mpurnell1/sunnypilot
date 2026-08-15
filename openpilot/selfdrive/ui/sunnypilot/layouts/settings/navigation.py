@@ -4,13 +4,11 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-import pyray as rl
 from functools import partial
 
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.ui.sunnypilot.nav_audio_tour import NavAudioTour
-from openpilot.selfdrive.ui.sunnypilot.nav_status import NavState, NavStatus
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr
@@ -58,12 +56,6 @@ NAV_AUDIO_DESCRIPTIONS = [
   tr("Morse: Maneuver codes keyed in Morse, e.g. R for a right turn or O3 for a roundabout's third exit. Speed comes from the NavAudioWpm parameter."),
 ]
 
-STATUS_GOOD_COLOR = rl.Color(0x2f, 0xc4, 0x6e, 0xff)
-STATUS_PENDING_COLOR = rl.Color(0xff, 0xb8, 0x2e, 0xff)
-STATUS_FAILED_COLOR = rl.Color(0xf2, 0x6d, 0x6d, 0xff)
-STATUS_IDLE_COLOR = rl.Color(170, 170, 170, 255)
-
-
 class NavigationLayout(Widget):
   def __init__(self):
     super().__init__()
@@ -71,18 +63,7 @@ class NavigationLayout(Widget):
     self._params = Params()
     self._dialog: MultiOptionDialog | None = None
     self._tour: NavAudioTour | None = None
-    self._nav_status = NavStatus()
 
-    # The two preconditions navigation waits on. Each row both reports its live state and
-    # switches the matching onroad icon, so the reading and the control sit together.
-    self._gps_status_item = toggle_item_sp(tr("GPS Indicator"),
-                                           tr("Display a location pin under the set speed, green once the GPS fix is good."),
-                                           param="NavShowGpsIcon")
-    self._gps_status_item.set_right_value(lambda: self._nav_status.gps_text)
-    self._route_status_item = toggle_item_sp(tr("Route Indicator"),
-                                             tr("Display a destination flag under the set speed, green once a route is loaded."),
-                                             param="NavShowRouteIcon")
-    self._route_status_item.set_right_value(lambda: self._nav_status.route_text)
     self._nav_hud_item = multiple_button_item_sp(tr("Navigation HUD"), self._get_nav_hud_description,
                                                  NAV_HUD_BUTTONS, param="NavHudMode")
     self._lane_guidance_item = multiple_button_item_sp(tr("Lane Guidance"), self._get_lane_guidance_description,
@@ -122,7 +103,6 @@ class NavigationLayout(Widget):
       toggle_item_sp(tr("Allow Navigation"), tr("Enable the navigation service."), callback=self._update_navigation_visibility,
                      param="AllowNavigation"),
       *self._vis_items[4:],
-      self._gps_status_item, self._route_status_item,
       self._nav_hud_item, self._lane_guidance_item, self._nav_audio_item, self._sound_tour_item,
     ]
     self._scroller = Scroller(items, line_separator=True, spacing=0)
@@ -216,19 +196,6 @@ class NavigationLayout(Widget):
     return get_highlighted_description(self._params, "NavigationAudio", NAV_AUDIO_DESCRIPTIONS)
 
   def _update_state(self):
-    self._nav_status.update()
-    # the toggle owns the right item, so the live state is coloured through the value text
-    self._gps_status_item._right_value_color = STATUS_GOOD_COLOR if self._nav_status.gps_locked else (
-      STATUS_IDLE_COLOR if self._nav_status.state == NavState.OFFLINE else STATUS_PENDING_COLOR)
-    self._route_status_item._right_value_color = {
-      NavState.OFFLINE: STATUS_IDLE_COLOR,
-      NavState.NO_DESTINATION: STATUS_IDLE_COLOR,
-      NavState.WAITING_FOR_GPS: STATUS_PENDING_COLOR,
-      NavState.COMPUTING: STATUS_PENDING_COLOR,
-      NavState.NO_ROUTE: STATUS_FAILED_COLOR,
-      NavState.ACTIVE: STATUS_GOOD_COLOR,
-    }[self._nav_status.state]
-
     self._mapbox_token_item.action_item.set_value(self._params.get("MapboxToken") or tr("Mapbox token not set"))
     self._mapbox_route_item.action_item.set_value(self._params.get("MapboxRoute") or tr("Destination not set"))
     self._update_navigation_visibility(self._params.get_bool("AllowNavigation"))

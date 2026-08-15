@@ -10,7 +10,6 @@ from time import monotonic
 from openpilot.cereal import log
 from openpilot.common.params import Params
 from openpilot.selfdrive.ui.ui_state import ui_state
-from openpilot.system.ui.lib.multilang import tr
 
 NetworkType = log.DeviceState.NetworkType
 
@@ -44,8 +43,6 @@ class NavStatus:
     self._params = Params()
     self.destination: str = ""
     self.allow_navigation: bool = False
-    self.show_gps_icon: bool = True
-    self.show_route_icon: bool = True
     self.nav_hud_mode: int = 3
     self.lane_guidance: int = 0  # 0 off, 1 display, 2 display + assist; the card shows lanes when >= 1
     self.destination_timezone: str = ""  # IANA TZID from navd, empty when the lookup failed
@@ -76,8 +73,6 @@ class NavStatus:
       self._last_poll_time = now
       self.destination = self._params.get("MapboxRoute") or ""
       self.allow_navigation = self._params.get_bool("AllowNavigation")
-      self.show_gps_icon = self._params.get_bool("NavShowGpsIcon")
-      self.show_route_icon = self._params.get_bool("NavShowRouteIcon")
       self.nav_hud_mode = self._params.get("NavHudMode", return_default=True)
       self.lane_guidance = self._params.get("NavLaneGuidance", return_default=True)
       self.destination_timezone = self._params.get("NavDestinationTimezone") or ""
@@ -112,26 +107,3 @@ class NavStatus:
   @property
   def show_route_summary(self) -> bool:
     return bool(self.nav_hud_mode & 2)
-
-  @property
-  def gps_text(self) -> str:
-    if self.state == NavState.OFFLINE:
-      return tr("Offline")
-    return tr("Locked") if self.gps_locked else tr("Waiting for fix...")
-
-  # no connection is the common cause and the one the driver can act on, so it is named
-  @property
-  def no_route_text(self) -> str:
-    return tr("No route - device offline") if not self.online else tr("Route request failed")
-
-  @property
-  def route_text(self) -> str:
-    if self.state == NavState.NO_ROUTE:
-      return self.no_route_text
-    return {
-      NavState.OFFLINE: tr("Navigation not running"),
-      NavState.NO_DESTINATION: tr("No destination set"),
-      NavState.WAITING_FOR_GPS: tr("Waiting for GPS fix"),
-      NavState.COMPUTING: tr("Computing route..."),
-      NavState.ACTIVE: tr("Active"),
-    }[self.state]
