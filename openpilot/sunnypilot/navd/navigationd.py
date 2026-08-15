@@ -22,6 +22,10 @@ from openpilot.sunnypilot.navd.constants import NAV_RETRY
 # observed flapping left/right within a second, and a flap that reaches the assist gate
 # flips which blinker can start a lane change
 HINT_STABLE_CYCLES = 3
+
+# the lost condition must hold this many 3Hz cycles before routeState says offRoute, so a
+# single blip against the distance or bearing thresholds never dims the display
+OFF_ROUTE_DEBOUNCE_TICKS = 3
 from openpilot.sunnypilot.navd.helpers import Coordinate, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST
 from openpilot.sunnypilot.navd.nav_audio import NavAudioCues
@@ -62,6 +66,7 @@ class Navigationd:
     self.next_attempt_time: float = 0.0
     self.final_step: bool = False
     self.rerouting: bool = False
+    self.off_route: bool = False
 
     self.frame: int = -1
     self.last_position: Coordinate | None = None
@@ -86,6 +91,7 @@ class Navigationd:
     self.new_destination = ''
     self.arrival_counter = 0
     self.reroute_counter = 0
+    self.off_route = False
     self.empty_destination_reads = 0
     self.final_step = False
     self._reset_hint()
@@ -234,20 +240,7 @@ class Navigationd:
           nav_data['lane_change_direction'] = hint
           nav_data['lane_change_auto_confirm'] = hint != 'none' and lane_change_auto_confirm(progress)
 
-        # being lost never cancels the route: off-route and misalignment only ask for a
-        # recompute, and with no network the route is held so guidance returns on its own
-        if large_distance and not arrived:
-          if self.recompute_allowed:
-            self.reroute_counter += 1
-        elif arrived:
-          self.arrival_counter += 1
-          self.recompute_allowed = False
-        elif route_bearing_misalign:
-          if self.recompute_allowed:
-            self.reroute_counter += 1
-        else:
-          self.arrival_counter = 0
-          self.reroute_counter = 0
+        self._update_route_standing(large_distance, route_bearing_misalign, arrived)
 
         # recomputing from inside the final step causes reroute loops at the destination, so
         # gate it with a dedicated latch. The param-backed allow_navigation/recompute_allowed
@@ -258,9 +251,33 @@ class Navigationd:
       banner_instructions = ''
       progress = None
       nav_data = {}
+      self.off_route = False
       self._reset_hint()
 
     return banner_instructions, progress, nav_data
+
+  def _update_route_standing(self, large_distance: bool, route_bearing_misalign: bool, arrived: bool) -> None:
+    """The reroute counter and the published off-route flag, one tick's worth.
+
+    Being lost never cancels the route: off-route and misalignment only ask for a
+    recompute, and with no network the route is held so guidance returns on its own.
+    The counter doubles as routeState's off-route debounce, so it counts with recompute
+    off too (parking the state at offRoute); the reroute trigger in _update_params keeps
+    its recompute_allowed gate. A blip against the thresholds stays onRoute, and the
+    arrival hold does too: the last meters to the flag routinely leave the mapped line,
+    and that is not lost."""
+    if large_distance and not arrived:
+      self.reroute_counter += 1
+    elif arrived:
+      self.arrival_counter += 1
+      self.recompute_allowed = False
+    elif route_bearing_misalign:
+      self.reroute_counter += 1
+    else:
+      self.arrival_counter = 0
+      self.reroute_counter = 0
+
+    self.off_route = self.reroute_counter >= OFF_ROUTE_DEBOUNCE_TICKS and not arrived
 
   def _reset_hint(self) -> None:
     self.hint_candidate = 'none'
@@ -294,6 +311,14 @@ class Navigationd:
     msg.navigationd.laneChangeAutoConfirm = nav_data.get('lane_change_auto_confirm', False)
     msg.navigationd.valid = self.valid
     msg.navigationd.routeFailures = min(self.failed_attempts, 0xffff)
+    # rerouting outranks offRoute (a recompute underway is the more useful truth), and the
+    # final step never shows rerouting because self.rerouting already excludes it
+    if self.rerouting:
+      msg.navigationd.routeState = 'rerouting'
+    elif self.off_route:
+      msg.navigationd.routeState = 'offRoute'
+    else:
+      msg.navigationd.routeState = 'onRoute'
     msg.navigationd.audioCueKind = self.nav_audio.kind
     msg.navigationd.audioCueStage = self.nav_audio.stage
     msg.navigationd.audioCueId = self.nav_audio.cue_id

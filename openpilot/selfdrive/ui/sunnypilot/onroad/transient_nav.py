@@ -93,7 +93,7 @@ class TransientNav:
     self._signature: tuple | None = None
     self._dismissed: tuple | None = None
 
-  def update(self, active: bool, maneuvers, cue_id: int, cue_stage: str) -> TransientNavState:
+  def update(self, active: bool, maneuvers, cue_id: int, cue_stage: str, off_route: bool = False) -> TransientNavState:
     if not active:
       self.state = TransientNavState.OFF
       self._last_cue_id = None
@@ -113,6 +113,12 @@ class TransientNav:
       if self.state == TransientNavState.APPROACH:
         self.state = TransientNavState.QUIET
 
+    # off the route, the auto-expanded skin steps down: everything it counts toward is a
+    # maneuver the car is no longer approaching. PINNED stays up wearing the off-route
+    # treatment because staying up was the driver's own choice.
+    if off_route and self.state == TransientNavState.APPROACH:
+      self.state = TransientNavState.QUIET
+
     if self._last_cue_id is None:
       # the cue fields are sticky, so the first observed value may be long stale: adopt
       # its id without acting on it
@@ -120,7 +126,7 @@ class TransientNav:
     elif cue_id != self._last_cue_id:
       self._last_cue_id = cue_id
       if cue_stage in EXPAND_STAGES and self.state == TransientNavState.QUIET \
-          and signature is not None and signature != self._dismissed:
+          and not off_route and signature is not None and signature != self._dismissed:
         self.state = TransientNavState.APPROACH
     return self.state
 

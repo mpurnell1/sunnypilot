@@ -20,8 +20,9 @@ import pyray as rl
 
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
+from openpilot.selfdrive.ui.sunnypilot.nav_status import ROUTE_FAILURE_THRESHOLD
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import (
-  ARROW_ANGLES, LANE_INACTIVE, TURN_COLOR, _draw_turn, _draw_uturn, format_distance, lane_direction,
+  ARROW_ANGLES, BAD, LANE_INACTIVE, TURN_COLOR, _draw_flag, _draw_turn, _draw_uturn, format_distance, lane_direction,
 )
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import ChipMode, TransientNavState, pick_upcoming_index
 from openpilot.selfdrive.ui.ui_state import ui_state
@@ -60,6 +61,8 @@ HOLD_CANCEL_SECONDS = 0.65
 BACKGROUND = rl.Color(0, 0, 0, 180)
 LANE_BACKGROUND = rl.Color(0, 0, 0, 140)
 DIVIDER = rl.Color(255, 255, 255, 50)
+# the off-route and rerouting treatments dim with the chip's searching alpha
+DIM_TREATMENT = rl.Color(255, 255, 255, 110)
 
 # the consolidated speed pill that stands in for the set-speed box and the center current
 # speed while the banner is up, so the banner does not sit on top of either
@@ -139,6 +142,11 @@ class BannerContent:
   then_type: str | None
   then_modifier: str | None
   lanes: list
+  # off the route the icon dims and the distance drops; rerouting swaps the icon for the
+  # searching flag (red once recompute requests are failing). Only PINNED ever wears these:
+  # APPROACH force-collapses when the route is lost.
+  route_state: str = 'onRoute'
+  failing: bool = False
 
 
 def banner_content(state: TransientNavState, mode: ChipMode, msg, lane_guidance: int) -> BannerContent | None:
@@ -158,7 +166,9 @@ def banner_content(state: TransientNavState, mode: ChipMode, msg, lane_guidance:
   lanes = list(msg.lanes) if lane_guidance else []
   return BannerContent(m.type, m.modifier, m.distance, street,
                        then.type if then is not None else None,
-                       then.modifier if then is not None else None, lanes)
+                       then.modifier if then is not None else None, lanes,
+                       route_state=str(msg.routeState),
+                       failing=msg.routeFailures >= ROUTE_FAILURE_THRESHOLD)
 
 
 class NavBannerRenderer(Widget):
@@ -222,14 +232,23 @@ class NavBannerRenderer(Widget):
     card = rl.Rectangle(rect.x + (rect.width - BANNER_WIDTH) / 2, rect.y + BANNER_TOP, BANNER_WIDTH, BANNER_HEIGHT)
     rl.draw_rectangle_rounded(card, BANNER_RADIUS / (BANNER_HEIGHT / 2), 16, BACKGROUND)
 
-    icon = gui_app.texture(f"{ICONS_PATH}/{icon_name(content.maneuver_type, content.modifier)}.png", ICON_SIZE, ICON_SIZE)
-    rl.draw_texture_ex(icon, rl.Vector2(card.x + ICON_PAD, card.y + 12), 0, 1.0, rl.WHITE)
-
-    distance = format_distance(content.distance, ui_state.is_metric)
-    size = measure_text_cached(self._font_bold, distance, DISTANCE_FONT_SIZE)
     icon_cx = card.x + ICON_PAD + ICON_SIZE / 2
-    rl.draw_text_ex(self._font_bold, distance, rl.Vector2(icon_cx - size.x / 2, card.y + DISTANCE_TOP),
-                    DISTANCE_FONT_SIZE, 0, rl.WHITE)
+    if content.route_state == 'rerouting':
+      # the searching flag stands in for the maneuver icon while the route is recomputed,
+      # red once the recompute requests are failing
+      _draw_flag(icon_cx, card.y + 12 + ICON_SIZE / 2, BAD if content.failing else DIM_TREATMENT, ICON_SIZE * 0.55)
+    else:
+      icon = gui_app.texture(f"{ICONS_PATH}/{icon_name(content.maneuver_type, content.modifier)}.png", ICON_SIZE, ICON_SIZE)
+      tint = DIM_TREATMENT if content.route_state == 'offRoute' else rl.WHITE
+      rl.draw_texture_ex(icon, rl.Vector2(card.x + ICON_PAD, card.y + 12), 0, 1.0, tint)
+
+    # off route or rerouting, the distance is a number counting toward a maneuver the car
+    # is not approaching, so it is the one thing that goes away rather than dim
+    if content.route_state == 'onRoute':
+      distance = format_distance(content.distance, ui_state.is_metric)
+      size = measure_text_cached(self._font_bold, distance, DISTANCE_FONT_SIZE)
+      rl.draw_text_ex(self._font_bold, distance, rl.Vector2(icon_cx - size.x / 2, card.y + DISTANCE_TOP),
+                      DISTANCE_FONT_SIZE, 0, rl.WHITE)
 
     lines = wrap_two_lines(content.street, STREET_AREA_WIDTH,
                            lambda s: measure_text_cached(self._font_bold, s, STREET_FONT_SIZE).x)
