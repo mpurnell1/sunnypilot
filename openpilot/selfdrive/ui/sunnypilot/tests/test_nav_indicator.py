@@ -4,21 +4,11 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-from openpilot.cereal import custom
-
-from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import ARROW_ANGLES, format_distance, pick_upcoming_maneuver
-from openpilot.selfdrive.ui.sunnypilot.onroad.route_summary import format_remaining_time
+from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import ARROW_ANGLES, format_distance
+from openpilot.selfdrive.ui.sunnypilot.onroad.route_summary import (
+  MIN_SCALE, PADDING_V, ROW_HEIGHT, format_remaining_time, plan_layout,
+)
 from openpilot.sunnypilot.navd.helpers import string_to_direction
-
-
-def _maneuvers(*specs):
-  msg = custom.Navigationd.new_message()
-  msg.init('allManeuvers', len(specs))
-  for m, (maneuver_type, modifier, distance) in zip(msg.allManeuvers, specs, strict=True):
-    m.type = maneuver_type
-    m.modifier = modifier
-    m.distance = distance
-  return msg.allManeuvers
 
 
 class TestFormatDistance:
@@ -52,24 +42,33 @@ class TestFormatRemainingTime:
     assert format_remaining_time(7260) == "2 hr 1 min"
 
 
-class TestPickUpcomingManeuver:
-  def test_prefers_second_entry(self):
-    picked = pick_upcoming_maneuver(_maneuvers(('depart', 'none', 120.0), ('turn', 'right', 480.0)))
-    assert picked is not None
-    maneuver_type, modifier, distance = picked
-    assert (maneuver_type, modifier) == ('turn', 'right')
-    assert abs(distance - 480.0) < 1e-6
+class TestSummaryLayout:
+  FULL_HEIGHT = ROW_HEIGHT * 3 + 2 * PADDING_V
 
-  def test_lone_arrive_still_shows(self):
-    picked = pick_upcoming_maneuver(_maneuvers(('arrive', 'none', 60.0)))
-    assert picked is not None
-    assert picked[0] == 'arrive'
+  def test_top_anchored_under_the_stack(self):
+    # the card tucks under whatever is above it rather than floating up from the bottom
+    plan = plan_layout(500.0, 2000.0, 3)
+    assert plan is not None
+    kept, scale, y = plan
+    assert (kept, scale, y) == (3, 1.0, 500.0)
 
-  def test_lone_non_arrive_hidden(self):
-    assert pick_upcoming_maneuver(_maneuvers(('depart', 'none', 120.0))) is None
+  def test_scales_down_before_shedding(self):
+    plan = plan_layout(0.0, self.FULL_HEIGHT * 0.8, 3)
+    assert plan is not None
+    kept, scale, _ = plan
+    assert kept == 3
+    assert MIN_SCALE <= scale < 1.0
 
-  def test_empty_hidden(self):
-    assert pick_upcoming_maneuver(_maneuvers()) is None
+  def test_sheds_a_row_when_scaling_is_not_enough(self):
+    plan = plan_layout(0.0, self.FULL_HEIGHT * MIN_SCALE * 0.9, 3)
+    assert plan is not None
+    kept, scale, _ = plan
+    assert kept == 2
+    assert scale >= MIN_SCALE
+
+  def test_hides_when_the_rail_has_no_room(self):
+    assert plan_layout(0.0, 40.0, 3) is None
+    assert plan_layout(980.0, 1000.0, 2) is None
 
 
 class TestArrowVocabulary:

@@ -9,11 +9,15 @@ from math import cos, radians, sin
 import pyray as rl
 
 from openpilot.selfdrive.ui.onroad.hud_renderer import UI_CONFIG
-from openpilot.selfdrive.ui.sunnypilot.nav_status import NavState, NavStatus
+from openpilot.selfdrive.ui.sunnypilot.nav_status import NavStatus
+from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import (
+  ChipMode, TransientNav, TransientNavState, chip_mode, pick_upcoming_maneuver,
+)
 from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.text_measure import measure_text_cached
+from openpilot.system.ui.widgets import Widget
 
 # The set speed box starts at x+60, y+45 and is set_speed_height tall; the speed limit signs
 # stack in the column to its right. This drops into the empty space directly below it.
@@ -21,12 +25,18 @@ LEFT_MARGIN = 60
 TOP_OFFSET = 45 + UI_CONFIG.set_speed_height + 20
 
 BOX_HEIGHT = 84
-BOX_GAP = 20
 ICON_WIDTH = 44
-ICON_GAP = 26
 
-# double height so the maneuver icon and the distance stack instead of sharing a row the
-# column is too narrow for
+# the quiet skin is a hint, not a card: a small glyph and the distance share the single-height
+# chip, and the content is dimmed so the road keeps visual priority
+CHIP_ICON_SIZE = 40
+CHIP_FONT_SIZE = 32
+CHIP_GAP = 14
+CHIP_DIM = rl.Color(255, 255, 255, 170)
+CHIP_SEARCHING = rl.Color(255, 255, 255, 110)
+
+# the expanded card is double height so the maneuver icon and the distance stack instead of
+# sharing a row the column is too narrow for
 TURN_BOX_HEIGHT = BOX_HEIGHT * 2
 TURN_ICON_WIDTH = 64
 TURN_ICON_CY = 60
@@ -40,7 +50,6 @@ LANE_GAP = 10
 LANE_INACTIVE = rl.Color(255, 255, 255, 80)
 
 BACKGROUND = rl.Color(0, 0, 0, 140)
-GOOD = rl.Color(0x2f, 0xc4, 0x6e, 0xff)
 BAD = rl.Color(0xf2, 0x4b, 0x4b, 0xff)
 # opaque, so the overlaps the glyphs are built from never double-blend into seams
 TURN_COLOR = rl.Color(255, 255, 255, 255)
@@ -72,29 +81,6 @@ def format_distance(distance_m: float, is_metric: bool) -> str:
     return f"{round(feet / 50) * 50:.0f} ft"
   miles = distance_m / METERS_PER_MILE
   return f"{miles:.0f} mi" if miles >= 10 else f"{miles:.1f} mi"
-
-
-# allManeuvers[0] is the step being driven, whose maneuver is already behind the car; the turn
-# that lies ahead is the second entry. Near the destination the 'arrive' step can be the only
-# one left, and that one is still worth showing.
-def pick_upcoming_maneuver(maneuvers) -> tuple[str, str, float] | None:
-  if len(maneuvers) > 1:
-    m = maneuvers[1]
-  elif len(maneuvers) == 1 and maneuvers[0].type == 'arrive':
-    m = maneuvers[0]
-  else:
-    return None
-  return m.type, m.modifier, m.distance
-
-
-def _draw_pin(cx: float, cy: float, color: rl.Color) -> None:
-  radius = ICON_WIDTH / 2
-  head_y = cy - radius * 0.35
-
-  # draw_poly handles vertex winding, unlike draw_triangle
-  rl.draw_poly(rl.Vector2(cx, head_y + radius * 0.75), 3, radius * 0.95, 90, color)
-  rl.draw_circle(int(cx), int(head_y), radius, color)
-  rl.draw_circle(int(cx), int(head_y), radius * 0.38, BACKGROUND)
 
 
 def _draw_flag(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH) -> None:
@@ -265,31 +251,65 @@ def _draw_roundabout(cx: float, cy: float, color: rl.Color, size: float = ICON_W
   rl.draw_poly(rl.Vector2(cx, ring_cy - radius - exit_h - head_radius * 0.4), 3, head_radius, -90, color)
 
 
-# pin is the GPS fix, flag is the route. The flag needs a destination to mean anything, but the
-# pin does not, so it stays visible on its own.
-class NavIndicatorRenderer:
+def _draw_maneuver_icon(cx: float, cy: float, maneuver_type: str, modifier: str, color: rl.Color, size: float) -> None:
+  angle = ARROW_ANGLES.get(modifier, 0)
+  if maneuver_type == 'arrive':
+    _draw_flag(cx, cy, color, size)
+  elif any(t in maneuver_type for t in ROUNDABOUT_TYPES):
+    _draw_roundabout(cx, cy, color, size)
+  elif modifier == 'uturn':
+    _draw_uturn(cx, cy, color, size)
+  # a sideless fork or merge has no branch to brighten, so those fall through to the arrow
+  elif maneuver_type in ('off ramp', 'fork') and angle != 0:
+    _draw_fork(cx, cy, 1.0 if angle > 0 else -1.0, color, size, exit_ramp=maneuver_type == 'off ramp')
+  elif maneuver_type == 'merge' and angle != 0:
+    _draw_merge(cx, cy, 1.0 if angle > 0 else -1.0, color, size)
+  else:
+    _draw_turn(cx, cy, angle, color, size)
+
+
+# The transient rail: the quiet chip hints at the next maneuver and doubles as the status
+# indicator; the TransientNav machine decides when the double-height card takes its place.
+# The widget's rect is set to exactly what was drawn, so the touch target and the visible
+# chip can never disagree.
+class NavIndicatorRenderer(Widget):
   def __init__(self):
+    super().__init__()
     self.nav_status = NavStatus()
+    self.transient = TransientNav()
     self._font = gui_app.font(FontWeight.SEMI_BOLD)
+    self._mode = ChipMode.HIDDEN
     # where the card stack ends this frame, so the route summary below can stay clear of it
     self.stack_bottom: float = 0.0
 
-  def update(self) -> None:
+  def _update_state(self) -> None:
     self.nav_status.update()
+    self._mode = chip_mode(self.nav_status)
+    msg = ui_state.sm['navigationd']
+    self.transient.update(self._mode == ChipMode.LIVE, msg.allManeuvers, msg.audioCueId, msg.audioCueStage)
 
-  def _render_status_icons(self, box: rl.Rectangle, show_pin: bool, show_flag: bool) -> None:
-    status = self.nav_status
+  def _handle_mouse_release(self, mouse_pos) -> None:
+    super()._handle_mouse_release(mouse_pos)
+    self.transient.on_tap()
+
+  def _render_status_chip(self, box: rl.Rectangle, color: rl.Color) -> None:
+    # no route yet: the flag that will mark the destination, dimmed while searching and
+    # in the failure color once route requests are actually failing
+    rl.draw_rectangle_rounded(box, 0.35, 10, BACKGROUND)
+    _draw_flag(box.x + box.width / 2, box.y + box.height / 2, color, CHIP_ICON_SIZE)
+
+  def _render_chip(self, box: rl.Rectangle, maneuver: tuple[str, str, float]) -> None:
+    maneuver_type, modifier, distance = maneuver
     rl.draw_rectangle_rounded(box, 0.35, 10, BACKGROUND)
 
-    cy = box.y + BOX_HEIGHT / 2
-    span = ICON_WIDTH * (show_pin + show_flag) + ICON_GAP * (show_pin and show_flag)
-    x = box.x + (box.width - span) / 2 + ICON_WIDTH / 2
-
-    if show_pin:
-      _draw_pin(x, cy, GOOD if status.gps_locked else BAD)
-      x += ICON_WIDTH + ICON_GAP
-    if show_flag:
-      _draw_flag(x, cy, GOOD if status.state == NavState.ACTIVE else BAD)
+    text = format_distance(distance, ui_state.is_metric)
+    text_size = measure_text_cached(self._font, text, CHIP_FONT_SIZE)
+    span = CHIP_ICON_SIZE + CHIP_GAP + text_size.x
+    x = box.x + (box.width - span) / 2
+    cy = box.y + box.height / 2
+    _draw_maneuver_icon(x + CHIP_ICON_SIZE / 2, cy, maneuver_type, modifier, CHIP_DIM, CHIP_ICON_SIZE)
+    rl.draw_text_ex(self._font, text, rl.Vector2(x + CHIP_ICON_SIZE + CHIP_GAP, cy - text_size.y / 2),
+                    CHIP_FONT_SIZE, 0, CHIP_DIM)
 
   def _render_lanes(self, box: rl.Rectangle, lanes) -> None:
     n = len(lanes)
@@ -314,27 +334,12 @@ class NavIndicatorRenderer:
   def _render_turn(self, box: rl.Rectangle, maneuver: tuple[str, str, float], lanes) -> None:
     maneuver_type, modifier, distance = maneuver
     # roundness is a fraction of the box's short side, so halve it to keep the same corner
-    # radius as the single-height boxes
+    # radius as the single-height chip
     rl.draw_rectangle_rounded(box, 0.175, 10, BACKGROUND)
 
     # icon above, distance below, both centered
     icon_cx = box.x + box.width / 2
-    icon_cy = box.y + TURN_ICON_CY
-
-    angle = ARROW_ANGLES.get(modifier, 0)
-    if maneuver_type == 'arrive':
-      _draw_flag(icon_cx, icon_cy, TURN_COLOR, TURN_ICON_WIDTH)
-    elif any(t in maneuver_type for t in ROUNDABOUT_TYPES):
-      _draw_roundabout(icon_cx, icon_cy, TURN_COLOR, TURN_ICON_WIDTH)
-    elif modifier == 'uturn':
-      _draw_uturn(icon_cx, icon_cy, TURN_COLOR, TURN_ICON_WIDTH)
-    # a sideless fork or merge has no branch to brighten, so those fall through to the arrow
-    elif maneuver_type in ('off ramp', 'fork') and angle != 0:
-      _draw_fork(icon_cx, icon_cy, 1.0 if angle > 0 else -1.0, TURN_COLOR, TURN_ICON_WIDTH, exit_ramp=maneuver_type == 'off ramp')
-    elif maneuver_type == 'merge' and angle != 0:
-      _draw_merge(icon_cx, icon_cy, 1.0 if angle > 0 else -1.0, TURN_COLOR, TURN_ICON_WIDTH)
-    else:
-      _draw_turn(icon_cx, icon_cy, angle, TURN_COLOR, TURN_ICON_WIDTH)
+    _draw_maneuver_icon(icon_cx, box.y + TURN_ICON_CY, maneuver_type, modifier, TURN_COLOR, TURN_ICON_WIDTH)
 
     text = format_distance(distance, ui_state.is_metric)
     text_size = measure_text_cached(self._font, text, TURN_FONT_SIZE)
@@ -344,39 +349,36 @@ class NavIndicatorRenderer:
     if len(lanes):
       self._render_lanes(box, lanes)
 
-  def render(self, rect: rl.Rectangle) -> None:
-    status = self.nav_status
-    self.stack_bottom = rect.y + TOP_OFFSET
-    # hidden unless navigation is opted into and navigationd is actually publishing
-    if not status.allow_navigation or status.state == NavState.OFFLINE:
-      return
-
-    # each element is individually switchable from Settings > Navigation
-    show_pin = status.show_gps_icon
-    show_flag = status.show_route_icon and status.state != NavState.NO_DESTINATION
-    maneuver = None
-    lanes = []
-    if status.show_turn_indicator and status.state == NavState.ACTIVE:
-      maneuver = pick_upcoming_maneuver(ui_state.sm['navigationd'].allManeuvers)
-      # double-gated: navigationd only publishes lanes while NavLaneGuidance is on, and the
-      # card only grows for them while it is, so a stale message can't resize the HUD
-      if maneuver is not None and status.lane_guidance:
-        lanes = ui_state.sm['navigationd'].lanes
-
-    if not (show_pin or show_flag) and maneuver is None:
+  def _render(self, rect: rl.Rectangle) -> None:
+    top = rect.y + TOP_OFFSET
+    self.stack_bottom = top
+    # nothing drawn means nothing to tap; a real target is set below once a box is drawn
+    self.set_rect(rl.Rectangle(0, 0, 0, 0))
+    if self._mode == ChipMode.HIDDEN:
       return
 
     width = UI_CONFIG.set_speed_width_metric if ui_state.is_metric else UI_CONFIG.set_speed_width_imperial
-    top = rect.y + TOP_OFFSET
+    x = rect.x + LEFT_MARGIN
 
-    # the turn readout takes the status icons' slot when both of them are switched off,
-    # and stacks directly beneath them otherwise
-    if show_pin or show_flag:
-      self._render_status_icons(rl.Rectangle(rect.x + LEFT_MARGIN, top, width, BOX_HEIGHT), show_pin, show_flag)
-      top += BOX_HEIGHT + BOX_GAP
+    if self._mode in (ChipMode.SEARCHING, ChipMode.FAILURE):
+      # informational only, so it never swallows a tap meant for the road view
+      self._render_status_chip(rl.Rectangle(x, top, width, BOX_HEIGHT),
+                               CHIP_SEARCHING if self._mode == ChipMode.SEARCHING else BAD)
+      self.stack_bottom = top + BOX_HEIGHT
+      return
 
-    if maneuver is not None:
-      height = TURN_BOX_HEIGHT + (LANE_ROW_HEIGHT if len(lanes) else 0)
-      self._render_turn(rl.Rectangle(rect.x + LEFT_MARGIN, top, width, height), maneuver, lanes)
-      top += height
-    self.stack_bottom = top
+    maneuver = pick_upcoming_maneuver(ui_state.sm['navigationd'].allManeuvers)
+    if maneuver is None:
+      return
+
+    if self.transient.state in (TransientNavState.APPROACH, TransientNavState.PINNED):
+      # double-gated: navigationd only publishes lanes while NavLaneGuidance is on, and the
+      # card only grows for them while it is, so a stale message can't resize the HUD
+      lanes = ui_state.sm['navigationd'].lanes if self.nav_status.lane_guidance else []
+      box = rl.Rectangle(x, top, width, TURN_BOX_HEIGHT + (LANE_ROW_HEIGHT if len(lanes) else 0))
+      self._render_turn(box, maneuver, lanes)
+    else:
+      box = rl.Rectangle(x, top, width, BOX_HEIGHT)
+      self._render_chip(box, maneuver)
+    self.stack_bottom = top + box.height
+    self.set_rect(box)

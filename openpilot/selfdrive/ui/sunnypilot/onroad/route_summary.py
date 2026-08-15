@@ -42,8 +42,24 @@ def format_remaining_time(seconds: float) -> str:
   return f"{minutes // 60} hr {minutes % 60} min"
 
 
-# remaining time / remaining distance / arrival time, stacked in the left column between the
-# next-turn card and the driver monitoring icon so it stays clear of the right-side dev UI.
+def plan_layout(top: float, bottom: float, row_count: int) -> tuple[int, float, float] | None:
+  """(rows kept, scale, y) for the summary card, or None when the rail has no room.
+
+  Top-anchored: the card tucks under whatever the nav stack put above it (the quiet chip,
+  or the expanded card while one is up) instead of floating up from the driver monitoring
+  icon, which is not necessarily drawn at all. When the rail is crowded the card scales
+  down, then sheds its distance row, rather than overlapping a neighbor.
+  """
+  for n in (row_count, row_count - 1):
+    ideal_height = ROW_HEIGHT * n + 2 * PADDING_V
+    scale = min(1.0, (bottom - top) / ideal_height)
+    if scale >= MIN_SCALE:
+      return n, scale, top
+  return None
+
+
+# remaining time / remaining distance / arrival time, stacked in the left column under the
+# nav chip so it stays clear of the right-side dev UI.
 # ETA lives here rather than in the message so the clock stays current between route updates.
 class RouteSummaryRenderer:
   def __init__(self):
@@ -86,20 +102,16 @@ class RouteSummaryRenderer:
       eta = (datetime.now(UTC) + timedelta(seconds=float(msg.timeRemaining))).astimezone(self._destination_tz())
       rows.append((eta.strftime('%-I:%M %p').lower(), self._font_semi, ETA_COLOR))
 
-    # the card lives between the nav card stack and the driver monitoring icon, which rides
-    # up over the bottom developer UI bar (DriverStateRendererSP); when the rail is crowded
-    # (lane guidance row + dev bar) the card scales down, then sheds the distance row,
-    # rather than overlapping a neighbor
+    # the space below still ends at the driver monitoring icon, which rides up over the
+    # bottom developer UI bar (DriverStateRendererSP)
     bottom = rect.y + rect.height - (UI_BORDER_SIZE + BTN_SIZE) - get_bottom_dev_ui_offset() - DM_ICON_GAP
     top_limit = (stack_bottom if stack_bottom is not None else rect.y) + STACK_GAP
-    for candidate in (rows, [row for row in rows if row[2] is not SECONDARY]):
-      ideal_height = ROW_HEIGHT * len(candidate) + 2 * PADDING_V
-      scale = min(1.0, (bottom - top_limit) / ideal_height)
-      if scale >= MIN_SCALE:
-        rows = candidate
-        break
-    else:
+    plan = plan_layout(top_limit, bottom, len(rows))
+    if plan is None:
       return
+    kept, scale, y = plan
+    if kept < len(rows):
+      rows = [row for row in rows if row[2] is not SECONDARY]
 
     font_size = int(FONT_SIZE * scale)
     row_height = ROW_HEIGHT * scale
@@ -108,8 +120,7 @@ class RouteSummaryRenderer:
     width = max(column_width, max(size.x for size in sizes) + 2 * PADDING_H * scale)
     height = row_height * len(rows) + 2 * PADDING_V * scale
 
-    # bottom-anchored, so the card holds still when the next-turn card above grows a lane row
-    box = rl.Rectangle(rect.x + LEFT_MARGIN, bottom - height, width, height)
+    box = rl.Rectangle(rect.x + LEFT_MARGIN, y, width, height)
     # roundness is a fraction of the box's short side; matches the corner radius of the
     # single-height cards above, same as the next-turn card does
     rl.draw_rectangle_rounded(box, 0.175, 10, BACKGROUND)
