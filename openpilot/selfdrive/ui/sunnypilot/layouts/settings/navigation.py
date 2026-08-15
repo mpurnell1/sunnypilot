@@ -36,7 +36,7 @@ NAV_HUD_BUTTONS = [tr("Off"), tr("Turns"), tr("ETA"), tr("Both")]
 NAV_HUD_DESCRIPTIONS = [
   tr("Off: No navigation HUD elements."),
   tr("Turns: Next-turn card under the set speed."),
-  tr("ETA: Arrival pill in the bottom-right corner."),
+  tr("ETA: Arrival pill tucked under the nav chip."),
   tr("Both: Turn card and arrival pill."),
 ]
 
