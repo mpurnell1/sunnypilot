@@ -58,7 +58,6 @@ class HudRendererSP(HudRenderer):
     self.speed_cluster = ui_state.sm['carState'].cruiseState.speedCluster * self.speed_conv
 
     super()._update_state()
-    self.nav_indicator.update()
     self.road_name_renderer.update()
     self.route_summary.update()
     self.speed_limit_renderer.update()
@@ -66,6 +65,10 @@ class HudRendererSP(HudRenderer):
     self.turn_signal_controller.update()
     self.circular_alerts_renderer.update()
     self.speed_renderer.update()
+
+  def user_interacting(self) -> bool:
+    # a tap on the nav chip toggles its expansion and must not also open the sidebar
+    return super().user_interacting() or self.nav_indicator.is_pressed
 
   def _get_icbm_status(self):
     if not self.pcm_cruise_speed and ui_state.sm['carControl'].enabled:
