@@ -24,6 +24,7 @@ HINT_STABLE_CYCLES = 3
 from openpilot.sunnypilot.navd.helpers import Coordinate, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST
 from openpilot.sunnypilot.navd.nav_audio import NavAudioCues
+from openpilot.sunnypilot.navd.navigation_helpers.destination_store import DestinationStore
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
 from openpilot.sunnypilot.navd.navigation_helpers.nav_instructions import NavigationInstructions
 
@@ -32,6 +33,7 @@ class Navigationd:
   def __init__(self):
     self.params = Params()
     self.mapbox = MapboxIntegration()
+    self.destination_store = DestinationStore(self.params)
     self.nav_instructions = NavigationInstructions()
     self.nav_audio = NavAudioCues()
 
@@ -72,6 +74,9 @@ class Navigationd:
   # MapboxSettings outlives the in-memory route, so a route left there can be reloaded later
   def _drop_route(self) -> None:
     self.params.remove("MapboxSettings")
+    # every trip conclusion passes through here, so a chosen alternate can't leak into a
+    # later trip to the same place
+    self.params.remove("MapboxRoutePreference")
     self.nav_instructions.clear_route_cache()
     self.route = None
     self.destination = None
@@ -145,10 +150,10 @@ class Navigationd:
       if self.route_request is not None and self.route_request.done():
         request, self.route_request = self.route_request, None
         try:
-          _, route_ready = request.result()
+          postvars, route_ready = request.result()
         except Exception:
           cloudlog.exception("navd: route request raised")
-          route_ready = False
+          postvars, route_ready = {}, False
 
         # a result for a destination the driver has since changed or cleared must not land
         if self.attempted_destination == self.new_destination:
@@ -158,6 +163,12 @@ class Navigationd:
             route = self.nav_instructions.get_current_route()
 
           if route is not None:
+            # recents are recorded at acceptance, not at param write, so destinations arriving
+            # through athena, the CLI sender, or a settings favorite all land in the list.
+            # Reroutes re-accept the destination they already hold and are skipped
+            if self.destination != self.new_destination:
+              name = postvars.get('resolved_name') or postvars.get('name') or self.new_destination
+              self.destination_store.record_recent(name, self.new_destination)
             self.destination = self.new_destination
             self.route = route
             self.arrival_counter = 0

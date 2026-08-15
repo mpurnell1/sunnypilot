@@ -259,7 +259,12 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     // IANA TZID at the destination, for showing the ETA in local time on a UTC-only device
     {"NavDestinationTimezone", {CLEAR_ON_MANAGER_START, STRING}},
     {"MapboxRoute", {PERSISTENT, STRING}},
+    // {"dest": <MapboxRoute string>, "summary": <leg summary>}: the alternate route chosen on the
+    // destination page. navd honors it only while the destination matches, else fastest route
+    {"MapboxRoutePreference", {PERSISTENT, JSON}},
     {"MapboxFavorites", {PERSISTENT | BACKUP, JSON}},
+    // most-recent-first [{"name": ..., "dest": ...}], written on set and on route acceptance
+    {"MapboxRecents", {PERSISTENT | BACKUP, JSON}},
     {"MapboxRecompute", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"NavDesiresAllowed", {PERSISTENT | BACKUP, BOOL, "0"}},
     // 0 = off, 1 = at distance increments approaching the turn, 2 = always on screen

@@ -98,6 +98,23 @@ class TestMapbox:
     assert isinstance(is_arrived, bool)
     assert not is_arrived
 
+  def test_search_places(self):
+    results = self.mapbox.search_places('Camarillo Public Library', self.current_lon, self.current_lat)
+    assert results, "search should return at least one candidate"
+    assert all('name' in r and 'latitude' in r and 'longitude' in r for r in results)
+    assert len(results) <= 5
+
+  def test_preview_routes(self):
+    routes = self.mapbox.preview_routes(self.current_lon, self.current_lat,
+                                        self.postvars['longitude'], self.postvars['latitude'])
+    assert routes, "preview should return at least one route"
+    for route in routes:
+      assert route['distance'] > 0
+      assert route['duration'] > 0
+      assert route['durationTypical'] > 0
+      # the summary identifies a chosen alternate later, so it must not come back empty
+      assert isinstance(route['summary'], str) and route['summary']
+
   def test_bearing_misalign(self):
     lat = self.route['steps'][1]['location'].latitude
     lon = self.route['steps'][1]['location'].longitude
