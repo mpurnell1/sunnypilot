@@ -71,6 +71,11 @@ def livestream(started: bool, params: Params, CP: car.CarParams) -> bool:
 def use_copyparty(started, params, CP: car.CarParams) -> bool:
   return bool(params.get_bool("EnableCopyparty"))
 
+def use_nav_server(started, params, CP: car.CarParams) -> bool:
+  # runs onroad too: setting a destination is refused by the handler unless the car is
+  # parked, but a passenger canceling guidance mid-drive is deliberate
+  return bool(params.get_bool("AllowNavigation"))
+
 def sunnylink_ready_shim(started, params, CP: car.CarParams) -> bool:
   """Shim for sunnylink_ready to match the process manager signature."""
   return sunnylink_ready(params)
@@ -180,6 +185,7 @@ procs += [
 
   # navigationd
   PythonProcess("navigationd", "openpilot.sunnypilot.navd.navigationd", only_onroad),
+  PythonProcess("destinationd", "openpilot.sunnypilot.navd.destinationd", use_nav_server),
 
   # locationd
   NativeProcess("locationd_llk", "openpilot/sunnypilot/selfdrive/locationd", ["./locationd"], only_onroad),
