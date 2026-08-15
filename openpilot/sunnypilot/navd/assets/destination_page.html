@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>sunnypilot navigation</title>
+<style>
+  :root {
+    --bg: #f2f4f1; --card: #ffffff; --ink: #1b201d; --ink2: #5d665f;
+    --line: #d9ded8; --accent: #1f9e56; --accent-ink: #ffffff;
+    --warn: #b0483f; --chip: #e8ece7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #121614; --card: #1b211d; --ink: #e7ece8; --ink2: #98a29b;
+      --line: #2d352f; --accent: #2fc46e; --accent-ink: #0c1a10;
+      --warn: #e0776c; --chip: #242b26;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px 16px 48px; background: var(--bg); color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 16px; line-height: 1.45; max-width: 560px; margin-inline: auto;
+  }
+  h1 { font-size: 1.3rem; margin: 4px 0 14px; }
+  h2 { font-size: 0.85rem; margin: 20px 0 8px; color: var(--ink2); text-transform: uppercase; letter-spacing: 0.06em; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .grow { flex: 1; min-width: 0; }
+  .muted { color: var(--ink2); font-size: 0.85rem; }
+  .clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  button {
+    font: inherit; border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px;
+    background: var(--chip); color: var(--ink); cursor: pointer; touch-action: manipulation;
+  }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+  button.danger { background: transparent; color: var(--warn); border-color: var(--warn); }
+  button.small { padding: 5px 10px; font-size: 0.85rem; border-radius: 8px; }
+  button:disabled { opacity: 0.45; cursor: default; }
+  input[type=search] {
+    font: inherit; flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--line);
+    border-radius: 10px; background: var(--card); color: var(--ink);
+  }
+  ul { list-style: none; margin: 8px 0 0; padding: 0; }
+  li.item { padding: 10px 4px; border-top: 1px solid var(--line); }
+  li.item:first-child { border-top: none; }
+  .tap { cursor: pointer; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .routecard { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 8px; }
+  .banner { border-radius: 10px; padding: 8px 12px; margin: 10px 0; font-size: 0.9rem; display: none; }
+  .banner.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); display: block; }
+  #toast {
+    position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+    background: var(--ink); color: var(--bg); padding: 8px 16px; border-radius: 20px;
+    font-size: 0.9rem; opacity: 0; transition: opacity 0.25s; pointer-events: none; max-width: 90vw;
+  }
+</style>
+</head>
+<body>
+<h1>sunnypilot navigation</h1>
+
+<div id="setup-banner" class="banner"></div>
+<div id="moving-banner" class="banner"></div>
+
+<div class="card">
+  <div class="row">
+    <div class="grow">
+      <div class="muted">Destination</div>
+      <div id="destination" class="clip">None</div>
+    </div>
+    <button id="cancel" class="danger" hidden>Cancel</button>
+  </div>
+</div>
+
+<h2>Search</h2>
+<form id="search-form" class="row">
+  <input id="search-input" type="search" placeholder="Address or place" autocomplete="off">
+  <button type="submit" class="primary">Search</button>
+</form>
+<ul id="search-results"></ul>
+
+<div id="routes-panel" hidden>
+  <h2>Routes to <span id="routes-name"></span></h2>
+  <div id="routes-list"></div>
+  <div class="chips">
+    <button id="save-home" class="small">Set as Home</button>
+    <button id="save-work" class="small">Set as Work</button>
+    <button id="save-fav" class="small">Save favorite</button>
+  </div>
+</div>
+
+<div class="row" style="margin-top:20px">
+  <h2 class="grow" style="margin:0">Favorites</h2>
+  <button id="edit-favs" class="small">Edit</button>
+</div>
+<ul id="favorites"></ul>
+
+<h2>Recent</h2>
+<ul id="recents"></ul>
+
+<div id="toast"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let state = { canSet: false, favorites: [], recents: [] };
+let picked = null;   // {name, longitude, latitude} from search, or {name, dest} from a saved entry
+let editingFavs = false;
+
+function toast(msg) {
+  const el = $("toast");
+  el.textContent = msg;
+  el.style.opacity = 1;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = 0; }, 2600);
+}
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || ("HTTP " + res.status));
+  return body;
+}
+
+function miles(m) { return (m / 1609.344).toFixed(m < 16093 ? 1 : 0) + " mi"; }
+function mins(s) { return Math.round(s / 60) + " min"; }
+
+function applyStatus(s) {
+  state = s;
+  $("destination").textContent = s.destination || "None";
+  $("cancel").hidden = !s.destination;
+  const setup = $("setup-banner");
+  if (!s.tokenSet) { setup.textContent = "No Mapbox token is set on the device."; setup.className = "banner warn"; }
+  else if (!s.navEnabled) { setup.textContent = "Navigation is disabled in the device settings."; setup.className = "banner warn"; }
+  else setup.className = "banner";
+  const moving = $("moving-banner");
+  moving.textContent = "The car is moving. You can cancel navigation, but setting a destination needs a stop.";
+  moving.className = s.canSet ? "banner" : "banner warn";
+  renderSaved();
+}
+
+function savedItem(entry, kindLabel, removeSpec) {
+  const li = document.createElement("li");
+  li.className = "item row";
+  const text = document.createElement("div");
+  text.className = "grow tap";
+  text.innerHTML = "<div class='clip'>" + esc(entry.name) + "</div>" +
+    (kindLabel ? "<div class='muted clip'>" + esc(kindLabel) + "</div>" : "");
+  text.onclick = () => pickSaved(entry);
+  li.appendChild(text);
+  if (removeSpec && editingFavs) {
+    const rm = document.createElement("button");
+    rm.className = "small danger";
+    rm.textContent = "Remove";
+    rm.onclick = async () => {
+      try {
+        const body = await api("/api/favorites", post({ action: "remove", ...removeSpec }));
+        state.favorites = body.favorites;
+        renderSaved();
+      } catch (e) { toast(e.message); }
+    };
+    li.appendChild(rm);
+  }
+  return li;
+}
+
+function renderSaved() {
+  const favs = $("favorites");
+  favs.replaceChildren();
+  for (const f of state.favorites) {
+    const spec = f.kind === "favorite" ? { name: f.name } : { kind: f.kind };
+    favs.appendChild(savedItem(f, f.dest, spec));
+  }
+  if (!state.favorites.length) favs.innerHTML = "<li class='item muted'>No favorites saved.</li>";
+  const recents = $("recents");
+  recents.replaceChildren();
+  for (const r of state.recents) recents.appendChild(savedItem(r, r.dest === r.name ? "" : r.dest, null));
+  if (!state.recents.length) recents.innerHTML = "<li class='item muted'>No recent destinations.</li>";
+}
+
+function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
+function post(obj) { return { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(obj) }; }
+
+async function refresh() {
+  try { applyStatus(await api("/api/status")); }
+  catch (e) { toast("Device unreachable: " + e.message); }
+}
+
+$("cancel").onclick = async () => {
+  if (!confirm("Cancel the current route?")) return;
+  try { applyStatus(await api("/api/cancel", post({}))); toast("Route cancelled"); }
+  catch (e) { toast(e.message); }
+};
+
+$("search-form").onsubmit = async ev => {
+  ev.preventDefault();
+  const q = $("search-input").value.trim();
+  if (!q) return;
+  const list = $("search-results");
+  list.innerHTML = "<li class='item muted'>Searching...</li>";
+  $("routes-panel").hidden = true;
+  try {
+    const body = await api("/api/search?q=" + encodeURIComponent(q));
+    list.replaceChildren();
+    if (!body.results.length) list.innerHTML = "<li class='item muted'>No matches.</li>";
+    for (const r of body.results) {
+      const li = document.createElement("li");
+      li.className = "item tap clip";
+      li.textContent = r.name;
+      li.onclick = () => pickPlace(r);
+      list.appendChild(li);
+    }
+  } catch (e) { list.replaceChildren(); toast(e.message); }
+};
+
+function destString(place) { return place.longitude.toFixed(6) + "," + place.latitude.toFixed(6); }
+
+async function pickPlace(place) {
+  picked = place;
+  $("routes-name").textContent = place.name;
+  $("routes-panel").hidden = false;
+  const list = $("routes-list");
+  list.innerHTML = "<div class='muted'>Loading routes...</div>";
+  try {
+    const body = await api("/api/routes?lon=" + place.longitude + "&lat=" + place.latitude);
+    renderRoutes(body.routes);
+  } catch (e) {
+    // no device position or preview failure still allows the fastest-route send
+    list.replaceChildren();
+    list.appendChild(routeCard(null, e.message + ". Navigate anyway with the fastest route."));
+  }
+  $("routes-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function routeCard(route, note) {
+  const div = document.createElement("div");
+  div.className = "routecard row";
+  const info = document.createElement("div");
+  info.className = "grow";
+  if (route) {
+    const delay = Math.round((route.duration - route.durationTypical) / 60);
+    info.innerHTML = "<div class='clip'>" + esc(route.summary || "Route") + "</div>" +
+      "<div class='muted'>" + mins(route.duration) + " (" + miles(route.distance) + ")" +
+      (delay >= 2 ? ", +" + delay + " min traffic" : "") + "</div>";
+  } else {
+    info.innerHTML = "<div class='muted'>" + esc(note) + "</div>";
+  }
+  const go = document.createElement("button");
+  go.className = "primary";
+  go.textContent = "Go";
+  go.disabled = !state.canSet;
+  go.onclick = () => navigateTo(picked.name, destString(picked), route && route.summary ? route.summary : "");
+  div.appendChild(info);
+  div.appendChild(go);
+  return div;
+}
+
+function renderRoutes(routes) {
+  const list = $("routes-list");
+  list.replaceChildren();
+  for (const r of routes) list.appendChild(routeCard(r));
+}
+
+async function navigateTo(name, dest, summary) {
+  try {
+    applyStatus(await api("/api/navigate", post({ name, dest, summary })));
+    toast("Destination set" + (summary ? " via " + summary : ""));
+    $("routes-panel").hidden = true;
+    $("search-results").replaceChildren();
+  } catch (e) { toast(e.message); }
+}
+
+async function pickSaved(entry) {
+  // a lon,lat favorite gets the route chooser; free text goes straight to navd's geocoder
+  const m = entry.dest.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
+  if (m) {
+    pickPlace({ name: entry.name, longitude: parseFloat(m[1]), latitude: parseFloat(m[2]) });
+  } else if (confirm("Navigate to " + entry.name + "?")) {
+    await navigateTo(entry.name, entry.dest, "");
+  }
+}
+
+async function saveFavorite(kind) {
+  if (!picked) return;
+  let name = picked.name;
+  if (!kind) {
+    name = prompt("Favorite name", picked.name);
+    if (!name) return;
+  }
+  try {
+    const body = await api("/api/favorites", post({ action: "set", kind, name, dest: destString(picked) }));
+    state.favorites = body.favorites;
+    renderSaved();
+    toast("Saved");
+  } catch (e) { toast(e.message); }
+}
+
+$("save-home").onclick = () => saveFavorite("home");
+$("save-work").onclick = () => saveFavorite("work");
+$("save-fav").onclick = () => saveFavorite(null);
+$("edit-favs").onclick = () => {
+  editingFavs = !editingFavs;
+  $("edit-favs").textContent = editingFavs ? "Done" : "Edit";
+  renderSaved();
+};
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

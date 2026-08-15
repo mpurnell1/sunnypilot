@@ -1,0 +1,143 @@
+"""
+Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of other contributors.
+
+This file is part of sunnypilot and is licensed under the MIT License.
+See the LICENSE.md file in the root directory for more details.
+"""
+import json
+import threading
+from types import SimpleNamespace
+
+import pytest
+import requests
+
+from openpilot.common.params import Params
+from openpilot.sunnypilot.navd.destinationd import make_server
+
+TOKEN = "pk.secret-sentinel-token"
+PLACES = [{"name": "Camarillo Public Library", "longitude": -119.03, "latitude": 34.22}]
+ROUTES = [
+  {"summary": "US-101 North", "distance": 12000.0, "duration": 600.0, "durationTypical": 540.0},
+  {"summary": "CA-1", "distance": 15000.0, "duration": 900.0, "durationTypical": 900.0},
+]
+
+
+class TestDestinationd:
+  @pytest.fixture(autouse=True)
+  def setup(self, mocker):
+    self.params = Params()
+    self.params.put("MapboxToken", TOKEN, block=True)
+    self.params.put("AllowNavigation", True, block=True)
+    self.params.put("LastGPSPositionLLK", json.dumps({"latitude": 34.23, "longitude": -119.17}), block=True)
+
+    # parked by default; individual tests flip this to exercise the gate
+    self.vehicle = SimpleNamespace(offroad=True, can_set=True)
+    self.server = make_server(host="127.0.0.1", port=0, params=self.params, vehicle=self.vehicle)
+    self.search_results: list | None = PLACES
+    self.route_results: list | None = ROUTES
+    mocker.patch.object(self.server.mapbox, "search_places", side_effect=lambda *a, **kw: self.search_results)
+    mocker.patch.object(self.server.mapbox, "preview_routes", side_effect=lambda *a, **kw: self.route_results)
+
+    thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+    thread.start()
+    self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
+    yield
+    self.server.shutdown()
+    self.server.server_close()
+
+  def get(self, path: str) -> requests.Response:
+    return requests.get(self.base + path, timeout=5)
+
+  def post(self, path: str, payload: dict) -> requests.Response:
+    return requests.post(self.base + path, json=payload, timeout=5)
+
+  def test_serves_the_page(self):
+    res = self.get("/")
+    assert res.status_code == 200
+    assert "sunnypilot navigation" in res.text
+
+  def test_unknown_path_and_wrong_method(self):
+    assert self.get("/etc/passwd").status_code == 404
+    assert self.get("/api/navigate").status_code == 405
+
+  def test_status_shape(self):
+    body = self.get("/api/status").json()
+    assert body["destination"] == ""
+    assert body["navEnabled"] is True
+    assert body["tokenSet"] is True
+    assert body["canSet"] is True
+    assert body["favorites"] == [] and body["recents"] == []
+
+  def test_search(self):
+    body = self.get("/api/search?q=library").json()
+    assert body["results"] == PLACES
+    assert self.get("/api/search?q=").status_code == 400
+    self.search_results = None
+    assert self.get("/api/search?q=library").status_code == 502
+
+  def test_routes(self):
+    body = self.get("/api/routes?lon=-119.03&lat=34.22").json()
+    assert body["routes"] == ROUTES
+    assert self.get("/api/routes?lon=oops&lat=34").status_code == 400
+    self.route_results = None
+    assert self.get("/api/routes?lon=-119.03&lat=34.22").status_code == 502
+
+  def test_routes_without_a_position(self):
+    self.params.remove("LastGPSPositionLLK")
+    assert self.get("/api/routes?lon=-119.03&lat=34.22").status_code == 409
+
+  def test_navigate_writes_route_preference_and_recent(self):
+    res = self.post("/api/navigate", {"dest": "-119.03,34.22", "name": "Library", "summary": "CA-1"})
+    assert res.status_code == 200
+    assert res.json()["destination"] == "-119.03,34.22"
+    assert self.params.get("MapboxRoute") == "-119.03,34.22"
+    assert self.params.get("MapboxRoutePreference") == {"dest": "-119.03,34.22", "summary": "CA-1"}
+    recents = self.params.get("MapboxRecents")
+    assert recents and recents[0] == {"name": "Library", "dest": "-119.03,34.22"}
+
+  def test_navigate_requires_dest(self):
+    assert self.post("/api/navigate", {"name": "nowhere"}).status_code == 400
+
+  def test_navigate_refused_while_moving(self):
+    self.vehicle.can_set = False
+    assert self.post("/api/navigate", {"dest": "-119.03,34.22"}).status_code == 409
+    assert self.params.get("MapboxRoute") is None
+
+  def test_cancel_allowed_while_moving(self):
+    self.post("/api/navigate", {"dest": "-119.03,34.22", "summary": "CA-1"})
+    self.vehicle.can_set = False
+    res = self.post("/api/cancel", {})
+    assert res.status_code == 200
+    assert res.json()["destination"] == ""
+    # Params reads an empty string param back as None
+    assert not self.params.get("MapboxRoute")
+    assert self.params.get("MapboxRoutePreference") is None
+
+  def test_favorites_round_trip(self):
+    res = self.post("/api/favorites", {"action": "set", "kind": "home", "dest": "123 Home St"})
+    assert [f["kind"] for f in res.json()["favorites"]] == ["home"]
+    res = self.post("/api/favorites", {"action": "set", "name": "Gym", "dest": "-119.1,34.2"})
+    assert len(res.json()["favorites"]) == 2
+    res = self.post("/api/favorites", {"action": "remove", "name": "Gym"})
+    res = self.post("/api/favorites", {"action": "remove", "kind": "home"})
+    assert res.json()["favorites"] == []
+    assert self.post("/api/favorites", {"action": "set"}).status_code == 400
+
+  def test_token_never_reaches_the_browser(self):
+    # the whole point of proxying Mapbox through the device: sweep every endpoint, including
+    # error paths, and require the token to be absent from every response body
+    self.post("/api/favorites", {"action": "set", "kind": "home", "dest": "123 Home St"})
+    self.post("/api/navigate", {"dest": "-119.03,34.22", "summary": "CA-1"})
+    responses = [
+      self.get("/"),
+      self.get("/api/status"),
+      self.get("/api/search?q=library"),
+      self.get("/api/routes?lon=-119.03&lat=34.22"),
+      self.post("/api/navigate", {"dest": "-119.03,34.22"}),
+      self.post("/api/cancel", {}),
+      self.post("/api/favorites", {"action": "set", "name": "Gym", "dest": "x"}),
+      self.get("/nope"),
+      self.post("/api/favorites", {}),
+    ]
+    for res in responses:
+      assert TOKEN not in res.text, f"token leaked in {res.url}"
