@@ -130,9 +130,15 @@ async function api(path, opts) {
 function miles(m) { return (m / 1609.344).toFixed(m < 16093 ? 1 : 0) + " mi"; }
 function mins(s) { return Math.round(s / 60) + " min"; }
 
+function destinationLabel(s) {
+  // a bound or page-set destination is a bare "lon,lat"; favorites and recents know its name
+  const hit = [...(s.favorites || []), ...(s.recents || [])].find(e => e.dest === s.destination);
+  return hit ? hit.name + (hit.summary ? " via " + hit.summary : "") : s.destination;
+}
+
 function applyStatus(s) {
   state = s;
-  $("destination").textContent = s.destination || "None";
+  $("destination").textContent = s.destination ? destinationLabel(s) : "None";
   $("cancel").hidden = !s.destination;
   const setup = $("setup-banner");
   if (!s.tokenSet) { setup.textContent = "No Mapbox token is set on the device."; setup.className = "banner warn"; }
