@@ -50,6 +50,13 @@ def chip_mode(status) -> ChipMode:
   return ChipMode.LIVE
 
 
+# the searching flag raises in stages, so the chip says what the wait is actually for:
+# pole only until the localizer has a confirmed fix (NavStatus applies the hysteresis),
+# pole plus banner once the wait is on Mapbox; failure and live states fly it full
+def flag_raised(state: NavState) -> bool:
+  return state != NavState.WAITING_FOR_GPS
+
+
 # allManeuvers[0] is the step being driven, whose maneuver is already behind the car; the turn
 # that lies ahead is the second entry. Near the destination the 'arrive' step can be the only
 # one left, and that one is still worth showing.
