@@ -130,6 +130,49 @@ class TestDestinationd:
     res = self.post("/api/favorites", {"action": "set", "kind": "work", "dest": "-119.1,34.2"})
     assert res.json()["favorites"] == [{"kind": "work", "name": "Work", "dest": "-119.1,34.2"}]
 
+  def test_settings_round_trip(self):
+    body = self.get("/api/settings").json()
+    assert body == {"navHudMode": 3, "navAudio": 0, "laneGuidanceDisplay": False,
+                    "recompute": False, "tokenSet": True}
+    res = self.post("/api/settings", {"navHudMode": 1, "navAudio": 2, "laneGuidanceDisplay": True, "recompute": True})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["navHudMode"] == 1 and body["navAudio"] == 2
+    assert body["laneGuidanceDisplay"] is True and body["recompute"] is True
+    assert self.params.get("NavHudMode") == 1
+    assert self.params.get("NavigationAudio") == 2
+    assert self.params.get("NavLaneGuidance") == 1
+    assert self.params.get_bool("MapboxRecompute")
+
+  def test_settings_reject_bad_values(self):
+    assert self.post("/api/settings", {"navHudMode": 7}).status_code == 400
+    # bool is an int in Python; True must not slip through as mode 1
+    assert self.post("/api/settings", {"navHudMode": True}).status_code == 400
+    assert self.post("/api/settings", {"navAudio": -1}).status_code == 400
+
+  def test_settings_refused_while_moving(self):
+    # the same gate as navigate: a passenger may cancel mid-drive, not reconfigure
+    self.vehicle.can_set = False
+    assert self.post("/api/settings", {"recompute": True}).status_code == 409
+    assert not self.params.get_bool("MapboxRecompute")
+
+  def test_lane_guidance_display_preserves_assist(self):
+    self.params.put("NavLaneGuidance", 2, block=True)
+    body = self.post("/api/settings", {"laneGuidanceDisplay": True}).json()
+    assert body["laneGuidanceDisplay"] is True
+    assert self.params.get("NavLaneGuidance") == 2, "assist set on the device survives the page's on"
+    self.post("/api/settings", {"laneGuidanceDisplay": False})
+    assert self.params.get("NavLaneGuidance") == 0
+
+  def test_token_is_write_only(self):
+    res = self.post("/api/settings", {"token": "pk.replacement-token"})
+    assert res.json()["tokenSet"] is True
+    assert "pk.replacement-token" not in res.text
+    assert self.params.get("MapboxToken") == "pk.replacement-token"
+    # an empty submit is a no-op, not a wipe
+    self.post("/api/settings", {"token": "  "})
+    assert self.params.get("MapboxToken") == "pk.replacement-token"
+
   def test_token_never_reaches_the_browser(self):
     # the whole point of proxying Mapbox through the device: sweep every endpoint, including
     # error paths, and require the token to be absent from every response body
@@ -145,6 +188,10 @@ class TestDestinationd:
       self.post("/api/favorites", {"action": "set", "name": "Gym", "dest": "x"}),
       self.get("/nope"),
       self.post("/api/favorites", {}),
+      self.get("/api/settings"),
+      self.post("/api/settings", {"navHudMode": 2}),
+      # even posting the token itself must come back as set or not set, never echoed
+      self.post("/api/settings", {"token": TOKEN}),
     ]
     for res in responses:
       assert TOKEN not in res.text, f"token leaked in {res.url}"

@@ -84,6 +84,7 @@ class DestinationHandler(BaseHTTPRequestHandler):
     "/api/navigate": ("POST",),
     "/api/cancel": ("POST",),
     "/api/favorites": ("POST",),
+    "/api/settings": ("GET", "POST"),
   }
 
   def _send(self, status: int, body: bytes, content_type: str) -> None:
@@ -172,6 +173,60 @@ class DestinationHandler(BaseHTTPRequestHandler):
       return _json_response({"error": "action must be set (with dest) or remove"}, status=400)
     return _json_response({"favorites": server.store.favorites()})
 
+  # the page's settings scope is display and audio only: NavDesiresAllowed and the assist
+  # level stay on-device so steering influence consent happens in the car
+  def _handle_settings_get(self) -> tuple[int, bytes, str]:
+    server: DestinationHTTPServer = self.server  # type: ignore[assignment]
+    p = server.params
+    return _json_response({
+      "navHudMode": p.get("NavHudMode", return_default=True),
+      "navAudio": p.get("NavigationAudio", return_default=True),
+      "laneGuidanceDisplay": (p.get("NavLaneGuidance", return_default=True) or 0) >= 1,
+      "recompute": p.get_bool("MapboxRecompute"),
+      # write-only by design: set or not set is all the browser ever learns of the token
+      "tokenSet": bool(server.mapbox.get_public_token()),
+    })
+
+  @staticmethod
+  def _valid_index(value, upper: int) -> bool:
+    # bool is an int, and True must not slip through as mode 1
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= upper
+
+  def _handle_settings_post(self) -> tuple[int, bytes, str]:
+    server: DestinationHTTPServer = self.server  # type: ignore[assignment]
+    body = self._read_json()
+    if body is None:
+      return _json_response({"error": "invalid JSON"}, status=400)
+    if not server.vehicle.can_set:
+      # the same gate as navigate: a passenger may cancel mid-drive, not reconfigure
+      return _json_response({"error": "settings can only be changed while parked"}, status=409)
+
+    p = server.params
+    if "navHudMode" in body:
+      if not self._valid_index(body["navHudMode"], 3):
+        return _json_response({"error": "navHudMode must be an integer 0 to 3"}, status=400)
+      p.put("NavHudMode", body["navHudMode"], block=True)
+    if "navAudio" in body:
+      if not self._valid_index(body["navAudio"], 2):
+        return _json_response({"error": "navAudio must be an integer 0 to 2"}, status=400)
+      p.put("NavigationAudio", body["navAudio"], block=True)
+    if "laneGuidanceDisplay" in body:
+      # the page only flips display on and off; an assist level set on the device survives
+      # while the toggle stays on, and off is honestly off
+      current = p.get("NavLaneGuidance", return_default=True) or 0
+      if not body["laneGuidanceDisplay"]:
+        p.put("NavLaneGuidance", 0, block=True)
+      elif current < 1:
+        p.put("NavLaneGuidance", 1, block=True)
+    if "recompute" in body:
+      p.put_bool("MapboxRecompute", bool(body["recompute"]), block=True)
+    if "token" in body:
+      # write-only and never cleared from here: an empty submit is a no-op, not a wipe
+      token = str(body["token"]).strip()
+      if token:
+        p.put("MapboxToken", token, block=True)
+    return self._handle_settings_get()
+
   def _dispatch_request(self) -> None:
     parsed = urlparse(self.path)
     allowed = self._routes.get(parsed.path)
@@ -193,6 +248,8 @@ class DestinationHandler(BaseHTTPRequestHandler):
         result = self._handle_navigate()
       elif parsed.path == "/api/cancel":
         result = self._handle_cancel()
+      elif parsed.path == "/api/settings":
+        result = self._handle_settings_get() if self.command == "GET" else self._handle_settings_post()
       else:  # /api/favorites
         result = self._handle_favorites()
     except Exception as e:
