@@ -164,7 +164,8 @@ class DestinationHandler(BaseHTTPRequestHandler):
     body = self._read_json()
     action = body.get("action") if body else None
     if action == "set" and str(body.get("dest", "")).strip():
-      server.store.set_favorite(str(body.get("name", "")), str(body["dest"]), kind=body.get("kind"))
+      server.store.set_favorite(str(body.get("name", "")), str(body["dest"]), kind=body.get("kind"),
+                                summary=str(body.get("summary", "")))
     elif action == "remove":
       server.store.remove_favorite(str(body.get("name", "")), kind=body.get("kind"))
     else:
