@@ -61,6 +61,17 @@ class TestRecentsFunctions:
     recents = ds.update_recents([], "", "740 E Ventura Blvd")
     assert recents[0]["name"] == "740 E Ventura Blvd"
 
+  def test_keep_existing_name_preserves_a_chosen_label(self):
+    recents = ds.update_recents([], "Library", "-122.1,47.6")
+    recents = ds.update_recents(recents, "123 Main St", "-122.1,47.6", keep_existing_name=True)
+    assert recents == [{"name": "Library", "dest": "-122.1,47.6"}]
+
+  def test_keep_existing_name_still_backfills_a_default_label(self):
+    # an entry whose name is just its dest never got a real label, so the backfill wins
+    recents = ds.update_recents([], "", "-122.1,47.6")
+    recents = ds.update_recents(recents, "123 Main St", "-122.1,47.6", keep_existing_name=True)
+    assert recents == [{"name": "123 Main St", "dest": "-122.1,47.6"}]
+
   def test_garbage_entries_dropped(self):
     assert ds.normalize_recents(None) == []
     assert ds.normalize_recents([{"name": "no dest"}, "junk", {"dest": " ok ", "name": ""}]) == [{"name": "ok", "dest": "ok"}]

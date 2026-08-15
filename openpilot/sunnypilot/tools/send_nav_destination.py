@@ -53,11 +53,17 @@ def parse_destination(dest: str) -> dict:
     return {"place_name": dest}
 
   url = resolve_url(dest)
+  # a maps URL often carries both a pin and the place's name; the pin sets the point
+  # and the name rides along so the device can label the recents entry
+  name = unquote_plus(m.group(1)) if (m := PLACE_RE.search(url)) else None
   for pattern in (PIN_RE, QUERY_RE, VIEWPORT_RE):
     if m := pattern.search(url):
-      return {"latitude": float(m.group(1)), "longitude": float(m.group(2))}
-  if m := PLACE_RE.search(url):
-    return {"place_name": unquote_plus(m.group(1))}
+      pin = {"latitude": float(m.group(1)), "longitude": float(m.group(2))}
+      if name:
+        pin["place_name"] = name
+      return pin
+  if name:
+    return {"place_name": name}
 
   raise ValueError(f"could not find a destination in {url}")
 
