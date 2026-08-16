@@ -6,12 +6,14 @@ See the LICENSE.md file in the root directory for more details.
 
 destinationd: the destination page, served from the device for phones on the same
 LAN or hotspot (http://<device-ip>:5050, hotspot default http://192.168.43.1:5050).
+The page is deliberately LAN-only; away from the car the same contract rides comma's
+athena connection (navd/athena_methods.py), where auth is the comma account JWT.
 
 Search, route choice, favorites, and recents talk to Mapbox from the device with the
 public token; the token itself is never sent to the browser. The daemon runs whenever
 navigation is enabled so a passenger can cancel guidance mid-drive, but setting a
-destination is only allowed offroad or at a standstill. Away from the car, athena's
-setNavDestination and tools/send_nav_destination.py remain the path in.
+destination is only allowed offroad or at a standstill. The handlers themselves live
+in navigation_helpers/destination_api.py, shared with the athena transport.
 """
 import argparse
 import json
@@ -24,12 +26,9 @@ from urllib.parse import parse_qs, urlparse
 import openpilot.cereal.messaging as messaging
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
-from openpilot.sunnypilot.navd.helpers import coordinate_from_param
-from openpilot.sunnypilot.navd.navigation_helpers.destination_store import DestinationStore
-from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
+from openpilot.sunnypilot.navd.navigation_helpers.destination_api import ApiError, DestinationAPI, STANDSTILL_SPEED
 
 DEFAULT_PORT = 5050
-STANDSTILL_SPEED = 0.5  # m/s
 PAGE_PATH = Path(__file__).parent / "assets" / "destination_page.html"
 
 
@@ -103,133 +102,27 @@ class DestinationHandler(BaseHTTPRequestHandler):
       return None
     return payload if isinstance(payload, dict) else None
 
-  def _handle_status(self) -> tuple[int, bytes, str]:
-    server: DestinationHTTPServer = self.server  # type: ignore[assignment]
-    return _json_response({
-      "destination": server.store.active_destination(),
-      "navEnabled": server.params.get_bool("AllowNavigation"),
-      "tokenSet": bool(server.mapbox.get_public_token()),
-      "offroad": server.vehicle.offroad,
-      "canSet": server.vehicle.can_set,
-      "favorites": server.store.favorites(),
-      "recents": server.store.recents(),
-    })
+  def _handle_navigate(self, api: DestinationAPI) -> dict:
+    body = self._read_json() or {}
+    return api.navigate(body.get("dest"), name=body.get("name", ""), summary=body.get("summary", ""))
 
-  def _handle_search(self, query: dict) -> tuple[int, bytes, str]:
-    server: DestinationHTTPServer = self.server  # type: ignore[assignment]
-    text = (query.get("q", [""])[0]).strip()
-    if not text:
-      return _json_response({"error": "empty query"}, status=400)
-    position = coordinate_from_param("LastGPSPositionLLK", server.params)
-    proximity = (position.longitude, position.latitude) if position else (None, None)
-    results = server.mapbox.search_places(text, *proximity)
-    if results is None:
-      return _json_response({"error": "search failed, check the connection and Mapbox token"}, status=502)
-    return _json_response({"results": results})
+  def _handle_favorites(self, api: DestinationAPI) -> dict:
+    body = self._read_json() or {}
+    return api.favorites_action(body.get("action"), name=body.get("name", ""), dest=body.get("dest", ""),
+                                kind=body.get("kind"), summary=body.get("summary", ""))
 
-  def _handle_routes(self, query: dict) -> tuple[int, bytes, str]:
-    server: DestinationHTTPServer = self.server  # type: ignore[assignment]
-    try:
-      end_lon = float(query["lon"][0])
-      end_lat = float(query["lat"][0])
-    except (KeyError, ValueError, IndexError):
-      return _json_response({"error": "lon and lat are required"}, status=400)
-    position = coordinate_from_param("LastGPSPositionLLK", server.params)
-    if position is None:
-      # without a last known fix there is no start point to route from; the destination can
-      # still be set, navd will route once the car has a position
-      return _json_response({"error": "no known device position"}, status=409)
-    routes = server.mapbox.preview_routes(position.longitude, position.latitude, end_lon, end_lat)
-    if routes is None:
-      return _json_response({"error": "route preview failed"}, status=502)
-    return _json_response({"routes": routes})
-
-  def _handle_navigate(self) -> tuple[int, bytes, str]:
-    server: DestinationHTTPServer = self.server  # type: ignore[assignment]
-    body = self._read_json()
-    if body is None or not str(body.get("dest", "")).strip():
-      return _json_response({"error": "dest is required"}, status=400)
-    if not server.vehicle.can_set:
-      return _json_response({"error": "destination can only be set while parked"}, status=409)
-    server.store.set_destination(str(body["dest"]), name=str(body.get("name", "")),
-                                 route_summary=str(body.get("summary", "")))
-    return self._handle_status()
-
-  def _handle_cancel(self) -> tuple[int, bytes, str]:
-    server: DestinationHTTPServer = self.server  # type: ignore[assignment]
-    server.store.clear_destination()
-    return self._handle_status()
-
-  def _handle_favorites(self) -> tuple[int, bytes, str]:
-    server: DestinationHTTPServer = self.server  # type: ignore[assignment]
-    body = self._read_json()
-    action = body.get("action") if body else None
-    if action == "set" and str(body.get("dest", "")).strip():
-      server.store.set_favorite(str(body.get("name", "")), str(body["dest"]), kind=body.get("kind"),
-                                summary=str(body.get("summary", "")))
-    elif action == "remove":
-      server.store.remove_favorite(str(body.get("name", "")), kind=body.get("kind"))
-    else:
-      return _json_response({"error": "action must be set (with dest) or remove"}, status=400)
-    return _json_response({"favorites": server.store.favorites()})
-
-  # the page's settings scope is display and audio only: NavDesiresAllowed and the assist
-  # level stay on-device so steering influence consent happens in the car
-  def _handle_settings_get(self) -> tuple[int, bytes, str]:
-    server: DestinationHTTPServer = self.server  # type: ignore[assignment]
-    p = server.params
-    return _json_response({
-      "navHudMode": p.get("NavHudMode", return_default=True),
-      "navAudio": p.get("NavigationAudio", return_default=True),
-      "laneGuidanceDisplay": (p.get("NavLaneGuidance", return_default=True) or 0) >= 1,
-      "recompute": p.get_bool("MapboxRecompute"),
-      # write-only by design: set or not set is all the browser ever learns of the token
-      "tokenSet": bool(server.mapbox.get_public_token()),
-    })
-
-  @staticmethod
-  def _valid_index(value, upper: int) -> bool:
-    # bool is an int, and True must not slip through as mode 1
-    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= upper
-
-  def _handle_settings_post(self) -> tuple[int, bytes, str]:
-    server: DestinationHTTPServer = self.server  # type: ignore[assignment]
+  def _handle_settings_post(self, api: DestinationAPI) -> dict:
     body = self._read_json()
     if body is None:
-      return _json_response({"error": "invalid JSON"}, status=400)
-    if not server.vehicle.can_set:
-      # the same gate as navigate: a passenger may cancel mid-drive, not reconfigure
-      return _json_response({"error": "settings can only be changed while parked"}, status=409)
-
-    p = server.params
-    if "navHudMode" in body:
-      if not self._valid_index(body["navHudMode"], 3):
-        return _json_response({"error": "navHudMode must be an integer 0 to 3"}, status=400)
-      p.put("NavHudMode", body["navHudMode"], block=True)
-    if "navAudio" in body:
-      if not self._valid_index(body["navAudio"], 2):
-        return _json_response({"error": "navAudio must be an integer 0 to 2"}, status=400)
-      p.put("NavigationAudio", body["navAudio"], block=True)
-    if "laneGuidanceDisplay" in body:
-      # the page only flips display on and off; an assist level set on the device survives
-      # while the toggle stays on, and off is honestly off
-      current = p.get("NavLaneGuidance", return_default=True) or 0
-      if not body["laneGuidanceDisplay"]:
-        p.put("NavLaneGuidance", 0, block=True)
-      elif current < 1:
-        p.put("NavLaneGuidance", 1, block=True)
-    if "recompute" in body:
-      p.put_bool("MapboxRecompute", bool(body["recompute"]), block=True)
-    if "token" in body:
-      # write-only and never cleared from here: an empty submit is a no-op, not a wipe
-      token = str(body["token"]).strip()
-      if token:
-        p.put("MapboxToken", token, block=True)
-    return self._handle_settings_get()
+      raise ApiError("invalid JSON")
+    return api.apply_settings(body)
 
   def _dispatch_request(self) -> None:
+    server: DestinationHTTPServer = self.server  # type: ignore[assignment]
+    api = server.api
     parsed = urlparse(self.path)
     allowed = self._routes.get(parsed.path)
+    query = parse_qs(parsed.query)
 
     try:
       if allowed is None:
@@ -239,19 +132,21 @@ class DestinationHandler(BaseHTTPRequestHandler):
       elif parsed.path == "/":
         result = (200, _page_bytes(), "text/html; charset=utf-8")
       elif parsed.path == "/api/status":
-        result = self._handle_status()
+        result = _json_response(api.status())
       elif parsed.path == "/api/search":
-        result = self._handle_search(parse_qs(parsed.query))
+        result = _json_response(api.search(query.get("q", [""])[0]))
       elif parsed.path == "/api/routes":
-        result = self._handle_routes(parse_qs(parsed.query))
+        result = _json_response(api.routes(query.get("lon", [None])[0], query.get("lat", [None])[0]))
       elif parsed.path == "/api/navigate":
-        result = self._handle_navigate()
+        result = _json_response(self._handle_navigate(api))
       elif parsed.path == "/api/cancel":
-        result = self._handle_cancel()
+        result = _json_response(api.cancel())
       elif parsed.path == "/api/settings":
-        result = self._handle_settings_get() if self.command == "GET" else self._handle_settings_post()
+        result = _json_response(api.settings_view() if self.command == "GET" else self._handle_settings_post(api))
       else:  # /api/favorites
-        result = self._handle_favorites()
+        result = _json_response(self._handle_favorites(api))
+    except ApiError as e:
+      result = _json_response({"error": str(e)}, status=e.status)
     except Exception as e:
       cloudlog.exception("destinationd: unhandled error handling %s", self.path)
       result = _json_response({"error": "exception", "message": f"{type(e).__name__}: {e}"}, status=500)
@@ -276,8 +171,7 @@ class DestinationHTTPServer(ThreadingHTTPServer):
   daemon_threads = True
   allow_reuse_address = True
   params: Params
-  store: DestinationStore
-  mapbox: MapboxIntegration
+  api: DestinationAPI
   vehicle: VehicleMonitor
 
 
@@ -285,9 +179,9 @@ def make_server(host: str = "0.0.0.0", port: int = DEFAULT_PORT, params: Params 
                 vehicle=None) -> DestinationHTTPServer:
   server = DestinationHTTPServer((host, port), DestinationHandler)
   server.params = params or Params()
-  server.store = DestinationStore(server.params)
-  server.mapbox = MapboxIntegration()
   server.vehicle = vehicle if vehicle is not None else VehicleMonitor(server.params)
+  server.api = DestinationAPI(params=server.params, can_set=lambda: server.vehicle.can_set,
+                              offroad=lambda: server.vehicle.offroad)
   return server
 
 
