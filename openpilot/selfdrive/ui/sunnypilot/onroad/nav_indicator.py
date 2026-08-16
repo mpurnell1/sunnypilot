@@ -80,15 +80,29 @@ def format_distance(distance_m: float, is_metric: bool) -> str:
 
 
 def _draw_flag(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH, banner: bool = True) -> None:
-  """The destination flag; a bare pole is the not-yet stage of the searching progression."""
+  """The destination flag; the not-yet stage of the searching progression is an empty
+  flagpole, ball finial on top and a base plinth under it, so a destination with no GPS
+  fix reads as a planted pole rather than a stray vertical bar."""
   pole_w = max(3.0, size * 0.12)
   height = size * 1.05
   x = cx - size / 2
   top = cy - height / 2
 
-  rl.draw_rectangle_rec(rl.Rectangle(x, top, pole_w, height), color)
   if banner:
+    rl.draw_rectangle_rec(rl.Rectangle(x, top, pole_w, height), color)
     rl.draw_rectangle_rec(rl.Rectangle(x + pole_w, top, size - pole_w, height * 0.45), color)
+    return
+
+  # flush joints, no overlaps: the searching color is translucent and stacked primitives
+  # double-blend into bright seams. The ball butts the pole at its tangent, which leaves
+  # the natural waist a real finial has; the base butts the pole's foot.
+  ball_r = size * 0.14
+  base_h = max(3.0, size * 0.10)
+  base_w = size * 0.52
+  pole_cx = x + pole_w / 2
+  rl.draw_circle_v(rl.Vector2(pole_cx, top + ball_r), ball_r, color)
+  rl.draw_rectangle_rec(rl.Rectangle(x, top + 2 * ball_r, pole_w, height - 2 * ball_r - base_h), color)
+  rl.draw_rectangle_rec(rl.Rectangle(pole_cx - base_w / 2, top + height - base_h, base_w, base_h), color)
 
 
 # glyphs are composed of strokes that meet flush instead of overlapping: the card colors are
@@ -107,12 +121,22 @@ def _cap(x: float, y: float, heading_deg: float, half_stroke: float, color: rl.C
 
 
 def _head(x: float, y: float, heading_deg: float, radius: float, color: rl.Color) -> tuple[float, float]:
-  """Arrowhead whose flat back sits exactly on (x, y); returns the direction unit vector."""
+  """Isoceles arrowhead, longer than it is wide, whose back edge overlaps the stroke it
+  caps by a hair so the joint never shows. The overlap is safe because glyphs composite
+  opaque inside the texture cache; only draw at full opacity outside it."""
   rad = radians(heading_deg)
   dx, dy = sin(rad), -cos(rad)
-  # a poly vertex sits at `rotation` degrees from +x, so aim one vertex along the direction;
-  # the triangle's back edge is half a radius behind its center
-  rl.draw_poly(rl.Vector2(x + dx * radius * 0.5, y + dy * radius * 0.5), 3, radius, heading_deg - 90, color)
+  px, py = -dy, dx
+  head_len = radius * 1.5
+  half_w = radius * 0.85
+  bx, by = x - dx * radius * 0.1, y - dy * radius * 0.1
+  tip = rl.Vector2(bx + dx * head_len, by + dy * head_len)
+  left = rl.Vector2(bx + px * half_w, by + py * half_w)
+  right = rl.Vector2(bx - px * half_w, by - py * half_w)
+  # winding decides visibility in rlgl; drawing both keeps every heading covered, and
+  # inside the opaque cache the second pass changes nothing
+  rl.draw_triangle(tip, left, right, color)
+  rl.draw_triangle(tip, right, left, color)
   return dx, dy
 
 
@@ -245,11 +269,10 @@ def _draw_roundabout(cx: float, cy: float, color: rl.Color, size: float = ICON_W
                                      cy + size * 0.5 - (ring_cy + radius - half_stroke)), color)
   exit_h = size * 0.14
   rl.draw_rectangle_rec(rl.Rectangle(cx - half_stroke, ring_cy - radius - exit_h, 2 * half_stroke, exit_h + half_stroke), color)
-  head_radius = size * 0.22
-  rl.draw_poly(rl.Vector2(cx, ring_cy - radius - exit_h - head_radius * 0.4), 3, head_radius, -90, color)
+  _head(cx, ring_cy - radius - exit_h, 0, size * 0.22, color)
 
 
-def _draw_maneuver_icon(cx: float, cy: float, maneuver_type: str, modifier: str, color: rl.Color, size: float) -> None:
+def _draw_maneuver_shapes(cx: float, cy: float, maneuver_type: str, modifier: str, color: rl.Color, size: float) -> None:
   angle = ARROW_ANGLES.get(modifier, 0)
   if maneuver_type == 'arrive':
     _draw_flag(cx, cy, color, size)
@@ -264,6 +287,66 @@ def _draw_maneuver_icon(cx: float, cy: float, maneuver_type: str, modifier: str,
     _draw_merge(cx, cy, 1.0 if angle > 0 else -1.0, color, size)
   else:
     _draw_turn(cx, cy, angle, color, size)
+
+
+# --- the supersampled glyph cache ---
+# Two problems end at the same place. The device grants no MSAA, so rotated primitives
+# stair-step at chip size; and translucent glyph colors forbid overlapped joints, which
+# forces butt joints that show notches wherever the per-angle constants miss. So each
+# glyph is drawn once, opaque and at GLYPH_SS times its size, into a cached
+# RenderTexture, and blitted scaled down with bilinear filtering. The caller's color,
+# alpha included, tints the whole texture at blit time: edges get real antialiasing,
+# joints may overlap freely, and internal translucency (the dim road branches) dims the
+# glyph as one piece instead of double-blending.
+GLYPH_SS = 4
+_GLYPH_PAD = 1.5  # glyphs poke past their size box (the flag's height, the roundabout's arrow)
+_glyph_cache: dict[tuple, rl.RenderTexture] = {}
+
+
+def _glyph_texture(key: tuple, draw, side: int) -> rl.RenderTexture:
+  tex = _glyph_cache.get(key)
+  if tex is None:
+    tex = rl.load_render_texture(side, side)
+    rl.begin_texture_mode(tex)
+    rl.clear_background(rl.BLANK)
+    draw()
+    rl.end_texture_mode()
+    rl.set_texture_filter(tex.texture, rl.TextureFilter.TEXTURE_FILTER_BILINEAR)
+    _glyph_cache[key] = tex
+  return tex
+
+
+def _blit_glyph(tex: rl.RenderTexture, cx: float, cy: float, color: rl.Color, dest_side: float) -> None:
+  # drawing over a transparent ground leaves the texture premultiplied, so the blit uses
+  # the premultiply blend with the tint folded into the color channels
+  tint = rl.Color(color.r * color.a // 255, color.g * color.a // 255, color.b * color.a // 255, color.a)
+  src = rl.Rectangle(0, 0, tex.texture.width, -tex.texture.height)
+  dest = rl.Rectangle(cx - dest_side / 2, cy - dest_side / 2, dest_side, dest_side)
+  rl.begin_blend_mode(rl.BlendMode.BLEND_ALPHA_PREMULTIPLY)
+  rl.draw_texture_pro(tex.texture, src, dest, rl.Vector2(0, 0), 0, tint)
+  rl.end_blend_mode()
+
+
+def _draw_maneuver_icon(cx: float, cy: float, maneuver_type: str, modifier: str, color: rl.Color, size: float) -> None:
+  side = int(size * GLYPH_SS * _GLYPH_PAD)
+  key = (maneuver_type, modifier, side)
+  tex = _glyph_texture(key, lambda: _draw_maneuver_shapes(side / 2, side / 2, maneuver_type, modifier,
+                                                          TURN_COLOR, size * GLYPH_SS), side)
+  _blit_glyph(tex, cx, cy, color, size * _GLYPH_PAD)
+
+
+def draw_lane_glyph(cx: float, cy: float, direction: str, color: rl.Color, size: float) -> None:
+  """The lane rows' entry point, so their tiny icons share the cache's antialiasing."""
+  side = int(size * GLYPH_SS * _GLYPH_PAD)
+  key = ('lane', direction, side)
+
+  def _draw():
+    if direction == 'uturn':
+      _draw_uturn(side / 2, side / 2, TURN_COLOR, size * GLYPH_SS)
+    else:
+      _draw_turn(side / 2, side / 2, ARROW_ANGLES.get(direction, 0), TURN_COLOR, size * GLYPH_SS)
+
+  _blit_glyph(_glyph_texture(key, _draw, side), cx, cy, color, size * _GLYPH_PAD)
 
 
 # The transient rail: the quiet chip hints at the next maneuver and doubles as the status
