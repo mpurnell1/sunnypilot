@@ -61,11 +61,39 @@ influence steering never appear on the page, so consent for them happens in the 
    - From a phone on the same network or the device hotspot, open
      `http://<device-ip>:5050`. Search, compare routes with live traffic, and go.
    - From anywhere, comma prime users can send a destination through athena
-     (`tools/send_nav_destination.py`).
+     (`tools/send_nav_destination.py`, or the richer RPC methods below).
    - From the device, pick a saved favorite in Settings, Navigation.
 3. Route choice is yours: the destination page previews alternates with live and
    typical times. A favorite can be bound to a route you always want; a bound favorite
    starts navigating on that route in one tap.
+
+## Away from the car (comma prime / athena)
+
+The destination page only works on the car's network. Away from it, the same contract
+rides the websocket the device already keeps open to `athena.comma.ai` (this assumes a
+comma prime subscription; whether the tunnel works without one is untested). Clients
+POST JSON-RPC to `https://athena.comma.ai/<dongleId>` with an `Authorization: JWT
+<token>` header, using a comma account token from https://jwt.comma.ai.
+
+That token is full access to the device, so it belongs in an app or a script you run
+yourself, never in a web page: a browser cannot keep it secret, and this fork never
+serves or logs it anywhere. The token check is comma's; the device additionally answers
+only to accounts paired with it.
+
+The fork registers four additive methods next to the stock `setNavDestination` (which
+is untouched, so comma connect and the CLI sender keep working):
+
+- `getNavStatus()`: the page's status payload, including whether a set is allowed now.
+- `listDestinations()`: favorites and recents, same shapes as the page.
+- `setDestination(dest, name, summary)`: set a destination, optionally with a chosen
+  route summary, exactly like tapping a route card on the page. Refused while moving
+  (parked or standstill only, same gate as the page) and refused when navigation is
+  disabled on the device.
+- `cancelRoute()`: allowed any time, the passenger rule.
+
+Refusals come back as JSON-RPC errors carrying the same sentences the page uses.
+sunnypilot's own sunnylink connection shares the method table, so the same calls work
+over it where it is available.
 
 ## Expectations
 
