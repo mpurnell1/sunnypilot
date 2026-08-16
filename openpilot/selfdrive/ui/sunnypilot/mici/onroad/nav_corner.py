@@ -22,7 +22,7 @@ import pyray as rl
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.selfdrive.ui.sunnypilot.nav_status import ROUTE_FAILURE_THRESHOLD, NavStatus
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import (
-  ARROW_ANGLES, _draw_flag, _draw_maneuver_icon, _draw_turn, _draw_uturn, format_distance, lane_direction,
+  _draw_flag, _draw_maneuver_icon, draw_lane_glyph, format_distance, lane_direction,
 )
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import (
   ChipMode, TransientNav, TransientNavState, chip_mode, flag_raised, pick_upcoming_maneuver,
@@ -206,9 +206,5 @@ class MiciNavRenderer(Widget):
     for lane in lanes:
       lane_alpha = a if lane.active else a * LANE_INACTIVE_ALPHA
       color = rl.Color(255, 255, 255, int(255 * lane_alpha))
-      direction = lane_direction(lane)
-      if direction == 'uturn':
-        _draw_uturn(x, cy, color, LANE_ICON_SIZE)
-      else:
-        _draw_turn(x, cy, ARROW_ANGLES.get(direction, 0), color, LANE_ICON_SIZE)
+      draw_lane_glyph(x, cy, lane_direction(lane), color, LANE_ICON_SIZE)
       x += LANE_SLOT
