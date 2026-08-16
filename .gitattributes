@@ -12,3 +12,7 @@
 
 openpilot/selfdrive/car/tests/test_models_segs.txt filter=lfs diff=lfs merge=lfs -text
 openpilot/common/hardware/tici/updater filter=lfs diff=lfs merge=lfs -text
+
+# the fork's own assets ride plain git: the upstream LFS store is read-only to us
+openpilot/sunnypilot/selfdrive/assets/navigation/*.png binary -filter
+docs/assets/comma-logo.png binary -filter
