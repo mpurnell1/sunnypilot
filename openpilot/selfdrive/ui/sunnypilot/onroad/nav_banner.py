@@ -22,7 +22,7 @@ from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.ui.sunnypilot.nav_status import ROUTE_FAILURE_THRESHOLD
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import (
-  ARROW_ANGLES, BAD, LANE_INACTIVE, TURN_COLOR, _draw_flag, _draw_turn, _draw_uturn, format_distance, lane_direction,
+  BAD, LANE_INACTIVE, TURN_COLOR, _draw_flag, draw_lane_glyph, format_distance, lane_direction,
 )
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import ChipMode, TransientNavState, pick_upcoming_index
 from openpilot.selfdrive.ui.ui_state import ui_state
@@ -288,11 +288,6 @@ class NavBannerRenderer(Widget):
     cy = row.y + row.height / 2
     x = row.x + width / 2 - LANE_SLOT * (n - 1) / 2
     for lane in lanes:
-      direction = lane_direction(lane)
-      color = TURN_COLOR if lane.active else LANE_INACTIVE
-      if direction == 'uturn':
-        _draw_uturn(x, cy, color, LANE_ICON_SIZE)
-      else:
-        # the same elbow glyphs as the quiet chip, so the row matches overhead lane signage
-        _draw_turn(x, cy, ARROW_ANGLES.get(direction, 0), color, LANE_ICON_SIZE)
+      # the same elbow glyphs as the quiet chip, so the row matches overhead lane signage
+      draw_lane_glyph(x, cy, lane_direction(lane), TURN_COLOR if lane.active else LANE_INACTIVE, LANE_ICON_SIZE)
       x += LANE_SLOT
