@@ -41,6 +41,7 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.common.version import get_build_metadata
 from openpilot.common.hardware.hw import Paths
 from openpilot.system.athena.rpc import dispatcher, handle, is_call, is_response, loads
+from openpilot.sunnypilot.navd import athena_methods
 from openpilot.sunnypilot.navd.navigation_helpers.destination_store import DestinationStore
 
 
@@ -130,6 +131,8 @@ class UploadItem:
 
 
 dispatcher["echo"] = lambda s: s
+# the fork's destination contract rides the same tunnel; sunnylinkd shares this dispatcher
+athena_methods.register(dispatcher)
 recv_queue: Queue[str] = queue.Queue()
 send_queue: Queue[tuple[int, int, str]] = queue.PriorityQueue()
 upload_queue: Queue[UploadItem] = queue.PriorityQueue()
