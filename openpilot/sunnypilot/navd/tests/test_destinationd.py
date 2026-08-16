@@ -35,8 +35,8 @@ class TestDestinationd:
     self.server = make_server(host="127.0.0.1", port=0, params=self.params, vehicle=self.vehicle)
     self.search_results: list | None = PLACES
     self.route_results: list | None = ROUTES
-    mocker.patch.object(self.server.mapbox, "search_places", side_effect=lambda *a, **kw: self.search_results)
-    mocker.patch.object(self.server.mapbox, "preview_routes", side_effect=lambda *a, **kw: self.route_results)
+    mocker.patch.object(self.server.api.mapbox, "search_places", side_effect=lambda *a, **kw: self.search_results)
+    mocker.patch.object(self.server.api.mapbox, "preview_routes", side_effect=lambda *a, **kw: self.route_results)
 
     thread = threading.Thread(target=self.server.serve_forever, daemon=True)
     thread.start()
