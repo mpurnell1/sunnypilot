@@ -18,6 +18,7 @@ carState read with the same conservative deny when no fresh reading exists.
 import openpilot.cereal.messaging as messaging
 from openpilot.common.params import Params
 from openpilot.sunnypilot.navd.navigation_helpers.destination_api import ApiError, DestinationAPI, STANDSTILL_SPEED
+from openpilot.sunnypilot.navd.navigation_helpers.nav_state import nav_state_snapshot
 
 CARSTATE_TIMEOUT_MS = 1000
 
@@ -65,6 +66,11 @@ def cancelRoute() -> dict:
   return _api().cancel()
 
 
+def getNavState() -> dict:
+  # the shared snapshot serializer, so the athena poll and the page's /api/state agree
+  return nav_state_snapshot()
+
+
 def register(dispatcher) -> None:
-  for fn in (getNavStatus, listDestinations, setDestination, cancelRoute):
+  for fn in (getNavStatus, listDestinations, setDestination, cancelRoute, getNavState):
     dispatcher[fn.__name__] = fn

@@ -27,6 +27,7 @@ import openpilot.cereal.messaging as messaging
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.sunnypilot.navd.navigation_helpers.destination_api import ApiError, DestinationAPI, STANDSTILL_SPEED
+from openpilot.sunnypilot.navd.navigation_helpers.nav_state import nav_state_snapshot
 
 DEFAULT_PORT = 5050
 PAGE_PATH = Path(__file__).parent / "assets" / "destination_page.html"
@@ -78,6 +79,7 @@ class DestinationHandler(BaseHTTPRequestHandler):
   _routes = {
     "/": ("GET", "HEAD"),
     "/api/status": ("GET",),
+    "/api/state": ("GET",),
     "/api/search": ("GET",),
     "/api/routes": ("GET",),
     "/api/navigate": ("POST",),
@@ -133,6 +135,9 @@ class DestinationHandler(BaseHTTPRequestHandler):
         result = (200, _page_bytes(), "text/html; charset=utf-8")
       elif parsed.path == "/api/status":
         result = _json_response(api.status())
+      elif parsed.path == "/api/state":
+        # live guidance for a polling head unit client; read-only, so no gate
+        result = _json_response(nav_state_snapshot())
       elif parsed.path == "/api/search":
         result = _json_response(api.search(query.get("q", [""])[0]))
       elif parsed.path == "/api/routes":
