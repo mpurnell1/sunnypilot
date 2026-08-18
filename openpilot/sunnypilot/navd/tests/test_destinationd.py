@@ -68,6 +68,13 @@ class TestDestinationd:
     assert body["canSet"] is True
     assert body["favorites"] == [] and body["recents"] == []
 
+  def test_state_inactive_when_navigationd_is_silent(self):
+    # the live-message shape is covered on real sockets in test_athena_nav; the page
+    # endpoint shares that serializer, so silence is the page-side case worth pinning
+    res = self.get("/api/state")
+    assert res.status_code == 200
+    assert res.json() == {"active": False}
+
   def test_search(self):
     body = self.get("/api/search?q=library").json()
     assert body["results"] == PLACES
@@ -181,6 +188,7 @@ class TestDestinationd:
     responses = [
       self.get("/"),
       self.get("/api/status"),
+      self.get("/api/state"),
       self.get("/api/search?q=library"),
       self.get("/api/routes?lon=-119.03&lat=34.22"),
       self.post("/api/navigate", {"dest": "-119.03,34.22"}),

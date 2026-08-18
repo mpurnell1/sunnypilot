@@ -43,7 +43,7 @@ class TestAthenaNavMethods:
   def test_registered_on_the_athena_dispatcher(self):
     # athenad registers at import; sunnylinkd shares the same dispatcher object
     from openpilot.system.athena.athenad import dispatcher
-    for name in ("getNavStatus", "listDestinations", "setDestination", "cancelRoute"):
+    for name in ("getNavStatus", "listDestinations", "setDestination", "cancelRoute", "getNavState"):
       assert name in dispatcher, f"{name} missing from the athena dispatcher"
     assert "setNavDestination" in dispatcher, "the upstream method must stay untouched"
 
@@ -104,11 +104,78 @@ class TestAthenaNavMethods:
       rpc_call("setDestination", {"dest": "-119.03,34.22"}),
       rpc_call("setDestination", {}),
       rpc_call("cancelRoute"),
+      rpc_call("getNavState"),
     ]
     self.can_set.return_value = False
     responses.append(rpc_call("setDestination", {"dest": "-119.03,34.22"}))
     for response in responses:
       assert TOKEN not in json.dumps(response), f"token leaked in {response}"
+
+
+class TestGetNavState:
+  """The phase 9 poll body on real sockets: a published navigationd message comes back
+  through the real JSON-RPC layer (so JSON serializability of every field is what is
+  asserted), and silence reports inactive rather than erroring."""
+
+  def _publish_navigationd(self, stop_event: threading.Event) -> None:
+    pm = messaging.PubMaster(['navigationd'])
+    while not stop_event.is_set():
+      msg = messaging.new_message('navigationd')
+      msg.valid = True
+      nav = msg.navigationd
+      nav.valid = True
+      nav.routeState = 'onRoute'
+      nav.distanceRemaining = 3862.0
+      nav.timeRemaining = 480.0
+      nav.currentSpeedLimit = 72
+      nav.bannerInstructions = 'Turn right onto Fair Oaks Ave'
+      nav.audioCueKind = 'turn'
+      nav.audioCueStage = 'approach'
+      nav.audioCueDirection = 'right'
+      maneuvers = nav.init('allManeuvers', 2)
+      maneuvers[0].distance = 240.0
+      maneuvers[0].type = 'turn'
+      maneuvers[0].modifier = 'right'
+      maneuvers[0].instruction = 'Turn right onto Fair Oaks Ave'
+      maneuvers[1].distance = 1130.0
+      maneuvers[1].type = 'turn'
+      maneuvers[1].modifier = 'left'
+      maneuvers[1].instruction = 'Turn left onto Colorado Blvd'
+      lanes = nav.init('lanes', 1)
+      lanes[0].directions = ['straight', 'right']
+      lanes[0].active = True
+      lanes[0].activeDirection = 'right'
+      pm.send('navigationd', msg)
+      time.sleep(0.05)
+
+  def test_silence_reports_inactive(self):
+    assert rpc_call("getNavState")["result"] == {"active": False}
+
+  def test_live_message_serializes_through_the_rpc_layer(self):
+    stop = threading.Event()
+    thread = threading.Thread(target=self._publish_navigationd, args=(stop,), daemon=True)
+    thread.start()
+    try:
+      time.sleep(0.1)  # let the publisher bind before the one-shot subscriber connects
+      result = rpc_call("getNavState")["result"]
+    finally:
+      stop.set()
+      thread.join(timeout=2)
+
+    assert result["active"] is True and result["valid"] is True
+    assert result["routeState"] == "onRoute"
+    assert result["routeFailures"] == 0
+    assert result["distanceRemaining"] == 3862.0
+    assert result["timeRemaining"] == 480.0
+    assert result["currentSpeedLimit"] == 72
+    assert result["audioCueStage"] == "approach"
+    assert [m["modifier"] for m in result["maneuvers"]] == ["right", "left"]
+    assert result["maneuvers"][0] == {"distance": 240.0, "type": "turn", "modifier": "right",
+                                      "instruction": "Turn right onto Fair Oaks Ave"}
+    assert result["lanes"] == [{"directions": ["straight", "right"], "active": True,
+                                "activeDirection": "right"}]
+    # the off-route telemetry field is deliberately not served
+    assert "distanceFromRoute" not in result
 
 
 class TestCanSetNow:
