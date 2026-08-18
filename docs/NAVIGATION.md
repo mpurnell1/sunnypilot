@@ -80,7 +80,7 @@ yourself, never in a web page: a browser cannot keep it secret, and this fork ne
 serves or logs it anywhere. The token check is comma's; the device additionally answers
 only to accounts paired with it.
 
-The fork registers four additive methods next to the stock `setNavDestination` (which
+The fork registers five additive methods next to the stock `setNavDestination` (which
 is untouched, so comma connect and the CLI sender keep working):
 
 - `getNavStatus()`: the page's status payload, including whether a set is allowed now.
@@ -90,6 +90,11 @@ is untouched, so comma connect and the CLI sender keep working):
   (parked or standstill only, same gate as the page) and refused when navigation is
   disabled on the device.
 - `cancelRoute()`: allowed any time, the passenger rule.
+- `getNavState()`: one live guidance snapshot (route state, upcoming maneuvers with
+  distances, lanes, time and distance remaining, audio cue stage) for a polling head
+  unit client. Read-only, so it has no gate; `active: false` means navigationd is not
+  publishing. The page serves the same payload at `GET /api/state` for clients on the
+  car's network.
 
 Refusals come back as JSON-RPC errors carrying the same sentences the page uses.
 sunnypilot's own sunnylink connection shares the method table, so the same calls work
