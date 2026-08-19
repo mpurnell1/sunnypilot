@@ -43,7 +43,7 @@ class TestAthenaNavMethods:
   def test_registered_on_the_athena_dispatcher(self):
     # athenad registers at import; sunnylinkd shares the same dispatcher object
     from openpilot.system.athena.athenad import dispatcher
-    for name in ("getNavStatus", "listDestinations", "setDestination", "cancelRoute", "getNavState"):
+    for name in ("getNavStatus", "listDestinations", "setDestination", "cancelRoute", "getNavState", "searchPlaces"):
       assert name in dispatcher, f"{name} missing from the athena dispatcher"
     assert "setNavDestination" in dispatcher, "the upstream method must stay untouched"
 
@@ -94,9 +94,34 @@ class TestAthenaNavMethods:
     assert result["favorites"] == [{"kind": "home", "name": "Home", "dest": "123 Home St"}]
     assert result["recents"] == [{"name": "Library", "dest": "-119.03,34.22"}]
 
-  def test_token_never_crosses_the_tunnel(self):
+  def test_search_places(self, mocker):
+    from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
+    places = [{"name": "Norton Simon Museum, Pasadena", "longitude": -118.1587, "latitude": 34.1450}]
+    mocker.patch.object(MapboxIntegration, "search_places", return_value=places)
+    result = rpc_call("searchPlaces", {"query": "norton simon"})["result"]
+    assert result == {"results": places}
+
+  def test_search_requires_a_query(self):
+    response = rpc_call("searchPlaces", {"query": "  "})
+    assert response["error"]["message"] == "empty query"
+
+  def test_search_failure_is_an_error_not_a_result(self, mocker):
+    from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
+    mocker.patch.object(MapboxIntegration, "search_places", return_value=None)
+    response = rpc_call("searchPlaces", {"query": "anywhere"})
+    assert "search failed" in response["error"]["message"]
+
+  def test_search_refused_when_navigation_disabled(self):
+    self.params.put("AllowNavigation", False, block=True)
+    response = rpc_call("searchPlaces", {"query": "anywhere"})
+    assert response["error"]["message"] == "navigation is disabled on the device"
+
+  def test_token_never_crosses_the_tunnel(self, mocker):
     # same redline as the page: sweep every method, success and error paths, and require
-    # the Mapbox token to be absent from every JSON-RPC response
+    # the Mapbox token to be absent from every JSON-RPC response. search is mocked so
+    # the sweep never puts the sentinel token on the wire for real.
+    from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
+    mocker.patch.object(MapboxIntegration, "search_places", return_value=[{"name": "x", "longitude": 0.0, "latitude": 0.0}])
     self.params.put("MapboxFavorites", {"home": "123 Home St"}, block=True)
     responses = [
       rpc_call("getNavStatus"),
@@ -105,6 +130,8 @@ class TestAthenaNavMethods:
       rpc_call("setDestination", {}),
       rpc_call("cancelRoute"),
       rpc_call("getNavState"),
+      rpc_call("searchPlaces", {"query": "library"}),
+      rpc_call("searchPlaces", {"query": ""}),
     ]
     self.can_set.return_value = False
     responses.append(rpc_call("setDestination", {"dest": "-119.03,34.22"}))
