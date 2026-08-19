@@ -56,9 +56,18 @@ assert arch in [
 ]
 
 pkg_names = ['acados', 'bzip2', 'capnproto', 'catch2', 'eigen', 'ffmpeg', 'json11', 'ncurses', 'zeromq', 'zstd']
-pkgs = [importlib.import_module(name) for name in pkg_names]
-acados = pkgs[pkg_names.index('acados')]
-ffmpeg = pkgs[pkg_names.index('ffmpeg')]
+# Newer device venvs (AGNOS 19.x) dropped the bzip2 and catch2 wheels along with
+# upstream; they only feed the PC tools and tests, so a missing wheel is skipped
+# here and _resolve_lib still fails any target that really links it.
+_pkg_modules = {}
+for _name in pkg_names:
+  try:
+    _pkg_modules[_name] = importlib.import_module(_name)
+  except ImportError:
+    pass
+pkgs = list(_pkg_modules.values())
+acados = _pkg_modules['acados']
+ffmpeg = _pkg_modules['ffmpeg']
 # Shared package ships .so/.dylib; older device venvs still have static .a only.
 # Keep static link deps (x264/z/va/drm) when the installed package is static so
 # TICI CI works without upgrading the device venv yet.
