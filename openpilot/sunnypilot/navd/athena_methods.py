@@ -71,6 +71,17 @@ def getNavState() -> dict:
   return nav_state_snapshot()
 
 
+def searchPlaces(query: str = "") -> dict:
+  """The page's /api/search over the tunnel: forward geocoding through the device's
+  Mapbox token, proximity-biased to the last known position. Read-only, so no
+  parked gate; refused when navigation is disabled, the honest mirror of the page
+  not running (same rule as setDestination)."""
+  api = _api()
+  if not api.params.get_bool("AllowNavigation"):
+    raise ApiError("navigation is disabled on the device", status=409)
+  return api.search(query)
+
+
 def register(dispatcher) -> None:
-  for fn in (getNavStatus, listDestinations, setDestination, cancelRoute, getNavState):
+  for fn in (getNavStatus, listDestinations, setDestination, cancelRoute, getNavState, searchPlaces):
     dispatcher[fn.__name__] = fn
