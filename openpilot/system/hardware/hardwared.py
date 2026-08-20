@@ -35,11 +35,6 @@ DISCONNECT_TIMEOUT = 5.  # wait 5 seconds before going offroad after disconnect 
 PANDA_STATES_TIMEOUT = round(1000 / SERVICE_LIST['pandaStates'].frequency * 1.5)  # 1.5x the expected pandaState frequency
 ONROAD_CYCLE_TIME = 1  # seconds to wait offroad after requesting an onroad cycle
 
-# Fallback for a dead harness ignition line: with IGNITION_BY_CAN_ACTIVITY set in the
-# environment, CAN traffic on a connected harness counts as ignition until the bus sleeps.
-IGNITION_BY_CAN_ACTIVITY = os.getenv("IGNITION_BY_CAN_ACTIVITY") is not None
-CAN_ACTIVITY_QUIET_TIME = 30.  # seconds of bus silence before CAN-activity ignition drops
-
 ThermalBand = namedtuple("ThermalBand", ['min_temp', 'max_temp'])
 HardwareState = namedtuple("HardwareState", ['network_type', 'network_info', 'network_strength', 'network_stats',
                                              'network_metered', 'modem_temps', 'usb_state'])
@@ -184,8 +179,6 @@ def hardware_thread(end_event, hw_queue) -> None:
   engaged_prev = False
   pwrsave = False
   offroad_cycle_count = 0
-  can_rx_cnt_prev: int | None = None
-  can_activity_ts: float | None = None
 
   params = Params()
   power_monitor = PowerMonitoring()
@@ -219,13 +212,6 @@ def hardware_thread(end_event, hw_queue) -> None:
       pandaState = pandaStates[0]
 
       in_car = pandaState.harnessStatus != log.PandaState.HarnessStatus.notConnected
-
-      if IGNITION_BY_CAN_ACTIVITY and not onroad_conditions["ignition"] and in_car:
-        can_rx_cnt = sum(cs.totalRxCnt for ps in pandaStates for cs in (ps.canState0, ps.canState1, ps.canState2))
-        if can_rx_cnt_prev is not None and can_rx_cnt != can_rx_cnt_prev:
-          can_activity_ts = time.monotonic()
-        can_rx_cnt_prev = can_rx_cnt
-        onroad_conditions["ignition"] = can_activity_ts is not None and (time.monotonic() - can_activity_ts) < CAN_ACTIVITY_QUIET_TIME
 
     elif (time.monotonic() - sm.recv_time['pandaStates']) > DISCONNECT_TIMEOUT:
       if onroad_conditions["ignition"]:

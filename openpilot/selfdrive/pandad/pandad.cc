@@ -201,6 +201,13 @@ std::optional<bool> send_panda_states(PubMaster *pm, Panda *panda, bool is_onroa
     health.ignition_line_pkt = 1;
   }
 
+  // dead ignition line fallback: a connected harness counts as ignition, bare USB power does not.
+  // spoofed at the source so the UI, safety config, and power save all agree downstream.
+  static const bool ignition_by_harness = getenv("IGNITION_BY_HARNESS") != nullptr;
+  if (ignition_by_harness && (health.car_harness_status_pkt != 0U)) {  // 0 = HarnessStatus.notConnected
+    health.ignition_line_pkt = 1;
+  }
+
   bool ignition_local = ((health.ignition_line_pkt != 0) || (health.ignition_can_pkt != 0)) && !always_offroad;
 
   // Make sure CAN buses are live: safety_setter_thread does not work if Panda CAN are silent and there is only one other CAN node
