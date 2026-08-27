@@ -67,7 +67,7 @@ class TestAthenaNavMethods:
     assert self.params.get("MapboxRoute") is None
 
   def test_set_destination_allowed_while_moving(self):
-    # ruling 2026-08-27: routes may change mid-drive; nav desires need driver confirmation
+    # nav desires need driver confirmation, so a mid-drive route swap is display-only
     self.can_set.return_value = False
     result = rpc_call("setDestination", {"dest": "-119.03,34.22"})["result"]
     assert result["destination"] == "-119.03,34.22"
