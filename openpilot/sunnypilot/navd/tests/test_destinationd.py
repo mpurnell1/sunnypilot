@@ -161,7 +161,6 @@ class TestDestinationd:
     assert self.post("/api/navigate", {"name": "nowhere"}).status_code == 400
 
   def test_navigate_allowed_while_moving(self):
-    # nav desires need driver confirmation, so a mid-drive route swap is display-only
     self.vehicle.can_set = False
     assert self.post("/api/navigate", {"dest": "-119.03,34.22"}).status_code == 200
     assert self.params.get("MapboxRoute") == "-119.03,34.22"
