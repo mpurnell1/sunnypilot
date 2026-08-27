@@ -77,8 +77,8 @@ class DestinationAPI:
     return {"routes": routes}
 
   def navigate(self, dest, name="", summary="") -> dict:
-    # settable while driving (Matt's ruling, 2026-08-27): nav desires need the driver's
-    # blinker and torque, so a route swap is display-only; the gate survives on settings
+    # settable while driving: nav desires need the driver's blinker and torque, so a
+    # route swap is display-only; the standstill gate survives on settings
     if not str(dest or "").strip():
       raise ApiError("dest is required")
     self.store.set_destination(str(dest), name=str(name or ""), route_summary=str(summary or ""))
