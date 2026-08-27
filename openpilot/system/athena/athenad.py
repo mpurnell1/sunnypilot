@@ -139,7 +139,6 @@ class UploadItem:
 
 
 dispatcher["echo"] = lambda s: s
-# the fork's destination contract rides the same tunnel; sunnylinkd shares this dispatcher
 athena_methods.register(dispatcher)
 recv_queue: Queue[str] = queue.Queue()
 send_queue: Queue[tuple[int, int, str]] = queue.PriorityQueue()
