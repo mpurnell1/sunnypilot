@@ -8,8 +8,12 @@ The destination contract over comma's athena connection, for clients away from t
 car (comma prime carries the tunnel; auth is the comma account JWT, which belongs in
 an app, never a browser). Additive by design: upstream setNavDestination is untouched
 and these methods reuse the same handlers as the LAN page, so the two transports
-cannot drift. Registration happens in athenad, and sunnylinkd shares the dispatcher,
-so the methods answer on both relays.
+cannot drift.
+
+The relay carries only these rare, user-initiated calls, the same shape and frequency
+as upstream's setNavDestination. comma's note to fork maintainers caps prime and
+connect usage at openpilot-master capacities, so the sustained state poll and search
+live on destinationd's HTTP API, reached directly over wifi or a tailnet.
 
 Gating parity with the page: setting a destination needs offroad or standstill,
 cancel works any time. athenad has no vehicle thread, so the gate here is a one-shot
@@ -18,7 +22,6 @@ carState read with the same conservative deny when no fresh reading exists.
 import openpilot.cereal.messaging as messaging
 from openpilot.common.params import Params
 from openpilot.sunnypilot.navd.navigation_helpers.destination_api import ApiError, DestinationAPI, STANDSTILL_SPEED
-from openpilot.sunnypilot.navd.navigation_helpers.nav_state import nav_state_snapshot
 
 CARSTATE_TIMEOUT_MS = 1000
 
@@ -66,22 +69,6 @@ def cancelRoute() -> dict:
   return _api().cancel()
 
 
-def getNavState() -> dict:
-  # the shared snapshot serializer, so the athena poll and the page's /api/state agree
-  return nav_state_snapshot()
-
-
-def searchPlaces(query: str = "") -> dict:
-  """The page's /api/search over the tunnel: forward geocoding through the device's
-  Mapbox token, proximity-biased to the last known position. Read-only, so no
-  parked gate; refused when navigation is disabled, the honest mirror of the page
-  not running (same rule as setDestination)."""
-  api = _api()
-  if not api.params.get_bool("AllowNavigation"):
-    raise ApiError("navigation is disabled on the device", status=409)
-  return api.search(query)
-
-
 def register(dispatcher) -> None:
-  for fn in (getNavStatus, listDestinations, setDestination, cancelRoute, getNavState, searchPlaces):
+  for fn in (getNavStatus, listDestinations, setDestination, cancelRoute):
     dispatcher[fn.__name__] = fn
