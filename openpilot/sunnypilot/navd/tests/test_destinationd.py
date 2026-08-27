@@ -160,10 +160,11 @@ class TestDestinationd:
   def test_navigate_requires_dest(self):
     assert self.post("/api/navigate", {"name": "nowhere"}).status_code == 400
 
-  def test_navigate_refused_while_moving(self):
+  def test_navigate_allowed_while_moving(self):
+    # ruling 2026-08-27: routes may change mid-drive; nav desires need driver confirmation
     self.vehicle.can_set = False
-    assert self.post("/api/navigate", {"dest": "-119.03,34.22"}).status_code == 409
-    assert self.params.get("MapboxRoute") is None
+    assert self.post("/api/navigate", {"dest": "-119.03,34.22"}).status_code == 200
+    assert self.params.get("MapboxRoute") == "-119.03,34.22"
 
   def test_cancel_allowed_while_moving(self):
     self.post("/api/navigate", {"dest": "-119.03,34.22", "summary": "CA-1"})
@@ -213,7 +214,7 @@ class TestDestinationd:
     assert self.post("/api/settings", {"navAudio": -1}).status_code == 400
 
   def test_settings_refused_while_moving(self):
-    # the same gate as navigate: a passenger may cancel mid-drive, not reconfigure
+    # a passenger may cancel or reroute mid-drive, not reconfigure
     self.vehicle.can_set = False
     assert self.post("/api/settings", {"recompute": True}).status_code == 409
     assert not self.params.get_bool("MapboxRecompute")
