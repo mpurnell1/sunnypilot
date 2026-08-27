@@ -6,7 +6,8 @@ See the LICENSE.md file in the root directory for more details.
 
 The destination contract over athena: the RPC methods are exercised through the real
 JSON-RPC layer (rpc.handle), so the wire shape a phone app sees is what is asserted,
-including error responses and the token redline.
+including error responses and the token redline. The state poll and search are
+destinationd HTTP endpoints, covered in test_destinationd.py.
 """
 import json
 import threading
@@ -40,10 +41,10 @@ class TestAthenaNavMethods:
     self.params.put_bool("IsOffroad", True, block=True)
     self.can_set = mocker.patch.object(athena_methods, "_can_set_now", return_value=True)
 
-  def test_registered_on_the_athena_dispatcher(self):
-    # athenad registers at import; sunnylinkd shares the same dispatcher object
+  def test_athenad_registers_the_destination_contract(self):
+    # athenad registers at import
     from openpilot.system.athena.athenad import dispatcher
-    for name in ("getNavStatus", "listDestinations", "setDestination", "cancelRoute", "getNavState", "searchPlaces"):
+    for name in ("getNavStatus", "listDestinations", "setDestination", "cancelRoute"):
       assert name in dispatcher, f"{name} missing from the athena dispatcher"
     assert "setNavDestination" in dispatcher, "the upstream method must stay untouched"
 
@@ -94,34 +95,9 @@ class TestAthenaNavMethods:
     assert result["favorites"] == [{"kind": "home", "name": "Home", "dest": "123 Home St"}]
     assert result["recents"] == [{"name": "Library", "dest": "-119.03,34.22"}]
 
-  def test_search_places(self, mocker):
-    from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
-    places = [{"name": "Norton Simon Museum, Pasadena", "longitude": -118.1587, "latitude": 34.1450}]
-    mocker.patch.object(MapboxIntegration, "search_places", return_value=places)
-    result = rpc_call("searchPlaces", {"query": "norton simon"})["result"]
-    assert result == {"results": places}
-
-  def test_search_requires_a_query(self):
-    response = rpc_call("searchPlaces", {"query": "  "})
-    assert response["error"]["message"] == "empty query"
-
-  def test_search_failure_is_an_error_not_a_result(self, mocker):
-    from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
-    mocker.patch.object(MapboxIntegration, "search_places", return_value=None)
-    response = rpc_call("searchPlaces", {"query": "anywhere"})
-    assert "search failed" in response["error"]["message"]
-
-  def test_search_refused_when_navigation_disabled(self):
-    self.params.put("AllowNavigation", False, block=True)
-    response = rpc_call("searchPlaces", {"query": "anywhere"})
-    assert response["error"]["message"] == "navigation is disabled on the device"
-
-  def test_token_never_crosses_the_tunnel(self, mocker):
+  def test_token_never_crosses_the_tunnel(self):
     # same redline as the page: sweep every method, success and error paths, and require
-    # the Mapbox token to be absent from every JSON-RPC response. search is mocked so
-    # the sweep never puts the sentinel token on the wire for real.
-    from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
-    mocker.patch.object(MapboxIntegration, "search_places", return_value=[{"name": "x", "longitude": 0.0, "latitude": 0.0}])
+    # the Mapbox token to be absent from every JSON-RPC response
     self.params.put("MapboxFavorites", {"home": "123 Home St"}, block=True)
     responses = [
       rpc_call("getNavStatus"),
@@ -129,80 +105,11 @@ class TestAthenaNavMethods:
       rpc_call("setDestination", {"dest": "-119.03,34.22"}),
       rpc_call("setDestination", {}),
       rpc_call("cancelRoute"),
-      rpc_call("getNavState"),
-      rpc_call("searchPlaces", {"query": "library"}),
-      rpc_call("searchPlaces", {"query": ""}),
     ]
     self.can_set.return_value = False
     responses.append(rpc_call("setDestination", {"dest": "-119.03,34.22"}))
     for response in responses:
       assert TOKEN not in json.dumps(response), f"token leaked in {response}"
-
-
-class TestGetNavState:
-  """The phase 9 poll body on real sockets: a published navigationd message comes back
-  through the real JSON-RPC layer (so JSON serializability of every field is what is
-  asserted), and silence reports inactive rather than erroring."""
-
-  def _publish_navigationd(self, stop_event: threading.Event) -> None:
-    pm = messaging.PubMaster(['navigationd'])
-    while not stop_event.is_set():
-      msg = messaging.new_message('navigationd')
-      msg.valid = True
-      nav = msg.navigationd
-      nav.valid = True
-      nav.routeState = 'onRoute'
-      nav.distanceRemaining = 3862.0
-      nav.timeRemaining = 480.0
-      nav.currentSpeedLimit = 72
-      nav.bannerInstructions = 'Turn right onto Fair Oaks Ave'
-      nav.audioCueKind = 'turn'
-      nav.audioCueStage = 'approach'
-      nav.audioCueDirection = 'right'
-      maneuvers = nav.init('allManeuvers', 2)
-      maneuvers[0].distance = 240.0
-      maneuvers[0].type = 'turn'
-      maneuvers[0].modifier = 'right'
-      maneuvers[0].instruction = 'Turn right onto Fair Oaks Ave'
-      maneuvers[1].distance = 1130.0
-      maneuvers[1].type = 'turn'
-      maneuvers[1].modifier = 'left'
-      maneuvers[1].instruction = 'Turn left onto Colorado Blvd'
-      lanes = nav.init('lanes', 1)
-      lanes[0].directions = ['straight', 'right']
-      lanes[0].active = True
-      lanes[0].activeDirection = 'right'
-      pm.send('navigationd', msg)
-      time.sleep(0.05)
-
-  def test_silence_reports_inactive(self):
-    assert rpc_call("getNavState")["result"] == {"active": False}
-
-  def test_live_message_serializes_through_the_rpc_layer(self):
-    stop = threading.Event()
-    thread = threading.Thread(target=self._publish_navigationd, args=(stop,), daemon=True)
-    thread.start()
-    try:
-      time.sleep(0.1)  # let the publisher bind before the one-shot subscriber connects
-      result = rpc_call("getNavState")["result"]
-    finally:
-      stop.set()
-      thread.join(timeout=2)
-
-    assert result["active"] is True and result["valid"] is True
-    assert result["routeState"] == "onRoute"
-    assert result["routeFailures"] == 0
-    assert result["distanceRemaining"] == 3862.0
-    assert result["timeRemaining"] == 480.0
-    assert result["currentSpeedLimit"] == 72
-    assert result["audioCueStage"] == "approach"
-    assert [m["modifier"] for m in result["maneuvers"]] == ["right", "left"]
-    assert result["maneuvers"][0] == {"distance": 240.0, "type": "turn", "modifier": "right",
-                                      "instruction": "Turn right onto Fair Oaks Ave"}
-    assert result["lanes"] == [{"directions": ["straight", "right"], "active": True,
-                                "activeDirection": "right"}]
-    # the off-route telemetry field is deliberately not served
-    assert "distanceFromRoute" not in result
 
 
 class TestCanSetNow:
