@@ -77,10 +77,10 @@ class DestinationAPI:
     return {"routes": routes}
 
   def navigate(self, dest, name="", summary="") -> dict:
+    # settable while driving (Matt's ruling, 2026-08-27): nav desires need the driver's
+    # blinker and torque, so a route swap is display-only; the gate survives on settings
     if not str(dest or "").strip():
       raise ApiError("dest is required")
-    if not self.can_set():
-      raise ApiError("destination can only be set while parked", status=409)
     self.store.set_destination(str(dest), name=str(name or ""), route_summary=str(summary or ""))
     return self.status()
 
@@ -117,7 +117,7 @@ class DestinationAPI:
 
   def apply_settings(self, body: dict) -> dict:
     if not self.can_set():
-      # the same gate as navigate: a passenger may cancel mid-drive, not reconfigure
+      # a passenger may cancel or reroute mid-drive, not reconfigure
       raise ApiError("settings can only be changed while parked", status=409)
 
     p = self.params

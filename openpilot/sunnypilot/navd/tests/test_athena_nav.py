@@ -66,12 +66,12 @@ class TestAthenaNavMethods:
     assert response["error"]["message"] == "dest is required"
     assert self.params.get("MapboxRoute") is None
 
-  def test_set_destination_refused_while_moving(self):
-    # the page returns this exact sentence with a 409; over JSON-RPC it is the error message
+  def test_set_destination_allowed_while_moving(self):
+    # ruling 2026-08-27: routes may change mid-drive; nav desires need driver confirmation
     self.can_set.return_value = False
-    response = rpc_call("setDestination", {"dest": "-119.03,34.22"})
-    assert response["error"]["message"] == "destination can only be set while parked"
-    assert self.params.get("MapboxRoute") is None
+    result = rpc_call("setDestination", {"dest": "-119.03,34.22"})["result"]
+    assert result["destination"] == "-119.03,34.22"
+    assert self.params.get("MapboxRoute") == "-119.03,34.22"
 
   def test_set_destination_refused_when_navigation_disabled(self):
     # the page simply is not running with navigation off; the honest athena mirror is a refusal

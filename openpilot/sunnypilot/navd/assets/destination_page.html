@@ -62,7 +62,6 @@
 <h1>sunnypilot navigation</h1>
 
 <div id="setup-banner" class="banner"></div>
-<div id="moving-banner" class="banner"></div>
 
 <div class="card">
   <div class="row">
@@ -177,9 +176,6 @@ function applyStatus(s) {
   if (!s.tokenSet) { setup.textContent = "No Mapbox token is set on the device."; setup.className = "banner warn"; }
   else if (!s.navEnabled) { setup.textContent = "Navigation is disabled in the device settings."; setup.className = "banner warn"; }
   else setup.className = "banner";
-  const moving = $("moving-banner");
-  moving.textContent = "The car is moving. You can cancel navigation, but setting a destination needs a stop.";
-  moving.className = s.canSet ? "banner" : "banner warn";
   renderSaved();
 }
 
@@ -298,7 +294,6 @@ function routeCard(route, note) {
   const go = document.createElement("button");
   go.className = "primary";
   go.textContent = "Go";
-  go.disabled = !state.canSet;
   go.onclick = ev => { ev.stopPropagation(); navigateTo(picked.name, destString(picked), route && route.summary ? route.summary : ""); };
   div.appendChild(info);
   div.appendChild(go);
