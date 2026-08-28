@@ -45,6 +45,7 @@ import openpilot.cereal.messaging as messaging
 from openpilot.cereal.services import SERVICE_LIST
 from openpilot.common.basedir import BASEDIR
 from openpilot.common.params import Params
+from openpilot.sunnypilot.navd.helpers import Coordinate
 from openpilot.sunnypilot.navd.nav_audio import NavAudioCues
 from openpilot.sunnypilot.navd.navigationd import Navigationd
 
@@ -183,6 +184,10 @@ def _build_msg(state: TickState, cues: NavAudioCues, stub: SimpleNamespace):
   stub.rerouting = state.rerouting
   # the daemon debounces this over ticks; the demo reads it straight off the drift meters
   stub.off_route = state.route is not None and not state.arrived and state.off_route > 210.0
+  # the demo has no geography, so the fix is a fixed point; losing GPS drops it like the daemon's
+  stub.last_position = Coordinate(34.22, -119.03) if state.gps_ok else None
+  stub.last_bearing = 0.0 if state.gps_ok else None
+  stub.route = {'route_id': 1} if state.route is not None else None
   # the production builder, called with a stub in place of the daemon, so the message
   # shape can never drift from what navigationd publishes
   return Navigationd._build_navigation_message(stub, banner, progress, nav_data, state.gps_ok)

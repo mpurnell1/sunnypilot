@@ -90,6 +90,11 @@ class TestDestinationd:
       nav.audioCueKind = 'turn'
       nav.audioCueStage = 'approach'
       nav.audioCueDirection = 'right'
+      nav.hasPosition = True
+      nav.positionLatitude = 34.226
+      nav.positionLongitude = -119.032
+      nav.positionBearingDeg = 271.5
+      nav.routeId = 3123456789
       maneuvers = nav.init('allManeuvers', 2)
       maneuvers[0].distance = 240.0
       maneuvers[0].type = 'turn'
@@ -129,6 +134,20 @@ class TestDestinationd:
                                       "instruction": "Turn right onto Fair Oaks Ave"}
     assert result["lanes"] == [{"directions": ["straight", "right"], "active": True,
                                 "activeDirection": "right"}]
+    assert result["routeId"] == 3123456789
+    assert result["position"] == {"latitude": 34.226, "longitude": -119.032, "bearingDeg": 271.5}
+
+  def test_route_empty_without_a_route(self):
+    self.params.remove("MapboxSettings")
+    assert self.get("/api/route").json() == {"routeId": 0, "points": []}
+
+  def test_route_serves_the_stored_polyline(self):
+    geometry = [{"latitude": 34.2 + i * 0.001, "longitude": -119.0 + (i % 2) * 0.001} for i in range(5)]
+    self.params.put("MapboxSettings", {"navData": {"current": geometry[0], "route": {"geometry": geometry}}}, block=True)
+    body = self.get("/api/route").json()
+    assert body["routeId"] != 0
+    assert body["points"][0] == [geometry[0]["latitude"], geometry[0]["longitude"]]
+    assert body["points"][-1] == [geometry[-1]["latitude"], geometry[-1]["longitude"]]
 
   def test_search(self):
     body = self.get("/api/search?q=library").json()
@@ -205,6 +224,8 @@ class TestDestinationd:
     assert self.params.get("NavigationAudio") == 2
     assert self.params.get("NavLaneGuidance") == 1
     assert self.params.get_bool("MapboxRecompute")
+    # posted settings persist in the shared param space; put the defaults back for the tests behind us
+    self.post("/api/settings", {"navHudMode": 3, "navAudio": 0, "laneGuidanceDisplay": False, "recompute": False})
 
   def test_settings_reject_bad_values(self):
     assert self.post("/api/settings", {"navHudMode": 7}).status_code == 400
@@ -244,6 +265,7 @@ class TestDestinationd:
       self.get("/"),
       self.get("/api/status"),
       self.get("/api/state"),
+      self.get("/api/route"),
       self.get("/api/search?q=library"),
       self.get("/api/routes?lon=-119.03&lat=34.22"),
       self.post("/api/navigate", {"dest": "-119.03,34.22"}),
