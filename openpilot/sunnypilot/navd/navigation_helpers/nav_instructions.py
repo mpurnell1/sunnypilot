@@ -9,6 +9,7 @@ from numpy import interp
 from openpilot.common.params import Params
 
 from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES, Coordinate, bearing_between_two_points, string_to_direction, project_onto_geometry
+from openpilot.sunnypilot.navd.navigation_helpers.route_line import route_id
 
 
 class NavigationInstructions:
@@ -108,6 +109,9 @@ class NavigationInstructions:
         'instruction': step['instruction'],
       })
     self._cached_route = {
+      # computed from the raw param geometry, the same bytes destinationd's /api/route
+      # hashes, so the id navigationd publishes matches the polyline a client fetches
+      'route_id': route_id(route),
       'bearings': [bearing_between_two_points(geometry[i], geometry[i+2]) for i in range(len(geometry)-2)],
       'steps': steps,
       'total_distance': route['totalDistance'],

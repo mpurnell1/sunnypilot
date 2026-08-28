@@ -510,6 +510,17 @@ struct Navigationd @0xcb9fd56c7057593a {
   # parks at offRoute. distanceFromRoute stays telemetry: raw meters are never drawn.
   routeState @17 :RouteState;
 
+  # the car and the route it stands on, for the head unit surface. Position is the last
+  # accepted localizer fix, sticky like every other guidance input; hasPosition false means
+  # none has arrived since start. routeId names the loaded route (content-derived so
+  # restarts agree, 0 = no route); clients refetch the polyline when it moves. Position
+  # and route shape are served over the LAN or the tailnet only, never comma's relay.
+  positionLatitude @18 :Float64;
+  positionLongitude @19 :Float64;
+  positionBearingDeg @20 :Float32;  # [0, 360), 0 = north
+  hasPosition @21 :Bool;
+  routeId @22 :UInt32;
+
   enum RouteState {
     onRoute @0;
     offRoute @1;
