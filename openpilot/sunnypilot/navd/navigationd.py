@@ -319,6 +319,12 @@ class Navigationd:
       msg.navigationd.routeState = 'offRoute'
     else:
       msg.navigationd.routeState = 'onRoute'
+    msg.navigationd.hasPosition = self.last_position is not None
+    if self.last_position is not None:
+      msg.navigationd.positionLatitude = self.last_position.latitude
+      msg.navigationd.positionLongitude = self.last_position.longitude
+      msg.navigationd.positionBearingDeg = (self.last_bearing + 360) % 360 if self.last_bearing is not None else 0.0
+    msg.navigationd.routeId = self.route['route_id'] if self.route else 0
     msg.navigationd.audioCueKind = self.nav_audio.kind
     msg.navigationd.audioCueStage = self.nav_audio.stage
     msg.navigationd.audioCueId = self.nav_audio.cue_id

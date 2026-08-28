@@ -124,6 +124,22 @@ class TestNavigationd:
     nav.rerouting = True
     assert nav._build_navigation_message('', None, {}, True).navigationd.routeState == 'rerouting'
 
+  def test_position_and_route_id_publish(self):
+    nav = Navigationd()
+    msg = nav._build_navigation_message('', None, {}, True)
+    assert msg.navigationd.hasPosition is False
+    assert msg.navigationd.routeId == 0
+
+    nav.last_position = Coordinate(latitude=34.226, longitude=-119.032)
+    nav.last_bearing = -90.0
+    nav.route = {'route_id': 7}
+    msg = nav._build_navigation_message('', None, {}, True)
+    assert msg.navigationd.hasPosition is True
+    assert msg.navigationd.positionLatitude == 34.226
+    assert msg.navigationd.positionLongitude == -119.032
+    assert msg.navigationd.positionBearingDeg == 270.0  # published normalized to [0, 360)
+    assert msg.navigationd.routeId == 7
+
   def test_build_navigation_message(self):
     if self.is_darwin:
       nav = Navigationd()
