@@ -191,6 +191,11 @@ class SelfdriveD(CruiseHelper):
     self.events.clear()
     self.events_sp.clear()
 
+    # offroad the manager is about to stop this process, and the panda and buses going
+    # quiet behind the ignition are not faults
+    if self.sm.recv_frame['deviceState'] > 0 and not self.sm['deviceState'].started:
+      return
+
     if self.sm['controlsState'].lateralControlState.which() == 'debugState':
       self.events.add(EventName.joystickDebug)
       self.startup_event = None
