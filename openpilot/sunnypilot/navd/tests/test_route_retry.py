@@ -207,7 +207,7 @@ class TestRouteRetry:
     self.run_for(1.0)
     assert self.nav.route == ROUTE
 
-    # one poll sees the destination empty, then the value is back — a glitch, not a clear
+    # one poll sees the destination empty, then the value is back: a glitch, not a clear
     Params().put("MapboxRoute", "", block=True)
     self.run_for(5.0)
     Params().put("MapboxRoute", DESTINATION, block=True)

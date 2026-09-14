@@ -491,7 +491,7 @@ struct Navigationd @0xcb9fd56c7057593a {
   # mapped lane count says the adjacent lane runs our way, never toward oncoming traffic
   laneChangeAutoConfirm @11 :Bool;
 
-  # latest audio prompt, as semantics rather than any rendering — soundd owns how a cue
+  # latest audio prompt, as semantics rather than any rendering: soundd owns how a cue
   # sounds. Sticky until the next cue: consumers edge-detect on audioCueId, which
   # increments once per cue, so a late subscriber must not replay the first value it sees.
   # kind: 'turn' | 'slightTurn' | 'sharpTurn' | 'uturn' | 'keep' | 'exit' | 'merge' |

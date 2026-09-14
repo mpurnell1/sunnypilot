@@ -116,8 +116,7 @@ class TestAutoConfirm:
     assert not msg.navigationd.laneChangeAutoConfirm
 
 
-# the road names are real banner texts from the 2026-08-03 drives, where they appeared
-# on the turn card with no action attached
+# road names captured from real drives, where they appeared on the turn card with no action attached
 class TestBannerWording:
   def test_road_names_get_their_action_back(self):
     assert compose_banner_text('South 5th Street / I 55 Business', 'turn', 'right') == 'Turn right onto South 5th Street / I 55 Business'

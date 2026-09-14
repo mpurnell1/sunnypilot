@@ -27,13 +27,13 @@ class EventBuilder:
     banner = m.instruction
 
     if metric:
-      dist = f'{m.distance / NAV_CV.METERS_TO_KILO:.1f} km,'
+      dist = f'{m.distance / NAV_CV.METERS_PER_KM:.1f} km,'
       if m.distance < NAV_CV.SHORT_DISTANCE_METERS:
         dist = f'{int(m.distance)}m,'
     else:
-      dist = f'{m.distance / NAV_CV.METERS_TO_MILE:.1f} mi,'
+      dist = f'{m.distance / NAV_CV.METERS_PER_MILE:.1f} mi,'
       if m.distance < NAV_CV.QUARTER_MILE:
-        dist = f'{round((m.distance * NAV_CV.METERS_TO_FEET) / 50) * 50}ft,'
+        dist = f'{round((m.distance * NAV_CV.FEET_PER_METER) / 50) * 50}ft,'
 
     if m.type == 'depart':
       base_msg = banner

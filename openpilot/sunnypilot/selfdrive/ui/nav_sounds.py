@@ -4,10 +4,10 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-Rendering for navigation audio cues. navigationd publishes what a cue means — a kind, a
-side, a count — and this file owns everything about how it sounds, including the Morse
+Rendering for navigation audio cues. navigationd publishes what a cue means (a kind, a
+side, a count) and this file owns everything about how it sounds, including the Morse
 letter vocabulary. Two renderings exist: a 700 Hz CW sidetone keying that vocabulary, and
-four sounds total in Tones mode — a two-note pair whose contour is the direction (rising =
+four sounds total in Tones mode: a two-note pair whose contour is the direction (rising =
 right, falling = left, doubled and faster = the turn is now), a soft short blip pair for
 lane changes, a low pair for rerouting, and an arrival arpeggio. Every maneuver kind
 shares the directional pair: what kind of turn it is lives on the screen, not in the
@@ -38,7 +38,7 @@ MORSE = {
   '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....',
   '6': '-....', '7': '--...', '8': '---..', '9': '----.',
 }
-# the arrival cue is the AR prosign — di-dah-di-dah-dit run together as one character
+# the arrival cue is the AR prosign, di-dah-di-dah-dit run together as one character
 PROSIGNS = {'AR': '.-.-.'}
 
 # the agreed ham vocabulary, as prefix + side letter; kinds outside this table have
