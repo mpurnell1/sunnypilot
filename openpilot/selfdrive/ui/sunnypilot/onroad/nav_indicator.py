@@ -19,16 +19,13 @@ from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.widgets import Widget
 
-# The set speed box starts at x+60, y+45 and is set_speed_height tall; the speed limit signs
-# stack in the column to its right. This drops into the empty space directly below it.
+# directly below the set speed box (x+60, y+45, set_speed_height tall)
 LEFT_MARGIN = 60
 TOP_OFFSET = 45 + UI_CONFIG.set_speed_height + 20
 
 BOX_HEIGHT = 84
 ICON_WIDTH = 44
 
-# the quiet skin is a hint, not a card: a small glyph and the distance share the single-height
-# chip, and the content is dimmed so the road keeps visual priority
 CHIP_ICON_SIZE = 40
 CHIP_FONT_SIZE = 32
 CHIP_GAP = 14
@@ -39,17 +36,13 @@ LANE_INACTIVE = rl.Color(255, 255, 255, 80)
 
 BACKGROUND = rl.Color(0, 0, 0, 140)
 BAD = rl.Color(0xf2, 0x4b, 0x4b, 0xff)
-# opaque, so the overlaps the glyphs are built from never double-blend into seams
 TURN_COLOR = rl.Color(255, 255, 255, 255)
-# the road not taken: exits and forks draw the continuing carriageway too, so the bright
-# branch reads as a path through a junction rather than a floating arrow
-ROAD_DIM = rl.Color(255, 255, 255, 80)
+ROAD_DIM = rl.Color(255, 255, 255, 80)  # the carriageway not taken, on exits, forks and merges
 
 METERS_PER_FOOT = 0.3048
 METERS_PER_MILE = 1609.344
 
-# degrees clockwise from straight ahead. 'uturn' and roundabout maneuvers are absent by
-# design: they get dedicated glyphs rather than a rotated arrow.
+# degrees clockwise from straight ahead; u-turns and roundabouts have their own glyphs
 ARROW_ANGLES = {
   'straight': 0, 'none': 0,
   'slightRight': 45, 'right': 90, 'sharpRight': 135,
@@ -57,8 +50,6 @@ ARROW_ANGLES = {
 }
 
 
-# a lane can serve several directions; when it's the one to take, show the direction the
-# maneuver uses, otherwise its first listed direction
 def lane_direction(lane) -> str:
   if lane.active and lane.activeDirection:
     return lane.activeDirection
@@ -80,9 +71,7 @@ def format_distance(distance_m: float, is_metric: bool) -> str:
 
 
 def _draw_flag(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH, banner: bool = True) -> None:
-  """The destination flag; the not-yet stage of the searching progression is an empty
-  flagpole, ball finial on top and a base plinth under it, so a destination with no GPS
-  fix reads as a planted pole rather than a stray vertical bar."""
+  """The destination flag; without the banner, a planted pole (the no-fix searching stage)."""
   pole_w = max(3.0, size * 0.12)
   height = size * 1.05
   x = cx - size / 2
@@ -93,9 +82,7 @@ def _draw_flag(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH, 
     rl.draw_rectangle_rec(rl.Rectangle(x + pole_w, top, size - pole_w, height * 0.45), color)
     return
 
-  # flush joints, no overlaps: the searching color is translucent and stacked primitives
-  # double-blend into bright seams. The ball butts the pole at its tangent, which leaves
-  # the natural waist a real finial has; the base butts the pole's foot.
+  # butt joints: this draws outside the glyph cache in a translucent color, so overlaps double-blend
   ball_r = size * 0.14
   base_h = max(3.0, size * 0.10)
   base_w = size * 0.52
@@ -105,9 +92,6 @@ def _draw_flag(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH, 
   rl.draw_rectangle_rec(rl.Rectangle(pole_cx - base_w / 2, top + height - base_h, base_w, base_h), color)
 
 
-# glyphs are composed of strokes that meet flush instead of overlapping: the card colors are
-# translucent in places (inactive lanes, dim branches), and stacked translucent primitives
-# double-blend into visible blotches
 def _stroke(x: float, y: float, heading_deg: float, length: float, half_stroke: float, color: rl.Color) -> None:
   # draw_rectangle_pro rotates about the origin point placed at rec.x/rec.y; the rectangle's
   # local +y axis points down unrotated, so heading + 180 sends it along the travel direction
@@ -116,14 +100,11 @@ def _stroke(x: float, y: float, heading_deg: float, length: float, half_stroke: 
 
 
 def _cap(x: float, y: float, heading_deg: float, half_stroke: float, color: rl.Color) -> None:
-  # a half-disc butted against the stroke's end, so nothing is painted twice
   rl.draw_circle_sector(rl.Vector2(x, y), half_stroke, heading_deg - 180, heading_deg, 16, color)
 
 
 def _head(x: float, y: float, heading_deg: float, radius: float, color: rl.Color) -> tuple[float, float]:
-  """Isoceles arrowhead, longer than it is wide, whose back edge overlaps the stroke it
-  caps by a hair so the joint never shows. The overlap is safe because glyphs composite
-  opaque inside the texture cache; only draw at full opacity outside it."""
+  """Arrowhead whose back edge overlaps the stroke it caps; only safe inside the opaque glyph cache."""
   rad = radians(heading_deg)
   dx, dy = sin(rad), -cos(rad)
   px, py = -dy, dx
@@ -133,8 +114,7 @@ def _head(x: float, y: float, heading_deg: float, radius: float, color: rl.Color
   tip = rl.Vector2(bx + dx * head_len, by + dy * head_len)
   left = rl.Vector2(bx + px * half_w, by + py * half_w)
   right = rl.Vector2(bx - px * half_w, by - py * half_w)
-  # winding decides visibility in rlgl; drawing both keeps every heading covered, and
-  # inside the opaque cache the second pass changes nothing
+  # rlgl culls by winding; drawing both keeps every heading visible
   rl.draw_triangle(tip, left, right, color)
   rl.draw_triangle(tip, right, left, color)
   return dx, dy
@@ -153,8 +133,7 @@ def _draw_arrow(cx: float, cy: float, angle_deg: float, color: rl.Color, size: f
   _head(cx + dx * (half - head_radius * 1.5), cy + dy * (half - head_radius * 1.5), angle_deg, head_radius, color)
 
 
-# every turn-card glyph follows the u-turn's convention: the stem entering from the bottom
-# is the car's current direction of travel, and the arrowhead leaves along the maneuver
+# every glyph enters from the bottom (current travel) and the arrowhead leaves along the maneuver
 def _draw_turn(cx: float, cy: float, angle_deg: float, color: rl.Color, size: float = ICON_WIDTH) -> None:
   if angle_deg == 0:
     _draw_arrow(cx, cy, 0, color, size)
@@ -163,8 +142,6 @@ def _draw_turn(cx: float, cy: float, angle_deg: float, color: rl.Color, size: fl
   half_stroke = size * 0.11
   a = abs(angle_deg)
   sgn = 1.0 if angle_deg > 0 else -1.0
-  # the corner is a real ring segment, like the u-turn's arc, so the elbow is smooth by
-  # construction; sharper turns bend earlier and reach back down
   arc_radius = {45: 0.20, 90: 0.20, 135: 0.16}[a] * size
   stem_x = cx - sgn * {45: 0.18, 90: 0.28, 135: 0.22}[a] * size
   arc_y = cy + {45: 0.10, 90: -0.06, 135: -0.16}[a] * size
@@ -172,7 +149,7 @@ def _draw_turn(cx: float, cy: float, angle_deg: float, color: rl.Color, size: fl
 
   rl.draw_rectangle_rec(rl.Rectangle(stem_x - half_stroke, arc_y, 2 * half_stroke, cy + size * 0.5 - arc_y), color)
   center = rl.Vector2(stem_x + sgn * arc_radius, arc_y)
-  # ring angles run clockwise from +x; the stem joins the ring where its tangent is vertical
+  # ring angles run clockwise from +x in screen coords
   if sgn > 0:
     rl.draw_ring(center, arc_radius - half_stroke, arc_radius + half_stroke, 180, 180 + a, 24, color)
   else:
@@ -193,7 +170,7 @@ def _draw_fork(cx: float, cy: float, sgn: float, color: rl.Color, size: float = 
   split_y = cy + size * 0.04
   branch_len = size * 0.52
 
-  # the dim carriageway goes down first so the bright path always paints over it
+  # dim carriageway first, so the bright path paints over it
   through_angle = 0.0 if exit_ramp else -sgn * 25.0
   through_rad = radians(through_angle)
   _stroke(cx, split_y, through_angle, branch_len, half_stroke, ROAD_DIM)
@@ -209,8 +186,6 @@ def _draw_fork(cx: float, cy: float, sgn: float, color: rl.Color, size: float = 
   _head(cx + dx * branch_len, split_y + dy * branch_len, taken_angle, size * 0.22, color)
 
 
-# the dim leg is the carriageway being joined, running up to the join from below; the bright
-# path comes in from the ramp side, bends through a ring segment, and continues along it
 def _draw_merge(cx: float, cy: float, sgn: float, color: rl.Color, size: float = ICON_WIDTH) -> None:
   half_stroke = size * 0.11
   ramp_heading = sgn * 38.0
@@ -222,8 +197,7 @@ def _draw_merge(cx: float, cy: float, sgn: float, color: rl.Color, size: float =
 
   rl.draw_rectangle_rec(rl.Rectangle(highway_x - half_stroke, arc_y, 2 * half_stroke, bottom - arc_y), ROAD_DIM)
 
-  # the ramp straightens into the carriageway through a ring segment whose tangent is
-  # vertical at the join, so there is no corner to poke past either stroke
+  # the ring's tangent is vertical at the join, so no corner pokes past either stroke
   center = rl.Vector2(highway_x - sgn * arc_radius, arc_y)
   rad = radians(abs(ramp_heading))
   if sgn > 0:
@@ -246,11 +220,9 @@ def _draw_uturn(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH)
   radius = size * 0.30
   half_stroke = size * 0.11
   arc_cy = cy - size * 0.12
-  # ring angles run clockwise from +x in screen coords, so 180..360 is the upper half
+  # ring angles run clockwise from +x in screen coords: 180..360 is the upper half
   rl.draw_ring(rl.Vector2(cx, arc_cy), radius - half_stroke, radius + half_stroke, 180, 360, 24, color)
 
-  # approach leg up the right side, exit leg down the left ending in the arrowhead. Flush
-  # joints rather than overlaps: a translucent u-turn (inactive lane) must not double-blend
   leg_len = size * 0.46
   rl.draw_rectangle_rec(rl.Rectangle(cx + radius - half_stroke, arc_cy, 2 * half_stroke, leg_len), color)
   rl.draw_rectangle_rec(rl.Rectangle(cx - radius - half_stroke, arc_cy, 2 * half_stroke, leg_len * 0.5), color)
@@ -260,11 +232,10 @@ def _draw_uturn(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH)
 def _draw_roundabout(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH) -> None:
   radius = size * 0.26
   half_stroke = size * 0.10
-  # the ring sits high enough that the entry stem gets a real run from the glyph bottom
   ring_cy = cy
   rl.draw_ring(rl.Vector2(cx, ring_cy), radius - half_stroke, radius + half_stroke, 0, 360, 32, color)
 
-  # generic glyph: enter from below, arrow out the top; banner text carries the exact exit
+  # generic glyph; the banner text carries the exit number
   rl.draw_rectangle_rec(rl.Rectangle(cx - half_stroke, ring_cy + radius - half_stroke, 2 * half_stroke,
                                      cy + size * 0.5 - (ring_cy + radius - half_stroke)), color)
   exit_h = size * 0.14
@@ -289,15 +260,9 @@ def _draw_maneuver_shapes(cx: float, cy: float, maneuver_type: str, modifier: st
     _draw_turn(cx, cy, angle, color, size)
 
 
-# --- the supersampled glyph cache ---
-# Two problems end at the same place. The device grants no MSAA, so rotated primitives
-# stair-step at chip size; and translucent glyph colors forbid overlapped joints, which
-# forces butt joints that show notches wherever the per-angle constants miss. So each
-# glyph is drawn once, opaque and at GLYPH_SS times its size, into a cached
-# RenderTexture, and blitted scaled down with bilinear filtering. The caller's color,
-# alpha included, tints the whole texture at blit time: edges get real antialiasing,
-# joints may overlap freely, and internal translucency (the dim road branches) dims the
-# glyph as one piece instead of double-blending.
+# the device has no MSAA, and translucent colors double-blend wherever strokes overlap, so each
+# glyph is drawn once, opaque and GLYPH_SS times its size, into a RenderTexture and blitted
+# scaled down with bilinear filtering; the caller's color, alpha included, tints it as one piece
 GLYPH_SS = 4
 _GLYPH_PAD = 1.5  # glyphs poke past their size box (the flag's height, the roundabout's arrow)
 _glyph_cache: dict[tuple, rl.RenderTexture] = {}
@@ -317,8 +282,7 @@ def _glyph_texture(key: tuple, draw, side: int) -> rl.RenderTexture:
 
 
 def _blit_glyph(tex: rl.RenderTexture, cx: float, cy: float, color: rl.Color, dest_side: float) -> None:
-  # drawing over a transparent ground leaves the texture premultiplied, so the blit uses
-  # the premultiply blend with the tint folded into the color channels
+  # drawing over a transparent ground leaves the texture premultiplied, so the tint is folded in
   tint = rl.Color(color.r * color.a // 255, color.g * color.a // 255, color.b * color.a // 255, color.a)
   src = rl.Rectangle(0, 0, tex.texture.width, -tex.texture.height)
   dest = rl.Rectangle(cx - dest_side / 2, cy - dest_side / 2, dest_side, dest_side)
@@ -336,7 +300,6 @@ def _draw_maneuver_icon(cx: float, cy: float, maneuver_type: str, modifier: str,
 
 
 def draw_lane_glyph(cx: float, cy: float, direction: str, color: rl.Color, size: float) -> None:
-  """The lane rows' entry point, so their tiny icons share the cache's antialiasing."""
   side = int(size * GLYPH_SS * _GLYPH_PAD)
   key = ('lane', direction, side)
 
@@ -349,10 +312,8 @@ def draw_lane_glyph(cx: float, cy: float, direction: str, color: rl.Color, size:
   _blit_glyph(_glyph_texture(key, _draw, side), cx, cy, color, size * _GLYPH_PAD)
 
 
-# The transient rail: the quiet chip hints at the next maneuver and doubles as the status
-# indicator; when the TransientNav machine expands, the top-center banner (nav_banner) takes
-# over and the rail stays clear. The widget's rect is set to exactly what was drawn, so the
-# touch target and the visible chip can never disagree.
+# the quiet chip: next maneuver or route status; while TransientNav is expanded the
+# top-center banner (nav_banner) takes over and this draws nothing
 class NavIndicatorRenderer(Widget):
   def __init__(self):
     super().__init__()
@@ -361,7 +322,7 @@ class NavIndicatorRenderer(Widget):
     self._font = gui_app.font(FontWeight.SEMI_BOLD)
     self._mode = ChipMode.HIDDEN
     self._update_frame = -1
-    # where the card stack ends this frame, so the route summary below can stay clear of it
+    # the route summary lays out below this
     self.stack_bottom: float = 0.0
 
   @property
@@ -369,8 +330,7 @@ class NavIndicatorRenderer(Widget):
     return self._mode
 
   def update_state(self) -> None:
-    """Advance the nav state once per SubMaster frame; the HUD calls this before its own
-    layout so the banner and speed pill reflow on the same frame the machine expands."""
+    """Once per SubMaster frame; the HUD calls it before its own layout so the banner reflows the same frame."""
     if self._update_frame == ui_state.sm.frame:
       return
     self._update_frame = ui_state.sm.frame
@@ -388,9 +348,6 @@ class NavIndicatorRenderer(Widget):
     self.transient.on_tap()
 
   def _render_status_chip(self, box: rl.Rectangle, color: rl.Color, banner: bool = True) -> None:
-    # no route yet: the flag that will mark the destination, dimmed while searching and
-    # in the failure color once route requests are actually failing; while searching the
-    # flag raises in stages, a bare pole until the GPS fix comes in
     rl.draw_rectangle_rounded(box, 0.35, 10, BACKGROUND)
     _draw_flag(box.x + box.width / 2, box.y + box.height / 2, color, CHIP_ICON_SIZE, banner=banner)
 
@@ -399,8 +356,7 @@ class NavIndicatorRenderer(Widget):
     rl.draw_rectangle_rounded(box, 0.35, 10, BACKGROUND)
 
     if dimmed:
-      # off route: the glyph dims and the distance drops, because that number counts down
-      # to a maneuver the car is no longer approaching
+      # off route: no distance, it would count down to a maneuver the car is not approaching
       _draw_maneuver_icon(box.x + box.width / 2, box.y + box.height / 2,
                           maneuver_type, modifier, CHIP_SEARCHING, CHIP_ICON_SIZE)
       return
@@ -417,7 +373,6 @@ class NavIndicatorRenderer(Widget):
   def _render(self, rect: rl.Rectangle) -> None:
     top = rect.y + TOP_OFFSET
     self.stack_bottom = top
-    # nothing drawn means nothing to tap; a real target is set below once a box is drawn
     self.set_rect(rl.Rectangle(0, 0, 0, 0))
     if self._mode == ChipMode.HIDDEN:
       return
@@ -426,7 +381,7 @@ class NavIndicatorRenderer(Widget):
     x = rect.x + LEFT_MARGIN
 
     if self._mode in (ChipMode.SEARCHING, ChipMode.FAILURE):
-      # informational only, so it never swallows a tap meant for the road view
+      # no touch target: informational only
       searching = self._mode == ChipMode.SEARCHING
       self._render_status_chip(rl.Rectangle(x, top, width, BOX_HEIGHT),
                                CHIP_SEARCHING if searching else BAD,
@@ -435,13 +390,11 @@ class NavIndicatorRenderer(Widget):
       return
 
     if self.transient.state in (TransientNavState.APPROACH, TransientNavState.PINNED):
-      # the top-center banner is the expanded skin; the rail stays clear while it is up
       return
 
     msg = ui_state.sm['navigationd']
     if msg.routeState == 'rerouting':
-      # the searching flag is the reroute cue's visual: the route being counted against is
-      # being replaced. Failing recompute requests turn it red, like any other failure.
+      # the searching flag doubles as the reroute cue; failing recomputes turn it red
       failing = msg.routeFailures >= ROUTE_FAILURE_THRESHOLD
       self._render_status_chip(rl.Rectangle(x, top, width, BOX_HEIGHT), BAD if failing else CHIP_SEARCHING)
       self.stack_bottom = top + BOX_HEIGHT

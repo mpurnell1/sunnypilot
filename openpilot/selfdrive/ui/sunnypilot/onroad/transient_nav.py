@@ -4,14 +4,9 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-The transient navigation state machine: one state machine, two skins (the 3X rail today,
-the mici corner later). It decides how much of the navigation display is showing; what
-each state looks like is the renderers' business.
-
-Approach timing is deliberately not re-derived here. navigationd's cue engine already
-interpolates its windows against speed and knows about chained maneuvers and crawl
-restraint, so the machine edge-detects its cues (audioCueId increments once per cue) and
-expands on the approach and imminent stages.
+How much of the navigation display is showing; the renderers (3X rail, mici corner) own
+what each state looks like. Approach timing is navigationd's: the machine edge-detects its
+cues (audioCueId increments once per cue) rather than re-deriving windows from speed.
 """
 from enum import IntEnum
 
@@ -19,19 +14,15 @@ from openpilot.selfdrive.ui.sunnypilot.nav_status import NavState
 
 
 class TransientNavState(IntEnum):
-  OFF = 0       # nothing to run: no loaded route, or the nav HUD is switched off
-  QUIET = 1     # route active, between maneuvers: only the hint chip shows
-  APPROACH = 2  # auto-expanded for the leading maneuver; collapses once it passes
-  PINNED = 3    # driver's choice: the expanded skin stays up across maneuvers
+  OFF = 0
+  QUIET = 1     # between maneuvers: only the chip
+  APPROACH = 2  # auto-expanded until the maneuver passes
+  PINNED = 3    # expanded by the driver, across maneuvers
 
 
-# the stages that mean "a maneuver is near"; lane/digest/reroute/arrive cues inform
-# without being worth a takeover of the display
 EXPAND_STAGES = ('approach', 'imminent')
 
 
-# the chip doubles as the status indicator: absent = no route to have, dimmed = searching,
-# live = routing, and route failures get a treatment of their own
 class ChipMode(IntEnum):
   HIDDEN = 0
   SEARCHING = 1
@@ -50,16 +41,13 @@ def chip_mode(status) -> ChipMode:
   return ChipMode.LIVE
 
 
-# the searching flag raises in stages, so the chip says what the wait is actually for:
-# pole only until the localizer has a confirmed fix (NavStatus applies the hysteresis),
-# pole plus banner once the wait is on Mapbox; failure and live states fly it full
+# pole only until the localizer has a fix, pole plus banner once the wait is on Mapbox
 def flag_raised(state: NavState) -> bool:
   return state != NavState.WAITING_FOR_GPS
 
 
-# allManeuvers[0] is the step being driven, whose maneuver is already behind the car; the turn
-# that lies ahead is the second entry. Near the destination the 'arrive' step can be the only
-# one left, and that one is still worth showing.
+# allManeuvers[0] is the step being driven, its maneuver already behind the car; the 'arrive'
+# step can be the only one left
 def pick_upcoming_index(maneuvers) -> int | None:
   if len(maneuvers) > 1:
     return 1
@@ -77,11 +65,8 @@ def pick_upcoming_maneuver(maneuvers) -> tuple[str, str, float] | None:
 
 
 def maneuver_signature(maneuvers) -> tuple[int, str, str] | None:
-  """Identity of the upcoming maneuver, stable for as long as it is being approached.
-
-  The list shrinks by one each time a step is passed and is rebuilt on a reroute, so its
-  length tells apart consecutive maneuvers of the same type and modifier.
-  """
+  # the list shrinks by one per passed step and is rebuilt on a reroute, so its length tells
+  # apart consecutive maneuvers of the same type and modifier
   m = pick_upcoming_maneuver(maneuvers)
   return None if m is None else (len(maneuvers), m[0], m[1])
 
@@ -101,27 +86,22 @@ class TransientNav:
       self._dismissed = None
       return self.state
 
-    # pinning is a per-route choice, so regaining a route starts quiet
     if self.state == TransientNavState.OFF:
       self.state = TransientNavState.QUIET
 
     signature = maneuver_signature(maneuvers)
     if signature != self._signature:
-      # the maneuver being shown has passed, or a reroute rebuilt the list
       self._signature = signature
       self._dismissed = None
       if self.state == TransientNavState.APPROACH:
         self.state = TransientNavState.QUIET
 
-    # off the route, the auto-expanded skin steps down: everything it counts toward is a
-    # maneuver the car is no longer approaching. PINNED stays up wearing the off-route
-    # treatment because staying up was the driver's own choice.
+    # PINNED stays up off route: the driver asked for it
     if off_route and self.state == TransientNavState.APPROACH:
       self.state = TransientNavState.QUIET
 
     if self._last_cue_id is None:
-      # the cue fields are sticky, so the first observed value may be long stale: adopt
-      # its id without acting on it
+      # the cue fields are sticky, so the first observed id may be long stale
       self._last_cue_id = cue_id
     elif cue_id != self._last_cue_id:
       self._last_cue_id = cue_id
@@ -131,8 +111,6 @@ class TransientNav:
     return self.state
 
   def on_tap(self) -> None:
-    """Tap pins the quiet chip open and collapses either expanded skin; a dismissed
-    approach stays down until its maneuver passes."""
     if self.state == TransientNavState.QUIET:
       self.state = TransientNavState.PINNED
     elif self.state == TransientNavState.PINNED:

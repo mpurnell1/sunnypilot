@@ -4,14 +4,9 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-Audio cue selection for navigation. Decides *when* a prompt is owed and what it means
-(a kind such as 'turn', 'exit' or 'roundabout', a side, a count) and publishes exactly that.
-How a cue sounds is entirely soundd's business: the Morse letter vocabulary and the tone
-shapes both live there, so a new rendering never touches this file.
-
-Restraint rules, in order of importance: a maneuver that needs no action ('continue
-straight') gets no cue, no cue ever plays twice, and prompts other than imminent/reroute/
-arrive hold off below a crawl speed rather than chirping through parking lots.
+When a navigation cue is owed and what it means (kind, side, count); how it sounds is
+soundd's. A maneuver that needs no action gets no cue, no cue plays twice, and stages other
+than imminent/reroute/arrive hold off below crawl speed.
 """
 import re
 
@@ -19,22 +14,18 @@ from numpy import interp
 
 from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES
 
-# metres to the maneuver at which each stage fires, against m/s. Approach spans roughly a
-# quarter to half mile at road speeds; imminent lands around the "start braking" point
+# metres to the maneuver at which each stage fires, against m/s; imminent is about the braking point
 STAGE_SPEED_BP = [4.5, 13.4, 22.4, 31.3]  # 10/30/50/70 mph
 APPROACH_DIST = [150.0, 300.0, 500.0, 800.0]
 IMMINENT_DIST = [40.0, 80.0, 130.0, 200.0]
 
-# below this the driver is crawling and already scanning; deferrable stages stay quiet
 CRAWL_SPEED = 4.5  # m/s, ~10 mph
 
-# maneuvers closer together than the approach point plus this margin chain: the approach
-# prompt would land on top of the previous turn, so only the imminent stage plays
+# steps shorter than the approach point plus this margin get only the imminent stage
 CHAIN_MARGIN = 150.0  # m
 
 DIGEST_MILE = 1609.344  # m; gaps longer than this earn a digest cue carrying the mile count
 
-# Mapbox types that get their own cue kind rather than reading as a turn
 TYPE_KINDS = {'off ramp': 'exit', 'merge': 'merge', 'fork': 'keep'}
 
 # the ordinal suffix is required: without it road names ('onto A40 exit') read as exit numbers
@@ -64,11 +55,9 @@ def maneuver_event(maneuver_type: str, modifier: str, instruction: str = '') -> 
   for prefix_type, kind in TYPE_KINDS.items():
     if prefix_type in maneuver_type:
       side = modifier_side(modifier)
-      # a merge or fork with no stated side is a follow-the-road non-event
       return (kind, side, 0) if side != 'none' else None
   if maneuver_type in ('continue', 'new name'):
-    # the road bends or changes name, which helpers.py renders as a non-maneuver; only the
-    # u-turn is real, and Mapbox files divided-road u-turns under 'continue'
+    # Mapbox files divided-road u-turns under 'continue'
     return ('uturn', 'left', 0) if modifier == 'uturn' else None
   if maneuver_type in ('arrive', 'depart', 'notification'):
     return None
@@ -150,7 +139,6 @@ class NavAudioCues:
       approach_at = float(interp(v_ego, STAGE_SPEED_BP, APPROACH_DIST))
 
       if distance <= imminent_at and (nt_idx, 'imminent') not in self._fired:
-        # a late approach after this would only echo it
         self._fired.add((nt_idx, 'approach'))
         self._fire(kind, 'imminent', side, count, (nt_idx, 'imminent'))
         return
@@ -158,7 +146,6 @@ class NavAudioCues:
       if distance <= approach_at and (nt_idx, 'approach') not in self._fired and not crawling:
         step_len = progress['current_step']['distance']
         if step_len < approach_at + CHAIN_MARGIN:
-          # chained to the previous maneuver: the imminent cue alone carries it
           self._fired.add((nt_idx, 'approach'))
         else:
           self._fire(kind, 'approach', side, count, (nt_idx, 'approach'))
@@ -169,9 +156,7 @@ class NavAudioCues:
       self._fire('laneChange', 'lane', hint, 0, (nt_idx, 'lane', hint))
       return
 
-    # over a mile of quiet ahead earns one digest cue whose count is the mile figure; being
-    # far from the maneuver already guarantees this plays early in the step. A roundabout's
-    # exit number yields to the mileage here; approach and imminent will spell it out
+    # the digest's count is the mile figure; a roundabout's exit number waits for approach and imminent
     if event is not None and not crawling and distance > DIGEST_MILE and (nt_idx, 'digest') not in self._fired:
       miles = int(min(9, max(1, round(distance / DIGEST_MILE))))
       self._fire(event[0], 'digest', event[1], miles, (nt_idx, 'digest'))

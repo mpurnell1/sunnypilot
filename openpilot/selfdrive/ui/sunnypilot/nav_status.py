@@ -23,8 +23,7 @@ class NavState(IntEnum):
   ACTIVE = 5           # a route is loaded
 
 
-# a single failure already means tens of seconds without a route (5s of request timeouts
-# plus a 10s backoff), so the driver is told on the first one
+# one failure is already tens of seconds without a route (5s of timeouts plus a 10s backoff)
 ROUTE_FAILURE_THRESHOLD = 1
 
 # navigationd sets msg.valid from the instantaneous localizer fix but keeps its last position
@@ -35,9 +34,8 @@ GPS_ACQUIRE_CONFIRM_SECONDS = 1.0
 DESTINATION_POLL_SECONDS = 1.0
 
 
-# navigationd exposes the two preconditions separately: the message's own valid flag is the
-# localizer fix, and navigationd.valid means a route is loaded. The onroad indicator and the
-# navigation settings panel share this so they cannot disagree.
+# the message's own valid flag is the localizer fix; navigationd.valid means a route is loaded.
+# Shared by the onroad indicator and the navigation settings panel
 class NavStatus:
   def __init__(self):
     self._params = Params()
