@@ -261,7 +261,8 @@ class MapboxIntegration:
       for step in leg['steps']
     ]
 
-    maxspeed = [{'speed': item['speed'], 'unit': item['unit']} for item in leg['annotation']['maxspeed'] if 'speed' in item]
+    # one entry per geometry segment; an unknown segment keeps its slot so indices stay aligned
+    maxspeed = [{'speed': item['speed'], 'unit': item['unit']} if 'speed' in item else None for item in leg['annotation']['maxspeed']]
 
     return {
       'steps': steps,
