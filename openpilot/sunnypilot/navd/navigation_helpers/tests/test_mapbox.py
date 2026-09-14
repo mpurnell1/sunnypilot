@@ -16,9 +16,8 @@ from openpilot.sunnypilot.navd.navigation_helpers.route import Route, arrived, u
 
 @pytest.mark.skipif(not os.environ.get('MAPBOX_TOKEN_CI'), reason="requires a Mapbox token, set MAPBOX_TOKEN_CI to run")
 class TestMapbox:
-  # Params bind their path at construction, and the conftest prefix fixture is
-  # function-scoped, so class setup must open its own prefix before anything
-  # touches params or the test destination lands in the real param space.
+  # one live route per class, not per test: the conftest prefix is function-scoped, so
+  # class setup opens its own so the test destination never lands in the real param space
   @pytest.fixture(scope="class", autouse=True)
   def route_setup(self, request):
     with OpenpilotPrefix():
