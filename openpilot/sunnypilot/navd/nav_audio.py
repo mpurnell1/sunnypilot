@@ -12,6 +12,7 @@ import re
 
 from numpy import interp
 
+from openpilot.sunnypilot.navd.constants import NAV_CV
 from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES
 
 # metres to the maneuver at which each stage fires, against m/s; imminent is about the braking point
@@ -24,7 +25,7 @@ CRAWL_SPEED = 4.5  # m/s, ~10 mph
 # steps shorter than the approach point plus this margin get only the imminent stage
 CHAIN_MARGIN = 150.0  # m
 
-DIGEST_MILE = 1609.344  # m; gaps longer than this earn a digest cue carrying the mile count
+DIGEST_MILE = NAV_CV.METERS_PER_MILE  # gaps longer than this earn a digest cue carrying the mile count
 
 TYPE_KINDS = {'off ramp': 'exit', 'merge': 'merge', 'fork': 'keep'}
 

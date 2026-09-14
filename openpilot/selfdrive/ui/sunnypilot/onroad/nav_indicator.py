@@ -13,6 +13,7 @@ from openpilot.selfdrive.ui.sunnypilot.nav_status import ROUTE_FAILURE_THRESHOLD
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import (
   ChipMode, TransientNav, TransientNavState, chip_mode, flag_raised, pick_upcoming_maneuver,
 )
+from openpilot.sunnypilot.navd.constants import NAV_CV
 from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight
@@ -39,9 +40,6 @@ BAD = rl.Color(0xf2, 0x4b, 0x4b, 0xff)
 TURN_COLOR = rl.Color(255, 255, 255, 255)
 ROAD_DIM = rl.Color(255, 255, 255, 80)  # the carriageway not taken, on exits, forks and merges
 
-METERS_PER_FOOT = 0.3048
-METERS_PER_MILE = 1609.344
-
 # degrees clockwise from straight ahead; u-turns and roundabouts have their own glyphs
 ARROW_ANGLES = {
   'straight': 0, 'none': 0,
@@ -63,10 +61,10 @@ def format_distance(distance_m: float, is_metric: bool) -> str:
       return f"{round(distance_m / 10) * 10:.0f} m"
     km = distance_m / 1000
     return f"{km:.0f} km" if km >= 10 else f"{km:.1f} km"
-  feet = distance_m / METERS_PER_FOOT
+  feet = distance_m * NAV_CV.FEET_PER_METER
   if feet < 1000:
     return f"{round(feet / 50) * 50:.0f} ft"
-  miles = distance_m / METERS_PER_MILE
+  miles = distance_m / NAV_CV.METERS_PER_MILE
   return f"{miles:.0f} mi" if miles >= 10 else f"{miles:.1f} mi"
 
 

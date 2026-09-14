@@ -18,10 +18,11 @@ import pyray as rl
 
 from openpilot.common.params import Params
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import (
-  ARROW_ANGLES, BACKGROUND, METERS_PER_MILE, TURN_COLOR, _draw_flag, _draw_fork, _draw_merge,
+  ARROW_ANGLES, BACKGROUND, TURN_COLOR, _draw_flag, _draw_fork, _draw_merge,
   _draw_roundabout, _draw_turn, _draw_uturn, format_distance)
 from openpilot.selfdrive.ui.onroad.hud_renderer import UI_CONFIG
 from openpilot.selfdrive.ui.ui_state import ui_state
+from openpilot.sunnypilot.navd.constants import NAV_CV
 from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES
 from openpilot.sunnypilot.selfdrive.ui.nav_sounds import (
   AUDIO_MORSE, AUDIO_OFF, AUDIO_TONES, MORSE, PROSIGNS, SAMPLE_RATE, cue_wave, vocabulary_code)
@@ -99,7 +100,7 @@ STEPS = [
   Step('laneChange', 'lane', 'right', 0, tr("Lane Change Right"), LANE_CAPTION, ('lane', 'slightRight', None)),
   Step('turn', 'digest', 'right', 3, tr("Next Turn in 3 Miles"),
        tr("After a maneuver with a long quiet stretch ahead: the turn code, then the mile count."),
-       ('turn', 'right', 3 * METERS_PER_MILE), morse_only=True),
+       ('turn', 'right', 3 * NAV_CV.METERS_PER_MILE), morse_only=True),
   Step('reroute', 'reroute', 'none', 0, tr("Rerouting"),
        tr("You've left the route. QRX, ham radio for 'stand by', plays once while a new route is computed."), None),
   Step('arrive', 'arrive', 'none', 0, tr("Arrived"),
