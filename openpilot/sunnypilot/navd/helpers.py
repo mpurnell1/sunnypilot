@@ -89,12 +89,11 @@ class Coordinate:
 
 
 def bearing_between_two_points(point_one: Coordinate, point_two: Coordinate) -> float:
+  lat_one, lat_two = math.radians(point_one.latitude), math.radians(point_two.latitude)
   dlon = math.radians(point_two.longitude - point_one.longitude)
-  bearing_radians = math.atan2(math.sin(dlon)* math.cos(point_two.latitude), math.cos(point_one.latitude) * math.sin(point_two.latitude) -
-                               math.sin(point_one.latitude) * math.cos(point_two.latitude) * math.cos(dlon))
-  bearing_degrees = math.degrees(bearing_radians)
-  bearing_normalized = (bearing_degrees + 360) % 360
-  return bearing_normalized
+  y = math.sin(dlon) * math.cos(lat_two)
+  x = math.cos(lat_one) * math.sin(lat_two) - math.sin(lat_one) * math.cos(lat_two) * math.cos(dlon)
+  return (math.degrees(math.atan2(y, x)) + 360) % 360
 
 
 def project_onto_geometry(geometry: list[Coordinate], cumulative_distances: list[float], pos: Coordinate) -> tuple[float, int, float]:
