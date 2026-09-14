@@ -66,8 +66,7 @@ class DestinationAPI:
       raise ApiError("lon and lat are required") from None
     position = coordinate_from_param("LastGPSPositionLLK", self.params)
     if position is None:
-      # without a last known fix there is no start point to route from; the destination can
-      # still be set, navd will route once the car has a position
+      # no start point to preview from; the destination can still be set, navd routes once there is a fix
       raise ApiError("no known device position", status=409)
     routes = self.mapbox.preview_routes(position, Coordinate(end_lat, end_lon))
     if routes is None:
@@ -75,9 +74,7 @@ class DestinationAPI:
     return {"routes": routes}
 
   def navigate(self, dest, name="", summary="") -> dict:
-    # settable while driving: nav desires need the driver's blinker and torque, so a
-    # route swap changes guidance output, never control; the standstill gate survives
-    # on settings
+    # settable while driving: nav desires need the driver's blinker and torque, so a route swap never touches control
     if not str(dest or "").strip():
       raise ApiError("dest is required")
     self.store.set_destination(str(dest), name=str(name or ""), route_summary=str(summary or ""))
@@ -96,8 +93,7 @@ class DestinationAPI:
       raise ApiError("action must be set (with dest) or remove")
     return {"favorites": self.store.favorites()}
 
-  # the remote settings scope is display and audio only: NavDesiresAllowed and the assist
-  # level stay on-device so steering influence consent happens in the car
+  # display and audio only: consent for steering influence (NavDesiresAllowed, assist level) happens in the car
   def settings_view(self) -> dict:
     p = self.params
     return {
@@ -105,7 +101,7 @@ class DestinationAPI:
       "navAudio": p.get("NavigationAudio", return_default=True),
       "laneGuidanceDisplay": (p.get("NavLaneGuidance", return_default=True) or 0) >= 1,
       "recompute": p.get_bool("MapboxRecompute"),
-      # write-only by design: set or not set is all a client ever learns of the token
+      # write-only: set or not set is all a client learns of the token
       "tokenSet": bool(self.mapbox.get_public_token()),
     }
 
@@ -116,7 +112,6 @@ class DestinationAPI:
 
   def apply_settings(self, body: dict) -> dict:
     if not self.can_set():
-      # a passenger may cancel or reroute mid-drive, not reconfigure
       raise ApiError("settings can only be changed while parked", status=409)
 
     p = self.params
@@ -129,8 +124,7 @@ class DestinationAPI:
         raise ApiError("navAudio must be an integer 0 to 2")
       p.put("NavigationAudio", body["navAudio"], block=True)
     if "laneGuidanceDisplay" in body:
-      # the client only flips display on and off; an assist level set on the device survives
-      # while the toggle stays on, and off is honestly off
+      # an assist level set in the car survives the display toggle staying on
       current = p.get("NavLaneGuidance", return_default=True) or 0
       if not body["laneGuidanceDisplay"]:
         p.put("NavLaneGuidance", 0, block=True)
@@ -139,7 +133,7 @@ class DestinationAPI:
     if "recompute" in body:
       p.put_bool("MapboxRecompute", bool(body["recompute"]), block=True)
     if "token" in body:
-      # write-only and never cleared from here: an empty submit is a no-op, not a wipe
+      # an empty submit is a no-op, not a wipe
       token = str(body["token"]).strip()
       if token:
         p.put("MapboxToken", token, block=True)

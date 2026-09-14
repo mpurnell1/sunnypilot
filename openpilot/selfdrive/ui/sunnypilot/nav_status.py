@@ -26,16 +26,14 @@ class NavState(IntEnum):
 # one failure is already tens of seconds without a route (5s of timeouts plus a 10s backoff)
 ROUTE_FAILURE_THRESHOLD = 1
 
-# navigationd sets msg.valid from the instantaneous localizer fix but keeps its last position
-# across short dropouts, so the display tolerates the same gaps the daemon does
+# navigationd keeps its last position across short fix dropouts; the display tolerates the same gaps
 GPS_LOST_HOLD_SECONDS = 2.0
 GPS_ACQUIRE_CONFIRM_SECONDS = 1.0
 
 DESTINATION_POLL_SECONDS = 1.0
 
 
-# the message's own valid flag is the localizer fix; navigationd.valid means a route is loaded.
-# Shared by the onroad indicator and the navigation settings panel
+# the message's own valid flag is the localizer fix; navigationd.valid means a route is loaded
 class NavStatus:
   def __init__(self):
     self._params = Params()
