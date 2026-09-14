@@ -47,7 +47,8 @@ from openpilot.common.basedir import BASEDIR
 from openpilot.common.params import Params
 from openpilot.sunnypilot.navd.helpers import Coordinate
 from openpilot.sunnypilot.navd.nav_audio import NavAudioCues
-from openpilot.sunnypilot.navd.navigationd import Navigationd
+from openpilot.sunnypilot.navd.navigation_helpers.route import Maneuver, RouteProgress, Step
+from openpilot.sunnypilot.navd.navigationd import Guidance, Navigationd
 
 RATE = 3  # Hz, matching navigationd
 TICK = 1.0 / RATE
@@ -135,8 +136,12 @@ class _Drive:
     return True
 
 
-def _tick_data(state: TickState) -> tuple[str, dict, dict]:
-  """The (banner, progress, nav_data) triple navigationd's builder and NavAudioCues expect."""
+def _step(leg: Leg) -> Step:
+  return Step(leg.mtype, leg.modifier, leg.instruction, leg.length, 0.0, Coordinate(0, 0), 0.0, (0, 'kmh'), [])
+
+
+def _tick_data(state: TickState) -> tuple[str, RouteProgress, Guidance]:
+  """The (banner, progress, guidance) triple navigationd's builder and NavAudioCues expect."""
   route = state.route
   leg = route.legs[state.leg]
   later = route.legs[state.leg + 1:]
@@ -145,52 +150,56 @@ def _tick_data(state: TickState) -> tuple[str, dict, dict]:
 
   prev = route.depart if state.leg == 0 else \
     (route.legs[state.leg - 1].mtype, route.legs[state.leg - 1].modifier, route.legs[state.leg - 1].instruction)
-  maneuvers = [{'distance': 0.0, 'type': prev[0], 'modifier': prev[1], 'instruction': prev[2]}]
+  maneuvers = [Maneuver(0.0, prev[0], prev[1], prev[2])]
   d = state.dist
   for i, l in enumerate(route.legs[state.leg:]):
-    maneuvers.append({'distance': d, 'type': l.mtype, 'modifier': l.modifier, 'instruction': l.instruction})
+    maneuvers.append(Maneuver(d, l.mtype, l.modifier, l.instruction))
     j = state.leg + i + 1
     if j < len(route.legs):
       d += route.legs[j].length
 
-  progress = {
-    'current_step_idx': state.leg,
-    'distance_to_end_of_step': state.dist,
-    'current_step': {'distance': leg.length},
-    'next_turn': {'maneuver': leg.mtype, 'modifier': leg.modifier, 'instruction': leg.instruction},
-    'all_maneuvers': maneuvers,
-  }
-  nav_data = {
-    'upcoming_turn': leg.modifier if state.dist < 250.0 else 'none',
-    'arrived': state.arrived,
-    'distance_from_route': state.off_route,
-    'distance_remaining': distance_remaining,
-    'time_remaining': time_remaining,
-  }
+  progress = RouteProgress(
+    distance_from_route=state.off_route,
+    closest_idx=0,
+    current_step_idx=state.leg,
+    current_step=_step(leg),
+    next_turn=_step(leg),
+    distance_to_end_of_step=state.dist,
+    distance_remaining=distance_remaining,
+    time_remaining=time_remaining,
+    all_maneuvers=maneuvers,
+  )
+  guidance = Guidance(
+    upcoming_turn=leg.modifier if state.dist < 250.0 else 'none',
+    arrived=state.arrived,
+    distance_from_route=state.off_route,
+    distance_remaining=distance_remaining,
+    time_remaining=time_remaining,
+  )
   if leg.lanes and state.dist < LANE_SHOW_M:
-    nav_data['lanes'] = [{'directions': list(dirs), 'active': active, 'activeDirection': active_dir}
-                         for dirs, active, active_dir in leg.lanes]
-  return leg.instruction, progress, nav_data
+    guidance.lanes = [{'directions': list(dirs), 'active': active, 'activeDirection': active_dir}
+                      for dirs, active, active_dir in leg.lanes]
+  return leg.instruction, progress, guidance
 
 
 def _build_msg(state: TickState, cues: NavAudioCues, stub: SimpleNamespace):
   if state.route is not None:
-    banner, progress, nav_data = _tick_data(state)
+    banner, progress, guidance = _tick_data(state)
   else:
-    banner, progress, nav_data = '', None, {}
-  cues.update(state.route, progress, nav_data, state.v, state.rerouting)
+    banner, progress, guidance = '', None, Guidance()
+  cues.update(state.route, progress, guidance, state.v, state.rerouting)
   stub.valid = state.route is not None
-  stub.failed_attempts = state.failures
+  stub.retry.failed_attempts = state.failures
   stub.rerouting = state.rerouting
   # the daemon debounces this over ticks; the demo reads it straight off the drift meters
   stub.off_route = state.route is not None and not state.arrived and state.off_route > 210.0
   # the demo has no geography, so the fix is a fixed point; losing GPS drops it like the daemon's
   stub.last_position = Coordinate(34.22, -119.03) if state.gps_ok else None
   stub.last_bearing = 0.0 if state.gps_ok else None
-  stub.route = {'route_id': 1} if state.route is not None else None
+  stub.route = SimpleNamespace(route_id=1) if state.route is not None else None
   # the production builder, called with a stub in place of the daemon, so the message
   # shape can never drift from what navigationd publishes
-  return Navigationd._build_navigation_message(stub, banner, progress, nav_data, state.gps_ok)
+  return Navigationd._build_navigation_message(stub, banner, progress, guidance, state.gps_ok)
 
 
 # --- scenarios: generators yielding one TickState per 3 Hz tick ---
@@ -332,7 +341,7 @@ SCENARIOS = {
 def message_stream(names, speedup: float = 1.0, hold_ticks: int = 0):
   """(scenario, state, message) per tick; one cue engine spans the whole run, like the daemon."""
   cues = NavAudioCues()
-  stub = SimpleNamespace(valid=False, failed_attempts=0, nav_audio=cues, rerouting=False, off_route=False)
+  stub = SimpleNamespace(valid=False, retry=SimpleNamespace(failed_attempts=0), nav_audio=cues, rerouting=False, off_route=False)
   for name in names:
     last = None
     for state in SCENARIOS[name](speedup):

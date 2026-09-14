@@ -10,7 +10,8 @@ from openpilot.common.params import Params
 from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST, LANE_GUIDANCE_DISPLAY
 from openpilot.sunnypilot.navd.helpers import Coordinate, compose_banner_text, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.navigation_desires.navigation_desires import NavigationDesires
-from openpilot.sunnypilot.navd.navigationd import HINT_STABLE_CYCLES, Navigationd
+from openpilot.sunnypilot.navd.navigation_helpers.route import Maneuver, RouteProgress, Step
+from openpilot.sunnypilot.navd.navigationd import HINT_STABLE_CYCLES, Guidance, HintDebounce, Navigationd
 
 
 def _banner(distance: float, lanes: list | None = None) -> dict:
@@ -47,9 +48,9 @@ class TestLaneParsing:
 class TestLanePublishing:
   def test_lanes_reach_the_message(self):
     nav = Navigationd()
-    nav_data = {'lanes': [{'active': True, 'directions': ['left', 'straight'], 'activeDirection': 'left'},
-                          {'active': False, 'directions': ['right']}]}
-    msg = nav._build_navigation_message('', None, nav_data, True)
+    guidance = Guidance(lanes=[{'active': True, 'directions': ['left', 'straight'], 'activeDirection': 'left'},
+                               {'active': False, 'directions': ['right']}])
+    msg = nav._build_navigation_message('', None, guidance, True)
     lanes = msg.navigationd.lanes
     assert len(lanes) == 2
     assert list(lanes[0].directions) == ['left', 'straight']
@@ -60,16 +61,20 @@ class TestLanePublishing:
 
   def test_no_lanes_publishes_empty(self):
     nav = Navigationd()
-    msg = nav._build_navigation_message('', None, {}, True)
+    msg = nav._build_navigation_message('', None, Guidance(), True)
     assert len(msg.navigationd.lanes) == 0
     assert msg.navigationd.laneChangeDirection == 'none'
 
 
-def _hint_progress(maneuver_type: str, modifier: str, distance: float) -> dict:
-  return {'all_maneuvers': [
-    {'type': 'depart', 'modifier': 'none', 'distance': 40.0, 'instruction': ''},
-    {'type': maneuver_type, 'modifier': modifier, 'distance': distance, 'instruction': ''},
-  ]}
+DEPART = Step('depart', 'none', '', 40.0, 5.0, Coordinate(32.7767, -96.797), 0.0, (0, 'kmh'), [])
+
+
+def _maneuvers_progress(maneuvers: list[Maneuver], distance_from_route: float = 0.0) -> RouteProgress:
+  return RouteProgress(distance_from_route, 0, 0, DEPART, None, 10.0, 1000.0, 60.0, maneuvers)
+
+
+def _hint_progress(maneuver_type: str, modifier: str, distance: float) -> RouteProgress:
+  return _maneuvers_progress([Maneuver(40.0, 'depart', 'none', ''), Maneuver(distance, maneuver_type, modifier, '')])
 
 
 class TestLaneChangeHint:
@@ -88,7 +93,7 @@ class TestLaneChangeHint:
     assert lane_change_hint(_hint_progress('continue', 'straight', 100.0), 30.0) == 'none'
 
   def test_lone_maneuver_has_no_hint(self):
-    assert lane_change_hint({'all_maneuvers': [{'type': 'arrive', 'modifier': 'none', 'distance': 50.0}]}, 30.0) == 'none'
+    assert lane_change_hint(_maneuvers_progress([Maneuver(50.0, 'arrive', 'none', '')]), 30.0) == 'none'
 
 
 class TestAutoConfirm:
@@ -106,13 +111,13 @@ class TestAutoConfirm:
     assert not lane_change_auto_confirm(_hint_progress('turn', 'uturn', 200.0))
 
   def test_lone_maneuver_does_not_confirm(self):
-    assert not lane_change_auto_confirm({'all_maneuvers': [{'type': 'arrive', 'modifier': 'none', 'distance': 50.0}]})
+    assert not lane_change_auto_confirm(_maneuvers_progress([Maneuver(50.0, 'arrive', 'none', '')]))
 
   def test_flag_reaches_the_message(self):
     nav = Navigationd()
-    msg = nav._build_navigation_message('', None, {'lane_change_direction': 'left', 'lane_change_auto_confirm': True}, True)
+    msg = nav._build_navigation_message('', None, Guidance(lane_change_direction='left', lane_change_auto_confirm=True), True)
     assert msg.navigationd.laneChangeAutoConfirm
-    msg = nav._build_navigation_message('', None, {'lane_change_direction': 'left'}, True)
+    msg = nav._build_navigation_message('', None, Guidance(lane_change_direction='left'), True)
     assert not msg.navigationd.laneChangeAutoConfirm
 
 
@@ -145,38 +150,26 @@ class TestBannerWording:
 
 class TestHintStability:
   def test_a_flapping_direction_never_publishes(self):
-    nav = Navigationd()
-    published = [nav._stable_hint(h) for h in ['left', 'right'] * 5]
+    hint = HintDebounce()
+    published = [hint.update(h) for h in ['left', 'right'] * 5]
     assert set(published) == {'none'}
 
   def test_a_steady_direction_publishes_after_the_dwell(self):
-    nav = Navigationd()
-    published = [nav._stable_hint('left') for _ in range(HINT_STABLE_CYCLES + 1)]
+    hint = HintDebounce()
+    published = [hint.update('left') for _ in range(HINT_STABLE_CYCLES + 1)]
     assert published[:HINT_STABLE_CYCLES - 1] == ['none'] * (HINT_STABLE_CYCLES - 1)
     assert published[HINT_STABLE_CYCLES - 1:] == ['left', 'left']
 
   def test_a_cleared_hint_publishes_immediately(self):
-    nav = Navigationd()
+    hint = HintDebounce()
     for _ in range(HINT_STABLE_CYCLES):
-      nav._stable_hint('left')
-    assert nav._stable_hint('none') == 'none'
+      hint.update('left')
+    assert hint.update('none') == 'none'
 
 
-def _trusted_progress(distance_from_route: float) -> dict:
-  return {
-    'distance_from_route': distance_from_route,
-    'current_step': None,
-    'next_turn': None,
-    'current_maxspeed': (0, 'kmh'),
-    'all_maneuvers': [
-      {'type': 'depart', 'modifier': 'none', 'distance': 40.0, 'instruction': ''},
-      {'type': 'off ramp', 'modifier': 'slightRight', 'distance': 100.0, 'instruction': ''},
-    ],
-    'current_step_idx': 0,
-    'distance_to_end_of_step': 10.0,
-    'distance_remaining': 1000.0,
-    'time_remaining': 60.0,
-  }
+def _trusted_progress(distance_from_route: float) -> RouteProgress:
+  return _maneuvers_progress([Maneuver(40.0, 'depart', 'none', ''), Maneuver(100.0, 'off ramp', 'slightRight', '')],
+                             distance_from_route)
 
 
 class TestHintTrust:
@@ -184,32 +177,32 @@ class TestHintTrust:
     nav = Navigationd()
     nav.allow_navigation = True
     nav.lane_guidance = LANE_GUIDANCE_ASSIST
-    nav.route = {'steps': [{}, {}]}
+    nav.route = SimpleNamespace(steps=[{}, {}], progress=lambda position: _trusted_progress(distance_from_route),
+                                bearing_misaligned=lambda *args: False)
     nav.last_position = Coordinate(32.7767, -96.797)
-    nav.nav_instructions.get_route_progress = lambda lat, lon: _trusted_progress(distance_from_route)
     return nav
 
-  def _run(self, nav: Navigationd) -> dict:
+  def _run(self, nav: Navigationd) -> Guidance:
     for _ in range(HINT_STABLE_CYCLES + 1):
-      _, _, nav_data = nav._update_navigation()
-    return nav_data
+      _, _, guidance = nav._update_navigation()
+    return guidance
 
   def test_hints_publish_on_a_trusted_route(self):
-    nav_data = self._run(self._nav(5.0))
-    assert nav_data['lane_change_direction'] == 'right'
-    assert nav_data['lane_change_auto_confirm']
+    guidance = self._run(self._nav(5.0))
+    assert guidance.lane_change_direction == 'right'
+    assert guidance.lane_change_auto_confirm
 
   def test_hints_are_suppressed_off_route(self):
-    nav_data = self._run(self._nav(500.0))
-    assert nav_data['lane_change_direction'] == 'none'
-    assert not nav_data['lane_change_auto_confirm']
+    guidance = self._run(self._nav(500.0))
+    assert guidance.lane_change_direction == 'none'
+    assert not guidance.lane_change_auto_confirm
 
   def test_hints_are_suppressed_while_reroutes_fail(self):
     nav = self._nav(5.0)
-    nav.failed_attempts = 1
-    nav_data = self._run(nav)
-    assert nav_data['lane_change_direction'] == 'none'
-    assert not nav_data['lane_change_auto_confirm']
+    nav.retry.failed_attempts = 1
+    guidance = self._run(nav)
+    assert guidance.lane_change_direction == 'none'
+    assert not guidance.lane_change_auto_confirm
 
 
 class TestAssistGate:

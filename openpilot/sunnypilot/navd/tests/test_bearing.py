@@ -7,7 +7,7 @@ See the LICENSE.md file in the root directory for more details.
 import pytest
 
 from openpilot.sunnypilot.navd.helpers import Coordinate, bearing_between_two_points
-from openpilot.sunnypilot.navd.navigation_helpers.nav_instructions import NavigationInstructions
+from openpilot.sunnypilot.navd.navigation_helpers.route import Route
 
 ORIGIN = Coordinate(40.1, -88.2)
 
@@ -26,9 +26,12 @@ def test_compass_bearings_at_mid_latitude(dlat, dlon, expected):
 
 
 def test_driving_along_an_eastbound_route_is_aligned():
-  nav = NavigationInstructions()
   geometry = [Coordinate(ORIGIN.latitude, ORIGIN.longitude + 0.001 * i) for i in range(4)]
-  route = {'bearings': [bearing_between_two_points(geometry[i], geometry[i + 2]) for i in range(len(geometry) - 2)]}
-  nav.closest_idx = 0
-  assert not nav.route_bearing_misalign(route, 90.0, 20.0)
-  assert nav.route_bearing_misalign(route, 270.0, 20.0)
+  route = Route.from_mapbox({
+    'steps': [{'maneuver': 'depart', 'instruction': '', 'distance': 300.0, 'duration': 30.0, 'modifier': 'straight',
+               'location': geometry[0].as_dict(), 'bannerInstructions': []}],
+    'totalDistance': 300.0, 'totalDuration': 30.0, 'geometry': [c.as_dict() for c in geometry], 'maxspeed': [],
+  })
+  progress = route.progress(ORIGIN)
+  assert not route.bearing_misaligned(progress, 90.0, 20.0)
+  assert route.bearing_misaligned(progress, 270.0, 20.0)

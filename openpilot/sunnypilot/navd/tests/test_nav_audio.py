@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import numpy as np
 
 from openpilot.sunnypilot.navd.nav_audio import NavAudioCues, maneuver_event
+from openpilot.sunnypilot.navd.navigationd import Guidance
 from openpilot.sunnypilot.selfdrive.ui import nav_sounds
 from openpilot.sunnypilot.selfdrive.ui.nav_sounds import AUDIO_MORSE, NavAudioPlayer, earcon_wave, morse_wave, vocabulary_code
 
@@ -17,13 +18,16 @@ V_CRUISE = 22.4
 
 
 def _progress(distance: float, mtype: str = 'turn', modifier: str = 'right', step_idx: int = 3,
-              step_len: float = 2000.0, instruction: str = '') -> dict:
-  return {
-    'current_step_idx': step_idx,
-    'distance_to_end_of_step': distance,
-    'current_step': {'distance': step_len},
-    'next_turn': {'maneuver': mtype, 'modifier': modifier, 'instruction': instruction},
-  }
+              step_len: float = 2000.0, instruction: str = '') -> SimpleNamespace:
+  return SimpleNamespace(
+    current_step_idx=step_idx,
+    distance_to_end_of_step=distance,
+    current_step=SimpleNamespace(distance=step_len),
+    next_turn=SimpleNamespace(maneuver=mtype, modifier=modifier, instruction=instruction),
+  )
+
+
+QUIET = Guidance()
 
 
 class TestManeuverEvents:
@@ -93,83 +97,83 @@ class TestVocabulary:
 class TestStages:
   def test_two_stage_prompt_never_repeats(self):
     cues, route = NavAudioCues(), {}
-    cues.update(route, _progress(600.0), {}, V_CRUISE, False)
+    cues.update(route, _progress(600.0), QUIET, V_CRUISE, False)
     assert cues.cue_id == 0
-    cues.update(route, _progress(450.0), {}, V_CRUISE, False)
+    cues.update(route, _progress(450.0), QUIET, V_CRUISE, False)
     assert (cues.kind, cues.stage, cues.cue_id) == ('turn', 'approach', 1)
     assert cues.direction == 'right'
-    cues.update(route, _progress(440.0), {}, V_CRUISE, False)
+    cues.update(route, _progress(440.0), QUIET, V_CRUISE, False)
     assert cues.cue_id == 1
-    cues.update(route, _progress(100.0), {}, V_CRUISE, False)
+    cues.update(route, _progress(100.0), QUIET, V_CRUISE, False)
     assert (cues.kind, cues.stage, cues.cue_id) == ('turn', 'imminent', 2)
-    cues.update(route, _progress(60.0), {}, V_CRUISE, False)
+    cues.update(route, _progress(60.0), QUIET, V_CRUISE, False)
     assert cues.cue_id == 2
 
   def test_chained_maneuvers_skip_the_approach(self):
     cues, route = NavAudioCues(), {}
-    cues.update(route, _progress(450.0, step_len=300.0), {}, V_CRUISE, False)
+    cues.update(route, _progress(450.0, step_len=300.0), QUIET, V_CRUISE, False)
     assert cues.cue_id == 0
-    cues.update(route, _progress(100.0, step_len=300.0), {}, V_CRUISE, False)
+    cues.update(route, _progress(100.0, step_len=300.0), QUIET, V_CRUISE, False)
     assert (cues.stage, cues.cue_id) == ('imminent', 1)
 
   def test_crawling_defers_the_approach(self):
     cues, route = NavAudioCues(), {}
-    cues.update(route, _progress(100.0), {}, 2.0, False)
+    cues.update(route, _progress(100.0), QUIET, 2.0, False)
     assert cues.cue_id == 0
-    cues.update(route, _progress(100.0), {}, 10.0, False)
+    cues.update(route, _progress(100.0), QUIET, 10.0, False)
     assert (cues.stage, cues.cue_id) == ('approach', 1)
 
   def test_route_change_resets_fired_state(self):
     cues = NavAudioCues()
-    cues.update({}, _progress(450.0), {}, V_CRUISE, False)
+    cues.update({}, _progress(450.0), QUIET, V_CRUISE, False)
     assert cues.cue_id == 1
-    cues.update({}, _progress(450.0), {}, V_CRUISE, False)
+    cues.update({}, _progress(450.0), QUIET, V_CRUISE, False)
     assert (cues.stage, cues.cue_id) == ('approach', 2)
 
   def test_no_progress_no_cue(self):
     cues = NavAudioCues()
-    cues.update(None, None, {}, V_CRUISE, False)
+    cues.update(None, None, QUIET, V_CRUISE, False)
     assert cues.cue_id == 0
 
 
 class TestEventCues:
   def test_lane_cue_yields_to_the_stage_prompt(self):
     cues, route = NavAudioCues(), {}
-    nav_data = {'lane_change_direction': 'left'}
-    cues.update(route, _progress(450.0), nav_data, V_CRUISE, False)
+    guidance = Guidance(lane_change_direction='left')
+    cues.update(route, _progress(450.0), guidance, V_CRUISE, False)
     assert (cues.kind, cues.stage) == ('turn', 'approach')
-    cues.update(route, _progress(440.0), nav_data, V_CRUISE, False)
+    cues.update(route, _progress(440.0), guidance, V_CRUISE, False)
     assert (cues.kind, cues.direction, cues.stage, cues.cue_id) == ('laneChange', 'left', 'lane', 2)
-    cues.update(route, _progress(430.0), nav_data, V_CRUISE, False)
+    cues.update(route, _progress(430.0), guidance, V_CRUISE, False)
     assert cues.cue_id == 2
 
   def test_reroute_fires_once_per_excursion(self):
     cues, route = NavAudioCues(), {}
-    cues.update(route, _progress(5000.0, modifier='straight', mtype='continue'), {}, V_CRUISE, True)
+    cues.update(route, _progress(5000.0, modifier='straight', mtype='continue'), QUIET, V_CRUISE, True)
     assert (cues.kind, cues.stage, cues.cue_id) == ('reroute', 'reroute', 1)
-    cues.update(route, _progress(5000.0, modifier='straight', mtype='continue'), {}, V_CRUISE, True)
+    cues.update(route, _progress(5000.0, modifier='straight', mtype='continue'), QUIET, V_CRUISE, True)
     assert cues.cue_id == 1
-    cues.update(route, _progress(5000.0, modifier='straight', mtype='continue'), {}, V_CRUISE, False)
-    cues.update(route, _progress(5000.0, modifier='straight', mtype='continue'), {}, V_CRUISE, True)
+    cues.update(route, _progress(5000.0, modifier='straight', mtype='continue'), QUIET, V_CRUISE, False)
+    cues.update(route, _progress(5000.0, modifier='straight', mtype='continue'), QUIET, V_CRUISE, True)
     assert (cues.stage, cues.cue_id) == ('reroute', 2)
 
   def test_arrival_fires_once(self):
     cues, route = NavAudioCues(), {}
-    cues.update(route, _progress(20.0, mtype='arrive', modifier='none'), {'arrived': True}, 0.5, False)
+    cues.update(route, _progress(20.0, mtype='arrive', modifier='none'), Guidance(arrived=True), 0.5, False)
     assert (cues.kind, cues.stage, cues.cue_id) == ('arrive', 'arrive', 1)
-    cues.update(route, _progress(20.0, mtype='arrive', modifier='none'), {'arrived': True}, 0.5, False)
+    cues.update(route, _progress(20.0, mtype='arrive', modifier='none'), Guidance(arrived=True), 0.5, False)
     assert cues.cue_id == 1
 
   def test_long_gap_earns_a_mileage_digest(self):
     cues, route = NavAudioCues(), {}
-    cues.update(route, _progress(5000.0), {}, V_CRUISE, False)
+    cues.update(route, _progress(5000.0), QUIET, V_CRUISE, False)
     assert (cues.kind, cues.stage, cues.count, cues.cue_id) == ('turn', 'digest', 3, 1)
-    cues.update(route, _progress(4900.0), {}, V_CRUISE, False)
+    cues.update(route, _progress(4900.0), QUIET, V_CRUISE, False)
     assert cues.cue_id == 1
 
   def test_a_roundabout_digest_carries_miles_not_exits(self):
     cues, route = NavAudioCues(), {}
-    cues.update(route, _progress(5000.0, mtype='roundabout', instruction='Take the 2nd exit'), {}, V_CRUISE, False)
+    cues.update(route, _progress(5000.0, mtype='roundabout', instruction='Take the 2nd exit'), QUIET, V_CRUISE, False)
     assert (cues.kind, cues.stage, cues.count) == ('roundabout', 'digest', 3)
 
 

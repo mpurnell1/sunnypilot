@@ -7,6 +7,7 @@ See the LICENSE.md file in the root directory for more details.
 import pytest
 
 from openpilot.common.params import Params
+from openpilot.sunnypilot.navd.helpers import Coordinate
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
 
 FAST = {'legs': [{'summary': 'US-101 North'}]}
@@ -42,7 +43,7 @@ class TestPreferenceBinding:
     self.mapbox = MapboxIntegration()
     self.seen_preferences: list = []
 
-    def fake_generate_route(start_lon, start_lat, end_lon, end_lat, token, bearing=None, preference=None):
+    def fake_generate_route(start, end, token, bearing=None, preference=None):
       self.seen_preferences.append(preference)
       return {'steps': [], 'totalDistance': 1.0, 'totalDuration': 1.0, 'geometry': [], 'maxspeed': []}
 
@@ -50,8 +51,8 @@ class TestPreferenceBinding:
     mocker.patch.object(self.mapbox, 'get_timezone', return_value=None)
 
   def confirm(self, place_name: str) -> bool:
-    postvars = {'place_name': place_name, 'latitude': 47.6, 'longitude': -122.1}
-    return self.mapbox.nav_confirmed(postvars, -122.0, 47.5)
+    destination = {'place_name': place_name, 'latitude': 47.6, 'longitude': -122.1}
+    return self.mapbox.request_route(destination, Coordinate(47.5, -122.0)) is not None
 
   def test_matching_destination_carries_the_preference(self):
     self.params.put('MapboxRoutePreference', {'dest': '-122.1,47.6', 'summary': 'CA-1'}, block=True)
