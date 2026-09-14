@@ -19,7 +19,8 @@ EventNameSP = custom.OnroadEventSP.EventName
 NAV_EVENTS = [
   EventNameSP.navigationBanner,
 ]
-BLOCKING = (ET.NO_ENTRY, ET.SOFT_DISABLE, ET.IMMEDIATE_DISABLE, ET.USER_DISABLE)
+# the only event types a navigation event may define: warnings and permanent text
+NON_BLOCKING = {ET.WARNING, ET.PERMANENT}
 
 
 @pytest.fixture(scope="module")
@@ -31,7 +32,6 @@ def test_navd_crash_does_not_raise_process_not_running(selfdrived):
   # navigationd is only_onroad, so manager marks it shouldBeRunning and a crash lands it in
   # not_running; processNotRunning is NO_ENTRY + SOFT_DISABLE
   assert 'navigationd' in selfdrived.ignored_processes
-  assert not ({'navigationd'} - selfdrived.ignored_processes)
 
 
 def test_navd_silence_does_not_raise_comm_issue(selfdrived):
@@ -51,6 +51,5 @@ def test_navd_silence_does_not_raise_comm_issue(selfdrived):
 
 
 @pytest.mark.parametrize("event", NAV_EVENTS)
-def test_nav_events_cannot_block_or_disengage(event):
-  for et in BLOCKING:
-    assert et not in EVENTS_SP[event], f"{event} defines {et}, which would affect engagement"
+def test_nav_events_are_display_only(event):
+  assert set(EVENTS_SP[event]) <= NON_BLOCKING, f"{event} defines {set(EVENTS_SP[event]) - NON_BLOCKING}"

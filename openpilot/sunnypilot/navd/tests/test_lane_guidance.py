@@ -35,9 +35,9 @@ class TestLaneParsing:
       {'active': False, 'directions': ['uturn']},
     ]
 
-  def test_no_sub_banner_has_no_lanes(self):
+  def test_banner_without_sub_parses_to_primary_only(self):
     parsed = parse_banner_instructions([_banner(400)], distance_to_maneuver=100)
-    assert 'lanes' not in parsed
+    assert parsed == {'showFull': True, 'maneuverPrimaryText': 'Turn right', 'maneuverType': 'turn', 'maneuverModifier': 'right'}
 
   def test_far_banner_is_not_full(self):
     parsed = parse_banner_instructions([_banner(400)], distance_to_maneuver=800)

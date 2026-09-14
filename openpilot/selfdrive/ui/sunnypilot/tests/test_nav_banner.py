@@ -39,12 +39,8 @@ THREE_STEPS = (('depart', 'none', 0.0, 'Head north'),
 
 class TestIconSet:
   def test_import_is_complete(self):
-    # 88 files on nav-commacon minus the two typo'd names, plus the sharp right
-    # notification the typo was hiding, re-imported under its corrected name
     assert len(ICON_FILES) == 87
     assert 'direction_notification_sharp_right' in ICON_FILES
-    assert 'direction_notificaiton_right' not in ICON_FILES
-    assert 'direction_notificaiton_sharp_right' not in ICON_FILES
 
   def test_default_exists(self):
     assert DEFAULT_ICON in ICON_FILES

@@ -28,7 +28,7 @@ class TestFavoritesFunctions:
   def test_remove_favorite_by_kind_and_name(self):
     favs = {"home": "h", "favorites": {"Gym": "g"}}
     favs = ds.remove_favorite(favs, kind="home")
-    assert "home" not in favs
+    assert favs == {"favorites": {"Gym": "g"}}
     favs = ds.remove_favorite(favs, "Gym")
     assert favs == {}
 
@@ -51,8 +51,7 @@ class TestFavoritesFunctions:
   def test_saving_without_a_route_unbinds(self):
     favs = ds.set_favorite({}, "", "-122.1,47.6", kind="work", summary="I-5 South")
     favs = ds.set_favorite(favs, "", "-122.1,47.6", kind="work")
-    assert "routes" not in favs
-    assert "summary" not in ds.favorites_view(favs)[0]
+    assert favs == {"work": "-122.1,47.6"}
 
   def test_binding_for_an_overwritten_dest_is_pruned(self):
     favs = ds.set_favorite({}, "", "old dest", kind="home", summary="I-5 South")
