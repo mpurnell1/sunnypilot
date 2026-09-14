@@ -91,7 +91,7 @@ class NavigationInstructions:
     geometry = [Coordinate(coord['latitude'], coord['longitude']) for coord in route['geometry']]
     cumulative_distances = [0.0]
     cumulative_distances.extend(cumulative_distances[-1] + geometry[step - 1].distance_to(geometry[step]) for step in range(1, len(geometry)))
-    maxspeed = [(speed['speed'], speed['unit']) for speed in route['maxspeed']]
+    maxspeed = [(speed['speed'], speed['unit']) if speed else (0, 'kmh') for speed in route['maxspeed']]
     steps = []
     for step in route['steps']:
       location = Coordinate(step['location']['latitude'], step['location']['longitude'])
