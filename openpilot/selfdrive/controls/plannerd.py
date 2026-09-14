@@ -23,7 +23,6 @@ def main():
   cloudlog.info("plannerd got CarParamsSP")
 
   gps_location_service = get_gps_location_service(params)
-  # navigationd is opt-in and network-dependent, so it must not gate plannerd's health checks
   ignore_services = ["liveMapDataSP", "navigationd", "carStateSP", "selfdriveStateSP", gps_location_service]
 
   ldw = LaneDepartureWarning()

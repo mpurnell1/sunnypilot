@@ -21,7 +21,7 @@ def _line(y):
   return SimpleNamespace(x=X, y=ys)
 
 
-# defaults are the measured frame from route 38: a two-lane road with ~3.1m of oncoming
+# defaults are a measured real frame: a two-lane road with ~3.1m of oncoming
 # lane on the left and 0.35m of shoulder on the right
 def _model(lines=(-4.2, -1.3, 1.75, 2.9), probs=(0.9, 0.99, 0.98, 0.0),
            edges=(-4.4, 2.1), stds=(0.4, 0.24)):

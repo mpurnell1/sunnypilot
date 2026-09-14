@@ -28,7 +28,6 @@ class TestMapbox:
 
       cls.mapbox.params.put('MapboxToken', os.environ['MAPBOX_TOKEN_CI'], block=True)
 
-      # route setup
       cls.current_lon, cls.current_lat = -119.17557, 34.23305
       cls.mapbox.params.put('MapboxRoute', '740 E Ventura Blvd. Camarillo, CA', block=True)
       cls.postvars = {"place_name": cls.mapbox.params.get('MapboxRoute')}

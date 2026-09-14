@@ -44,7 +44,7 @@ class Navigationd:
 
     self.sm = messaging.SubMaster(['carState', 'liveLocationKalman'])
     self.pm = messaging.PubMaster(['navigationd'])
-    self.rk = Ratekeeper(3) # 3 Hz
+    self.rk = Ratekeeper(3)
 
     self.route = None
     self.destination: str | None = None
@@ -116,8 +116,7 @@ class Navigationd:
         self.new_destination = self.params.get('MapboxRoute')
         self.recompute_allowed = self.params.get('MapboxRecompute', return_default=True)
 
-        # audit trail: an unattributed one-poll empty read killed a live highway route on
-        # 2026-08-03, so every observed destination change is worth a log line
+        # a single empty read can be a glitch; log every change so a clear is attributable
         if self.new_destination != self.observed_destination:
           cloudlog.warning("navd: destination param changed %r -> %r", self.observed_destination, self.new_destination)
           self.observed_destination = self.new_destination
@@ -146,8 +145,7 @@ class Navigationd:
       self.rerouting = rerouting
       self.allow_recompute: bool = (pending or rerouting) and monotonic() >= self.next_attempt_time
 
-      # requests run off the loop: geocoding + directions + timezone can block 15s on a dead
-      # LTE link, and an on-loop request once froze banners and hints for 6s at 81mph
+      # requests run off the loop: geocoding + directions + timezone can block 15s on a dead LTE link
       if self.allow_recompute and self.route_request is None:
         self.attempted_destination = self.new_destination
         postvars = {'place_name': self.new_destination}

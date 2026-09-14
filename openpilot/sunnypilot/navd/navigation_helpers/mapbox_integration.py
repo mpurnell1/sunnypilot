@@ -54,7 +54,6 @@ class MapboxIntegration:
       else:
         cloudlog.error("navd: geocoding failed with HTTP %d for destination %r", response.status_code, addr)
     except requests.RequestException as e:
-      # Broad exception to handle network errors like no internet without crashing navd process.
       cloudlog.warning("navd: geocoding request failed for destination %r: %s", addr, e)
     except (ValueError, KeyError, IndexError) as e:
       # a 200 with an unexpected body would otherwise take navd down

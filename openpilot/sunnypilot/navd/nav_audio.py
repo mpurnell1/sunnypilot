@@ -4,8 +4,8 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-Audio cue selection for navigation. Decides *when* a prompt is owed and what it means —
-a kind ('turn', 'exit', 'roundabout', ...), a side, a count — and publishes exactly that.
+Audio cue selection for navigation. Decides *when* a prompt is owed and what it means
+(a kind such as 'turn', 'exit' or 'roundabout', a side, a count) and publishes exactly that.
 How a cue sounds is entirely soundd's business: the Morse letter vocabulary and the tone
 shapes both live there, so a new rendering never touches this file.
 
@@ -115,7 +115,7 @@ class NavAudioCues:
     self._arrived = False
 
   def update(self, route, progress: dict | None, nav_data: dict, v_ego: float, rerouting: bool) -> None:
-    # a recompute rebuilds the route, so step indices — and every fired key — start over
+    # a recompute rebuilds the route, so step indices, and every fired key, start over
     if route is not self._route:
       self._reset_route(route)
 
@@ -171,7 +171,7 @@ class NavAudioCues:
 
     # over a mile of quiet ahead earns one digest cue whose count is the mile figure; being
     # far from the maneuver already guarantees this plays early in the step. A roundabout's
-    # exit number yields to the mileage here — approach and imminent will spell it out
+    # exit number yields to the mileage here; approach and imminent will spell it out
     if event is not None and not crawling and distance > DIGEST_MILE and (nt_idx, 'digest') not in self._fired:
       miles = int(min(9, max(1, round(distance / DIGEST_MILE))))
       self._fire(event[0], 'digest', event[1], miles, (nt_idx, 'digest'))
