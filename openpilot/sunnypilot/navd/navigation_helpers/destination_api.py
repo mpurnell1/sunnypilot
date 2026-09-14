@@ -9,13 +9,13 @@ The destination contract, transport-agnostic: one implementation the LAN page
 two fronts cannot drift. Methods return plain dicts and raise ApiError for every
 refusal; each transport maps ApiError to its own error shape (HTTP status, JSON-RPC
 error). The gate is a callable so each transport supplies its own vehicle check with
-identical semantics: sets and settings writes only offroad or at a standstill,
+identical semantics: settings writes only offroad or at a standstill; destinations and
 cancel any time.
 """
 from collections.abc import Callable
 
 from openpilot.common.params import Params
-from openpilot.sunnypilot.navd.helpers import coordinate_from_param
+from openpilot.sunnypilot.navd.helpers import Coordinate, coordinate_from_param
 from openpilot.sunnypilot.navd.navigation_helpers.destination_store import DestinationStore
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
 
@@ -54,9 +54,7 @@ class DestinationAPI:
     text = str(text).strip()
     if not text:
       raise ApiError("empty query")
-    position = coordinate_from_param("LastGPSPositionLLK", self.params)
-    proximity = (position.longitude, position.latitude) if position else (None, None)
-    results = self.mapbox.search_places(text, *proximity)
+    results = self.mapbox.search_places(text, coordinate_from_param("LastGPSPositionLLK", self.params))
     if results is None:
       raise ApiError("search failed, check the connection and Mapbox token", status=502)
     return {"results": results}
@@ -71,7 +69,7 @@ class DestinationAPI:
       # without a last known fix there is no start point to route from; the destination can
       # still be set, navd will route once the car has a position
       raise ApiError("no known device position", status=409)
-    routes = self.mapbox.preview_routes(position.longitude, position.latitude, end_lon, end_lat)
+    routes = self.mapbox.preview_routes(position, Coordinate(end_lat, end_lon))
     if routes is None:
       raise ApiError("route preview failed", status=502)
     return {"routes": routes}

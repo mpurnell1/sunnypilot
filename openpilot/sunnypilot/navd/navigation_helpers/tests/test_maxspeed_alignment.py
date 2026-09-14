@@ -6,9 +6,9 @@ See the LICENSE.md file in the root directory for more details.
 """
 import pytest
 
-from openpilot.common.params import Params
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
-from openpilot.sunnypilot.navd.navigation_helpers.nav_instructions import NavigationInstructions
+from openpilot.sunnypilot.navd.helpers import Coordinate
+from openpilot.sunnypilot.navd.navigation_helpers.route import Route
 
 # five vertices, four segments; the second segment has no posted limit
 COORDS = [[-88.2, 40.1], [-88.19, 40.1], [-88.18, 40.1], [-88.17, 40.1], [-88.16, 40.1]]
@@ -35,7 +35,7 @@ class FakeResponse:
 @pytest.fixture
 def route(mocker):
   mocker.patch('openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration.requests.get', return_value=FakeResponse())
-  return MapboxIntegration.generate_route(-88.2, 40.1, -88.17, 40.1, 'pk.test')
+  return MapboxIntegration.generate_route(Coordinate(40.1, -88.2), Coordinate(40.1, -88.16), 'pk.test')
 
 
 def test_unknown_segments_keep_their_slot(route):
@@ -43,7 +43,6 @@ def test_unknown_segments_keep_their_slot(route):
 
 
 def test_steps_take_the_limit_of_their_own_segment(route):
-  Params().put('MapboxSettings', {'navData': {'route': route}}, block=True)
-  steps = NavigationInstructions().get_current_route()['steps']
+  steps = Route.from_mapbox(route).steps
   # dropping the unknown slot would hand the turn at vertex 2 the 25 mph of the segment after it
-  assert [step['maxspeed'] for step in steps] == [(30, 'mph'), (55, 'mph'), (25, 'mph')]
+  assert [step.maxspeed for step in steps] == [(30, 'mph'), (55, 'mph'), (25, 'mph')]
