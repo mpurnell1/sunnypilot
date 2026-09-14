@@ -97,7 +97,6 @@ class SelfdriveD:
     # TODO: de-couple selfdrived with card/conflate on carState without introducing controls mismatches
     self.car_state_sock = messaging.sub_sock('carState', timeout=20)
 
-    # navigationd is opt-in and network-dependent, so it must not gate selfdrived's health checks
     ignore = self.sensor_packets + self.gps_packets + ['alertDebug', 'lateralManeuverPlan'] + ['modelDataV2SP', 'longitudinalPlanSP'] + ['navigationd']
     if SIMULATION:
       ignore += ['cabinCameraState', 'managerState']
@@ -151,9 +150,8 @@ class SelfdriveD:
     self.state_machine = StateMachine()
     self.rk = Ratekeeper(100, print_delay_threshold=None)
 
-    # navigationd is opt-in and network-dependent, so a crash in it must not raise
-    # processNotRunning, which is NO_ENTRY + SOFT_DISABLE. Its death is still visible: the UI
-    # sees navigationd go un-alive and reports navigation as not running.
+    # navigationd is opt-in and network-dependent, so it never gates engagement or health
+    # checks; the UI still sees it go un-alive and reports navigation as not running
     self.ignored_processes = {'mapd', 'navigationd'}
 
     # Determine startup event

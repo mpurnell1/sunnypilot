@@ -167,7 +167,7 @@ def lane_change_auto_confirm(progress: dict) -> bool:
   """Whether an active hint may stand in for the wheel nudge.
 
   Only for maneuvers whose topology guarantees the adjacent lane runs our way: an off-ramp
-  or a merge. Turns never qualify, however many lanes the approach shows — near a turn the
+  or a merge. Turns never qualify, however many lanes the approach shows: near a turn the
   only legitimate lateral target is the turn itself, at the turn, and an auto lane change
   toward the turn side can aim at a lane that does not exist. The display side is
   untouched: the banner still prompts for every hint type, and a blinker plus the usual

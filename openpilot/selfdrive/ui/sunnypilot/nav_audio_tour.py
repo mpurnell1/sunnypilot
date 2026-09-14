@@ -6,7 +6,7 @@ See the LICENSE.md file in the root directory for more details.
 
 The navigation audio tour: plays every cue while showing a maneuver card drawn with the
 HUD's own glyph vocabulary, so each sound is learned against the shapes it will accompany. Audio runs on
-raylib's own device in the UI process — soundd is not up offroad, where the tour is used,
+raylib's own device in the UI process: soundd is not up offroad, where the tour is used,
 and owning playback is also what keeps the card and the sound exactly together.
 """
 import os

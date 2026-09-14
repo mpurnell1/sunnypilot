@@ -1,6 +1,10 @@
 # Navigation
 
-Navigation daemon with Mapbox integration for semi-offline navigation. This module handles route planning, geocoding, and turn-by-turn instructions to support autonomous driving features.
+Turn-by-turn guidance from Mapbox: routing, geocoding, and the instructions the UI, soundd
+and the navigation desires consume. It is a driving aid, never a source of autonomy; see
+`docs/NAVIGATION.md` for what it does on the road.
 
-- `navigation_helpers/`: Mapbox API integration and navigation instructions processing.
-- `navigationd`: Navigation service which uses mapbox integration to generate a route and keep it up to date. This service runs at three hz, using keep time to ensure the while loop only updates three times a second rather than every time sm updates, which in this case would be twenty hz (LLK).
+- `navigation_helpers/`: Mapbox API integration and instruction processing.
+- `navigationd`: requests a route, keeps it current, and publishes the `navigationd`
+  message at 3 Hz (the localizer feeds it at 20 Hz; a Ratekeeper holds the loop at 3).
+- `destinationd`: the phone page and its HTTP API on the car's network.

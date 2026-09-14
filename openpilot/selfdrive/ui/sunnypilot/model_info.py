@@ -88,7 +88,7 @@ def queued_name(current_ref) -> str | None:
 def model_info() -> tuple[str, str, str]:
   """returns (active source, active model name, other model name)
 
-  Names come from the params slots, never modelManagerSP.activeBundle — the
+  Names come from the params slots, never modelManagerSP.activeBundle: the
   manager republishes a tick after a chestnut change, so the stale bundle
   would flash the wrong model."""
   source = active_source()

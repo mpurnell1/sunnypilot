@@ -32,7 +32,6 @@ class NavigationInstructions:
     self.coord.latitude = current_lat
     self.coord.longitude = current_lon
 
-    # Find the closest point on the route relative to self
     self.min_distance, self.closest_idx, closest_cumulative = project_onto_geometry(route['geometry'], route['cumulative_distances'], self.coord)
 
     # Find the current step index, which is the HIGHEST idx where the step location cumulative less/equal closest cumulative
