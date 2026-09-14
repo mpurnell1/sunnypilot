@@ -4,14 +4,10 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-Rendering for navigation audio cues. navigationd publishes what a cue means (a kind, a
-side, a count) and this file owns everything about how it sounds, including the Morse
-letter vocabulary. Two renderings exist: a 700 Hz CW sidetone keying that vocabulary, and
-four sounds total in Tones mode: a two-note pair whose contour is the direction (rising =
-right, falling = left, doubled and faster = the turn is now), a soft short blip pair for
-lane changes, a low pair for rerouting, and an arrival arpeggio. Every maneuver kind
-shares the directional pair: what kind of turn it is lives on the screen, not in the
-driver's memory. Every tone edge is a raised-cosine ramp so nothing clicks on the speaker.
+How a navigation cue sounds; navigationd only says what it means. Two renderings: a 700 Hz
+CW sidetone keying a Morse letter vocabulary, and Tones, four sounds whose contour is the
+direction (rising right, falling left, doubled when imminent) plus a lane blip, a reroute
+pair and an arrival arpeggio. The kind of turn lives on the screen, not in the sound.
 """
 import threading
 

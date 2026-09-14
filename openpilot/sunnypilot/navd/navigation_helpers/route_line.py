@@ -14,8 +14,7 @@ import zlib
 
 from openpilot.common.params import Params
 
-# meters of crosstrack a dropped vertex may cost; about a lane width reads as faithful
-# on the head unit at any zoom while cutting an interstate polyline by an order of magnitude
+# meters of crosstrack a dropped vertex may cost; a lane width cuts an interstate polyline tenfold
 DECIMATION_TOLERANCE_M = 10.0
 
 METERS_PER_DEGREE = 111319.5  # mean earth radius * pi / 180

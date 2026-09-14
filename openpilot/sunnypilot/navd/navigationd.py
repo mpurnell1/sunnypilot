@@ -18,13 +18,11 @@ from openpilot.common.swaglog import cloudlog
 
 from openpilot.sunnypilot.navd.constants import NAV_RETRY
 
-# a lane-change direction must hold this many 3Hz cycles before it publishes: hints were
-# observed flapping left/right within a second, and a flap that reaches the assist gate
-# flips which blinker can start a lane change
+# hints flap left/right within a second, and a flap that reaches the assist gate flips
+# which blinker can start a lane change
 HINT_STABLE_CYCLES = 3
 
-# the lost condition must hold this many 3Hz cycles before routeState says offRoute, so a
-# single blip against the distance or bearing thresholds never dims the display
+# a single blip against the distance or bearing thresholds must not dim the display
 OFF_ROUTE_DEBOUNCE_TICKS = 3
 from openpilot.sunnypilot.navd.helpers import Coordinate, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST
@@ -80,14 +78,12 @@ class Navigationd:
   # MapboxSettings outlives the in-memory route, so a route left there can be reloaded later
   def _drop_route(self) -> None:
     self.params.remove("MapboxSettings")
-    # every trip conclusion passes through here, so a chosen alternate can't leak into a
-    # later trip to the same place
+    # a chosen alternate must not leak into a later trip to the same place
     self.params.remove("MapboxRoutePreference")
     self.nav_instructions.clear_route_cache()
     self.route = None
     self.destination = None
-    # MapboxRoute is only re-read every 15 frames, so until the next poll the stale in-memory
-    # value still reads as a fresh destination and re-requests the trip that just concluded
+    # MapboxRoute is only re-read every 15 frames; a stale value would re-request the concluded trip
     self.new_destination = ''
     self.arrival_counter = 0
     self.reroute_counter = 0
@@ -121,10 +117,8 @@ class Navigationd:
           cloudlog.warning("navd: destination param changed %r -> %r", self.observed_destination, self.new_destination)
           self.observed_destination = self.new_destination
 
-        # the destination can be cleared externally (e.g. from the settings UI), and Params
-        # returns None for an unset or empty string param, so treat both as "no destination".
-        # A single empty read is not proof of intent: the route only drops once the clear
-        # persists across polls, so a read glitch costs nothing but one poll of latency
+        # Params returns None for unset and empty alike; the route only drops once the clear
+        # persists across polls, so a read glitch costs one poll of latency
         if not self.new_destination and self.route is not None:
           self.empty_destination_reads += 1
           if self.empty_destination_reads >= 2:
@@ -133,13 +127,11 @@ class Navigationd:
         else:
           self.empty_destination_reads = 0
 
-      # entering a different destination is a fresh request, so it must not inherit the
-      # backoff accumulated by the previous one
+      # a different destination must not inherit the previous one's backoff
       if self.new_destination != self.attempted_destination:
         self._reset_retry()
 
-      # a destination is only accepted once a route actually came back, so a directions failure
-      # stays pending instead of latching a destination that can never be recomputed
+      # a destination is accepted only once a route came back, so a failure stays pending
       pending = bool(self.new_destination) and self.new_destination != self.destination
       rerouting = bool(self.recompute_allowed and not self.final_step and self.reroute_counter > 9 and self.route)
       self.rerouting = rerouting
@@ -160,7 +152,7 @@ class Navigationd:
           cloudlog.exception("navd: route request raised")
           postvars, route_ready = {}, False
 
-        # a result for a destination the driver has since changed or cleared must not land
+        # a result for a destination since changed or cleared must not land
         if self.attempted_destination == self.new_destination:
           route = None
           if route_ready:
@@ -168,13 +160,11 @@ class Navigationd:
             route = self.nav_instructions.get_current_route()
 
           if route is not None:
-            # recents are recorded at acceptance, not at param write, so destinations arriving
-            # through athena, the CLI sender, or a settings favorite all land in the list.
-            # Reroutes re-accept the destination they already hold and are skipped
+            # recents are recorded at acceptance so athena, CLI and settings destinations all
+            # land; reroutes re-accept the destination they hold and are skipped
             if self.destination != self.new_destination:
               name = postvars.get('resolved_name') or postvars.get('name') or self.new_destination
-              # acceptance is a backfill so athena/CLI/settings destinations get a label at
-              # all; a friendly label already recorded by the page or athena wins over it
+              # a friendly label already recorded by the page or athena wins over this backfill
               self.destination_store.record_recent(name, self.new_destination, keep_existing_name=True)
             self.destination = self.new_destination
             self.route = route
@@ -185,8 +175,7 @@ class Navigationd:
             # an existing route is left alone: only the request for a new one failed
             self._schedule_retry()
 
-      # arrival is the only condition that concludes a trip on its own; clearing the
-      # destination param here is what lets the same address start a fresh route later
+      # clearing the param is what lets the same address start a fresh route later
       if self.arrival_counter >= 30:
         self.params.put("MapboxRoute", "")
         self._drop_route()
@@ -212,11 +201,9 @@ class Navigationd:
           parsed = parse_banner_instructions(progress['current_step']['bannerInstructions'], progress['distance_to_end_of_step'])
           if parsed:
             banner_instructions = parsed['maneuverPrimaryText']
-            # the lane layout is a static property of the approach, so the confirm gate may
-            # read it from any of the step's banners, not just the active one
+            # the lane layout is static across a step's banners, so any of them may feed the confirm gate
             banner_lanes = parsed.get('lanes')
-            # showFull means the banner for this distance is active; earlier banners on the same
-            # step describe the maneuver from too far out for lane-level advice to apply yet
+            # earlier banners describe the maneuver from too far out for lane advice to apply
             if self.lane_guidance and parsed.get('showFull'):
               nav_data['lanes'] = banner_lanes or []
 
@@ -231,8 +218,7 @@ class Navigationd:
         route_bearing_misalign: bool = self.nav_instructions.route_bearing_misalign(self.route, self.last_bearing, v_ego)
 
         if self.lane_guidance >= LANE_GUIDANCE_ASSIST:
-          # a hint is only as good as the route it came from: off it, pointed away from it,
-          # or waiting on a failed reroute, the stale route must not prompt lane changes
+          # off the route or waiting on a failed reroute, the stale route must not prompt lane changes
           route_trusted = not large_distance and not route_bearing_misalign and self.failed_attempts == 0
           hint = self._stable_hint(lane_change_hint(progress, v_ego) if route_trusted else 'none')
           nav_data['lane_change_direction'] = hint
@@ -240,10 +226,8 @@ class Navigationd:
 
         self._update_route_standing(large_distance, route_bearing_misalign, arrived)
 
-        # recomputing from inside the final step causes reroute loops at the destination, so
-        # gate it with a dedicated latch. The param-backed allow_navigation/recompute_allowed
-        # flags can't hold this state: they flap back on at the next 5s param re-read, which
-        # made banners and arrival cleanup fire only on the iterations where the flap was off
+        # recomputing inside the final step loops at the destination; a dedicated latch, since
+        # the param-backed flags flap back on at the next 5s re-read
         self.final_step = progress['current_step_idx'] == len(self.route['steps']) - 1
     else:
       banner_instructions = ''
@@ -309,8 +293,7 @@ class Navigationd:
     msg.navigationd.laneChangeAutoConfirm = nav_data.get('lane_change_auto_confirm', False)
     msg.navigationd.valid = self.valid
     msg.navigationd.routeFailures = min(self.failed_attempts, 0xffff)
-    # rerouting outranks offRoute (a recompute underway is the more useful truth), and the
-    # final step never shows rerouting because self.rerouting already excludes it
+    # rerouting outranks offRoute; self.rerouting already excludes the final step
     if self.rerouting:
       msg.navigationd.routeState = 'rerouting'
     elif self.off_route:
