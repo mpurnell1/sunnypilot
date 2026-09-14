@@ -143,26 +143,26 @@ def coordinate_from_param(param: str, params: Params | None = None) -> Coordinat
   return Coordinate(pos['latitude'], pos['longitude'])
 
 
-def lane_change_hint(progress: dict, v_ego: float) -> str:
+def lane_change_hint(progress, v_ego: float) -> str:
   """Which side the route wants the car on for the next maneuver, or 'none'.
 
   Purely advisory: the consumer only uses it to confirm a lane change the driver has
   already signaled, so a wrong hint can at worst leave the normal nudge flow in place.
   """
-  maneuvers = progress['all_maneuvers']
+  maneuvers = progress.all_maneuvers
   if len(maneuvers) < 2:
     return 'none'
   m = maneuvers[1]
-  if not any(t in m['type'] for t in LANE_CHANGE_HINT_TYPES):
+  if not any(t in m.type for t in LANE_CHANGE_HINT_TYPES):
     return 'none'
-  side = LANE_CHANGE_HINT_SIDES.get(m['modifier'])
+  side = LANE_CHANGE_HINT_SIDES.get(m.modifier)
   if side is None:
     return 'none'
   window = np.interp(v_ego, LANE_CHANGE_HINT_SPEED_BP, LANE_CHANGE_HINT_DIST)
-  return side if m['distance'] <= window else 'none'
+  return side if m.distance <= window else 'none'
 
 
-def lane_change_auto_confirm(progress: dict) -> bool:
+def lane_change_auto_confirm(progress) -> bool:
   """Whether an active hint may stand in for the wheel nudge.
 
   Only for maneuvers whose topology guarantees the adjacent lane runs our way: an off-ramp
@@ -172,14 +172,14 @@ def lane_change_auto_confirm(progress: dict) -> bool:
   untouched: the banner still prompts for every hint type, and a blinker plus the usual
   wheel nudge still changes lanes anywhere.
   """
-  maneuvers = progress['all_maneuvers']
+  maneuvers = progress.all_maneuvers
   if len(maneuvers) < 2:
     return False
   m = maneuvers[1]
   # a u-turn's "adjacent lane" is oncoming by definition, whatever the map says
-  if m['modifier'] == 'uturn':
+  if m.modifier == 'uturn':
     return False
-  return any(t in m['type'] for t in LANE_CHANGE_CONFIRM_TYPES)
+  return any(t in m.type for t in LANE_CHANGE_CONFIRM_TYPES)
 
 
 # texts Mapbox already writes as a full sentence, or that carry their own verb; composing

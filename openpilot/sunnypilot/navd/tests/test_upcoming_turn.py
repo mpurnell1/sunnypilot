@@ -5,7 +5,7 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 from openpilot.sunnypilot.navd.helpers import Coordinate, project_onto_geometry
-from openpilot.sunnypilot.navd.navigation_helpers.nav_instructions import NavigationInstructions
+from openpilot.sunnypilot.navd.navigation_helpers.route import Route, RouteProgress, Step, upcoming_turn
 
 LAT, LON = 32.7767, -96.797
 
@@ -37,36 +37,37 @@ class TestProjectOntoGeometry:
     assert along == 0.0
 
 
-def _progress(maneuver_type: str, modifier: str) -> dict:
-  # next turn at the current position, so the distance gate always passes
-  return {'next_turn': {'location': Coordinate(LAT, LON), 'maneuver': maneuver_type, 'modifier': modifier}}
+HERE = Coordinate(LAT, LON)
+
+
+def _step(maneuver_type: str, modifier: str, location: Coordinate = HERE) -> Step:
+  return Step(maneuver_type, modifier, '', 100.0, 10.0, location, 0.0, (0, 'kmh'), [])
+
+
+def _progress(maneuver_type: str, modifier: str, location: Coordinate = HERE) -> RouteProgress:
+  # next turn at the current position by default, so the distance gate passes
+  step = _step(maneuver_type, modifier, location)
+  return RouteProgress(0.0, 0, 0, step, step, 0.0, 0.0, 0.0, [])
 
 
 class TestUpcomingTurn:
-  def setup_method(self):
-    self.nav = NavigationInstructions()
-
   def test_plain_turn_publishes_modifier(self):
-    assert self.nav.get_upcoming_turn_from_progress(_progress('turn', 'right'), LAT, LON, 0.0) == 'right'
+    assert upcoming_turn(_progress('turn', 'right'), HERE, 0.0) == 'right'
 
   def test_uturn_survives(self):
-    assert self.nav.get_upcoming_turn_from_progress(_progress('turn', 'uturn'), LAT, LON, 0.0) == 'uturn'
+    assert upcoming_turn(_progress('turn', 'uturn'), HERE, 0.0) == 'uturn'
 
   def test_roundabout_overrides_modifier(self):
     # the modifier is only the exit heading, so it must not read as an ordinary turn
     for maneuver_type in ('roundabout', 'rotary', 'roundabout turn', 'exit roundabout', 'exit rotary'):
-      assert self.nav.get_upcoming_turn_from_progress(_progress(maneuver_type, 'slightRight'), LAT, LON, 0.0) == 'roundabout'
+      assert upcoming_turn(_progress(maneuver_type, 'slightRight'), HERE, 0.0) == 'roundabout'
 
   def test_far_turn_stays_hidden(self):
-    progress = _progress('turn', 'right')
-    progress['next_turn']['location'] = Coordinate(LAT + 0.1, LON)
-    assert self.nav.get_upcoming_turn_from_progress(progress, LAT, LON, 0.0) == 'none'
+    assert upcoming_turn(_progress('turn', 'right', Coordinate(LAT + 0.1, LON)), HERE, 0.0) == 'none'
 
 
 class TestRouteRemaining:
   def setup_method(self):
-    self.nav = NavigationInstructions()
-
     # straight north-south route: 11 points, two 60-second driving steps plus the arrive step
     geometry = [Coordinate(LAT + 0.001 * i, LON) for i in range(11)]
     cumulative = [0.0]
@@ -76,34 +77,31 @@ class TestRouteRemaining:
     self.halfway = cumulative[5]
 
     def step(idx, distance, duration, maneuver):
-      return {'cumulative_distance': cumulative[idx], 'distance': distance, 'duration': duration,
-              'maneuver': maneuver, 'modifier': 'none', 'instruction': '', 'bannerInstructions': [],
-              'location': geometry[idx], 'maxspeed': (0, 'kmh')}
+      return Step(maneuver, 'none', '', distance, duration, geometry[idx], cumulative[idx], (0, 'kmh'), [])
 
-    self.nav._cached_route = {
-      'geometry': geometry,
-      'cumulative_distances': cumulative,
-      'total_distance': self.total,
-      'total_duration': 120.0,
-      'maxspeed': [],
-      'bearings': [],
-      'steps': [step(0, self.halfway, 60.0, 'depart'),
-                step(5, self.total - self.halfway, 60.0, 'turn'),
-                step(10, 0.0, 0.0, 'arrive')],
-    }
-    self.nav._route_loaded = True
+    self.route = Route(
+      route_id=1,
+      geometry=geometry,
+      cumulative_distances=cumulative,
+      bearings=[],
+      steps=[step(0, self.halfway, 60.0, 'depart'),
+             step(5, self.total - self.halfway, 60.0, 'turn'),
+             step(10, 0.0, 0.0, 'arrive')],
+      total_distance=self.total,
+      total_duration=120.0,
+    )
 
   def test_at_start(self):
-    progress = self.nav.get_route_progress(LAT, LON)
-    assert abs(progress['distance_remaining'] - self.total) < 1.0
-    assert abs(progress['time_remaining'] - 120.0) < 1.0
+    progress = self.route.progress(Coordinate(LAT, LON))
+    assert abs(progress.distance_remaining - self.total) < 1.0
+    assert abs(progress.time_remaining - 120.0) < 1.0
 
   def test_halfway(self):
-    progress = self.nav.get_route_progress(LAT + 0.005, LON)
-    assert abs(progress['distance_remaining'] - (self.total - self.halfway)) < 1.0
-    assert abs(progress['time_remaining'] - 60.0) < 1.0
+    progress = self.route.progress(Coordinate(LAT + 0.005, LON))
+    assert abs(progress.distance_remaining - (self.total - self.halfway)) < 1.0
+    assert abs(progress.time_remaining - 60.0) < 1.0
 
   def test_at_destination(self):
-    progress = self.nav.get_route_progress(LAT + 0.010, LON)
-    assert progress['distance_remaining'] < 1.0
-    assert progress['time_remaining'] < 1.0
+    progress = self.route.progress(Coordinate(LAT + 0.010, LON))
+    assert progress.distance_remaining < 1.0
+    assert progress.time_remaining < 1.0

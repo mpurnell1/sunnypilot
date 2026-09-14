@@ -103,7 +103,7 @@ class NavAudioCues:
     self._fired = set()
     self._arrived = False
 
-  def update(self, route, progress: dict | None, nav_data: dict, v_ego: float, rerouting: bool) -> None:
+  def update(self, route, progress, guidance, v_ego: float, rerouting: bool) -> None:
     # a recompute rebuilds the route, so step indices, and every fired key, start over
     if route is not self._route:
       self._reset_route(route)
@@ -120,17 +120,17 @@ class NavAudioCues:
     else:
       self._reroute_armed = True
 
-    if nav_data.get('arrived') and not self._arrived:
+    if guidance.arrived and not self._arrived:
       self._arrived = True
       self._fire('arrive', 'arrive')
       return
 
-    next_turn = progress['next_turn']
+    next_turn = progress.next_turn
     if next_turn is None:
       return
-    nt_idx = progress['current_step_idx'] + 1
-    event = maneuver_event(next_turn['maneuver'], next_turn['modifier'], next_turn['instruction'])
-    distance = progress['distance_to_end_of_step']
+    nt_idx = progress.current_step_idx + 1
+    event = maneuver_event(next_turn.maneuver, next_turn.modifier, next_turn.instruction)
+    distance = progress.distance_to_end_of_step
     crawling = v_ego < CRAWL_SPEED
 
     if event is not None:
@@ -144,14 +144,14 @@ class NavAudioCues:
         return
 
       if distance <= approach_at and (nt_idx, 'approach') not in self._fired and not crawling:
-        step_len = progress['current_step']['distance']
+        step_len = progress.current_step.distance
         if step_len < approach_at + CHAIN_MARGIN:
           self._fired.add((nt_idx, 'approach'))
         else:
           self._fire(kind, 'approach', side, count, (nt_idx, 'approach'))
           return
 
-    hint = nav_data.get('lane_change_direction', 'none')
+    hint = guidance.lane_change_direction
     if hint in ('left', 'right') and (nt_idx, 'lane', hint) not in self._fired and not crawling:
       self._fire('laneChange', 'lane', hint, 0, (nt_idx, 'lane', hint))
       return

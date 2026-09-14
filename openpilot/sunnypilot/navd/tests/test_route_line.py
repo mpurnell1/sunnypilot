@@ -8,7 +8,7 @@ import pytest
 
 from openpilot.common.params import Params
 from openpilot.sunnypilot.navd.helpers import Coordinate, project_onto_geometry
-from openpilot.sunnypilot.navd.navigation_helpers.nav_instructions import NavigationInstructions
+from openpilot.sunnypilot.navd.navigation_helpers.route import Route
 from openpilot.sunnypilot.navd.navigation_helpers.route_line import DECIMATION_TOLERANCE_M, route_id, route_line_snapshot
 
 M_PER_DEG_LAT = 111319.5
@@ -20,7 +20,9 @@ def _point(lat: float, lon: float) -> dict:
 
 def _route(geometry: list[dict]) -> dict:
   # only geometry matters to the route line; the rest mirrors generate_route's shape
-  return {'geometry': geometry, 'steps': [], 'totalDistance': 0.0, 'totalDuration': 0.0, 'maxspeed': []}
+  step = {'maneuver': 'depart', 'instruction': '', 'distance': 0.0, 'duration': 0.0, 'modifier': 'straight',
+          'location': geometry[0], 'bannerInstructions': []}
+  return {'geometry': geometry, 'steps': [step], 'totalDistance': 0.0, 'totalDuration': 0.0, 'maxspeed': []}
 
 
 def _put_route(params: Params, geometry: list[dict]) -> None:
@@ -91,5 +93,5 @@ class TestRouteLineSnapshot:
     # names the same polyline /api/route serves
     params = Params()
     _put_route(params, [_point(34.2, -119.0), _point(34.25, -119.05), _point(34.3, -119.0)])
-    loaded = NavigationInstructions().get_current_route()
-    assert loaded['route_id'] == route_line_snapshot(params)["routeId"] != 0
+    loaded = Route.from_mapbox(params.get('MapboxSettings')['navData']['route'])
+    assert loaded.route_id == route_line_snapshot(params)["routeId"] != 0

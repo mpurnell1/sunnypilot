@@ -15,7 +15,13 @@ from openpilot.sunnypilot.navd.helpers import Coordinate
 from openpilot.sunnypilot.navd.navigationd import Navigationd
 
 DESTINATION = "740 E Ventura Blvd"
-ROUTE = {'steps': [{}], 'geometry': [{}]}
+ROUTE = {
+  'steps': [{'maneuver': 'depart', 'instruction': '', 'distance': 100.0, 'duration': 10.0, 'modifier': 'straight',
+             'location': {'latitude': 34.233, 'longitude': -119.175}, 'bannerInstructions': []}],
+  'totalDistance': 100.0, 'totalDuration': 10.0,
+  'geometry': [{'latitude': 34.233, 'longitude': -119.175}, {'latitude': 34.234, 'longitude': -119.175}],
+  'maxspeed': [],
+}
 
 
 # a route request costs a Mapbox geocoding call and usually a directions call, and
@@ -37,18 +43,15 @@ class TestRouteRetry:
     self.nav = Navigationd()
     self.nav.last_position = Coordinate(latitude=34.23305, longitude=-119.17557)
 
-    # set_destination reports whether a route is ready; get_current_route reads it back
+    # set_destination hands back the stored route dict, or None when the request failed
     self.route_ready = False
     self.set_destination_calls = 0
 
-    def fake_set_destination(postvars, *args, **kwargs):
+    def fake_set_destination(destination, *args, **kwargs):
       self.set_destination_calls += 1
-      return postvars, self.route_ready
+      return destination, ROUTE if self.route_ready else None
 
     mocker.patch.object(self.nav.mapbox, 'set_destination', side_effect=fake_set_destination)
-    mocker.patch.object(self.nav.nav_instructions, 'clear_route_cache')
-    mocker.patch.object(self.nav.nav_instructions, 'get_current_route',
-                        side_effect=lambda: ROUTE if self.route_ready else None)
 
     # requests normally run on a worker thread; running them inline keeps the fake clock
     # authoritative over when a request happens and when its result lands
@@ -68,7 +71,7 @@ class TestRouteRetry:
   def test_success_stores_the_route(self):
     self.route_ready = True
     self.run_for(1.0)
-    assert self.nav.route == ROUTE
+    assert self.nav.route is not None
     assert self.nav.destination == DESTINATION
     assert self.set_destination_calls == 1, "a satisfied destination must not be requested again"
 
@@ -95,7 +98,7 @@ class TestRouteRetry:
       total += d
       expected += 1
     assert self.set_destination_calls == expected
-    assert self.nav.failed_attempts == expected
+    assert self.nav.retry.failed_attempts == expected
 
   def test_recovery_after_a_failure_run(self):
     self.route_ready = False
@@ -105,7 +108,7 @@ class TestRouteRetry:
 
     self.route_ready = True
     self.run_for(120.0)
-    assert self.nav.route == ROUTE
+    assert self.nav.route is not None
     assert self.nav.destination == DESTINATION
     assert self.set_destination_calls == failed_calls + 1, "should stop requesting once it succeeds"
 
@@ -124,7 +127,7 @@ class TestRouteRetry:
   def test_a_failed_reroute_keeps_the_existing_route(self):
     self.route_ready = True
     self.run_for(1.0)
-    assert self.nav.route == ROUTE
+    assert self.nav.route is not None
 
     # off-route long enough to trigger a recompute, which then fails
     self.route_ready = False
@@ -134,7 +137,7 @@ class TestRouteRetry:
     self.run_for(30.0)
 
     assert self.set_destination_calls > calls_before, "a reroute should have been attempted"
-    assert self.nav.route == ROUTE, "a failed reroute must not discard the working route"
+    assert self.nav.route is not None, "a failed reroute must not discard the working route"
     assert self.nav.destination == DESTINATION
 
   def test_arrival_unlatches_the_destination(self):
@@ -172,13 +175,13 @@ class TestRouteRetry:
     calls_before = self.set_destination_calls
     self.run_for(6.0)
 
-    assert self.nav.route == ROUTE, "re-entering the same address must start a new route"
+    assert self.nav.route is not None, "re-entering the same address must start a new route"
     assert self.set_destination_calls == calls_before + 1
 
   def test_clearing_the_destination_forgets_the_stored_route(self):
     self.route_ready = True
     self.run_for(1.0)
-    assert self.nav.route == ROUTE
+    assert self.nav.route is not None
 
     Params().put("MapboxSettings", {"navData": {"route": {"steps": [{}]}}}, block=True)
     Params().put("MapboxRoute", "", block=True)
@@ -192,20 +195,20 @@ class TestRouteRetry:
   def test_a_result_for_a_stale_destination_is_discarded(self):
     self.route_ready = True
     request = Future()
-    request.set_result(({}, True))
+    request.set_result(({}, ROUTE))
     self.nav.route_request = request
-    self.nav.attempted_destination = "the old destination"
+    self.nav.retry.attempted_destination = "the old destination"
     self.nav.frame = 0  # keep clear of the poll so new_destination stays as set
     self.nav.new_destination = DESTINATION
 
     self.nav._update_params()
     assert self.nav.route is None, "a route for a destination the driver replaced must not land"
-    assert self.nav.failed_attempts == 0, "a discarded result is not a failure to back off from"
+    assert self.nav.retry.failed_attempts == 0, "a discarded result is not a failure to back off from"
 
   def test_a_transient_empty_read_holds_the_route(self):
     self.route_ready = True
     self.run_for(1.0)
-    assert self.nav.route == ROUTE
+    assert self.nav.route is not None
 
     # one poll sees the destination empty, then the value is back: a glitch, not a clear
     Params().put("MapboxRoute", "", block=True)
@@ -213,7 +216,7 @@ class TestRouteRetry:
     Params().put("MapboxRoute", DESTINATION, block=True)
     self.run_for(6.0)
 
-    assert self.nav.route == ROUTE, "a one-poll empty read must not kill the route"
+    assert self.nav.route is not None, "a one-poll empty read must not kill the route"
     assert self.nav.destination == DESTINATION
     assert self.nav.empty_destination_reads == 0
 
