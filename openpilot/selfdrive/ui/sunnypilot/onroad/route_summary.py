@@ -58,9 +58,7 @@ def plan_layout(top: float, bottom: float, row_count: int) -> tuple[int, float, 
   return None
 
 
-# remaining time / remaining distance / arrival time, stacked in the left column under the
-# nav chip so it stays clear of the right-side dev UI.
-# ETA lives here rather than in the message so the clock stays current between route updates.
+# the arrival time is computed here, not in the message, so the clock stays current between route updates
 class RouteSummaryRenderer:
   def __init__(self):
     self.nav_status = NavStatus()
@@ -122,8 +120,6 @@ class RouteSummaryRenderer:
     height = row_height * len(rows) + 2 * PADDING_V * scale
 
     box = rl.Rectangle(rect.x + LEFT_MARGIN, y, width, height)
-    # roundness is a fraction of the box's short side; matches the corner radius of the
-    # single-height cards above, same as the next-turn card does
     rl.draw_rectangle_rounded(box, 0.175, 10, BACKGROUND)
 
     y = box.y + PADDING_V * scale

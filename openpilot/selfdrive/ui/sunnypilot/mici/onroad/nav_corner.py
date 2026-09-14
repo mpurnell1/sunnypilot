@@ -4,16 +4,10 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-The mici skin of the transient nav system: a corner glyph with the distance and a small
-lane row, faded in and out by the same TransientNav machine that runs the 3X rail. The
-screen is 536x240 and its language is transiently minimal, so there is no card, no street
-text, and nothing persistent: audio carries street names, the corner carries the shape of
-the turn. The quiet state shows nothing unless the faint glyph is switched on by param,
-and the pinned state is the persistent-corner look for drivers who want it, one tap away.
-
-The corner borrows the set-speed circle's top-left slot. Only one occupant at a time:
-alerts suppress the nav layer exactly like they suppress the top icons, and while the
-set-speed circle is up the corner yields and fades back in after.
+The mici skin of the transient nav system: a corner glyph, the distance and a small lane
+row in the set-speed circle's slot, driven by the same TransientNav machine as the 3X
+rail. No card and no street text on a 536x240 screen; audio carries the street names.
+Alerts and the set-speed circle take the slot with priority.
 """
 from dataclasses import dataclass, field
 
@@ -32,8 +26,7 @@ from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.widgets import Widget
 
-# the block sits in the set-speed circle's slot: centered on the same corner, sized to
-# read at a glance without claiming more of the 476-wide content area than the circle does
+# centered on the set-speed circle's corner, no wider than the circle within the 476-wide content area
 CENTER_X = 70
 GLYPH_CY = 58
 GLYPH_SIZE = 64
@@ -46,7 +39,6 @@ LANE_TOP = 142
 LANE_SLOT = 30
 LANE_ICON_SIZE = 20
 
-# the tap target covers the drawn block with a margin a driving finger can hit
 TOUCH_WIDTH = 150
 TOUCH_HEIGHT = 180
 
@@ -62,9 +54,8 @@ LANE_INACTIVE_ALPHA = 0.35
 
 @dataclass(frozen=True)
 class CornerContent:
-  """One frame's corner, or None for an empty corner. kind is 'maneuver' for a live route
-  and 'searching' or 'failure' for the status flags; alpha is the fade target. raised is
-  the searching flag's stage: a bare pole until the GPS fix, pole plus banner after."""
+  """kind is 'maneuver', 'searching' or 'failure'; alpha is the fade target; raised is the
+  searching flag's stage (bare pole until the GPS fix)."""
   kind: str
   alpha: float
   maneuver_type: str = ''
@@ -76,9 +67,6 @@ class CornerContent:
 
 def corner_content(state: TransientNavState, mode: ChipMode, msg,
                    lane_guidance: int, quiet_glyph: bool, raised: bool = True) -> CornerContent | None:
-  """Pure gate for what the corner shows. Expanded states carry the distance and the lane
-  row; the quiet state carries a faint glyph only when the param asks for it; searching
-  and failure show the destination flag so a set destination is never silently ignored."""
   if mode == ChipMode.SEARCHING:
     return CornerContent('searching', SEARCH_ALPHA, raised=raised)
   if mode == ChipMode.FAILURE:
@@ -86,8 +74,7 @@ def corner_content(state: TransientNavState, mode: ChipMode, msg,
   if mode != ChipMode.LIVE:
     return None
   if msg.routeState == 'rerouting':
-    # the searching flag is the reroute cue's visual; failing recompute requests turn it
-    # into the failure flag, because red outranks everything
+    # the searching flag doubles as the reroute cue; failing recomputes turn it red
     if msg.routeFailures >= ROUTE_FAILURE_THRESHOLD:
       return CornerContent('failure', FAILURE_ALPHA)
     return CornerContent('searching', SEARCH_ALPHA)
@@ -96,10 +83,8 @@ def corner_content(state: TransientNavState, mode: ChipMode, msg,
     return None
   maneuver_type, modifier, distance = maneuver
   if msg.routeState == 'offRoute':
-    # off route the glyph dims to the quiet alpha even with the quiet glyph param off: a
-    # lost route is worth a hint the steady state is not. The distance and the lane row
-    # drop because they describe a maneuver the car is no longer approaching; PINNED
-    # wears this same treatment rather than collapsing, staying up was the driver's call
+    # off route: a dim glyph even with the quiet glyph off, and no distance or lanes, which
+    # would describe a maneuver the car is not approaching
     return CornerContent('maneuver', QUIET_ALPHA, maneuver_type, modifier)
   if state in (TransientNavState.APPROACH, TransientNavState.PINNED):
     lanes = tuple(msg.lanes) if lane_guidance else ()
@@ -110,10 +95,7 @@ def corner_content(state: TransientNavState, mode: ChipMode, msg,
 
 
 class MiciNavRenderer(Widget):
-  """The corner widget. Same machine and status model as the 3X, different skin: state
-  changes move a fade target and a FirstOrderFilter walks the alpha there, so expansion
-  and collapse are soft edges rather than cuts. The rect is set to the touch target only
-  while live content is up, so an empty or fading corner never swallows a tap."""
+  """State changes move a fade target and a FirstOrderFilter walks the alpha there."""
 
   def __init__(self):
     super().__init__()
@@ -133,7 +115,7 @@ class MiciNavRenderer(Widget):
 
   @property
   def showing(self) -> bool:
-    """Whether the corner is visibly occupied, fade tails included; the DMoji yields on it."""
+    """Visibly occupied, fade tails included; the DMoji yields on it."""
     return self._alpha_filter.x > 1e-2
 
   def set_can_draw(self, can_draw: bool) -> None:
@@ -173,7 +155,7 @@ class MiciNavRenderer(Widget):
     a = min(alpha, 1.0)
     cx = rect.x + CENTER_X
 
-    # the same drop shadow the set-speed circle uses, so the slot reads consistently
+    # the set-speed circle's drop shadow
     rl.draw_circle_gradient(rl.Vector2(cx, rect.y + SHADOW_CY), SHADOW_RADIUS,
                             rl.Color(0, 0, 0, int(255 / 2 * a)), rl.BLANK)
 
@@ -194,13 +176,12 @@ class MiciNavRenderer(Widget):
     if len(drawn.lanes):
       self._render_lane_row(rect, drawn.lanes, a)
 
-    # only a corner that is actually being asked for takes taps; a fading remnant does not
+    # a fading remnant takes no taps
     if content is not None and content.kind == 'maneuver':
       self.set_rect(rl.Rectangle(rect.x, rect.y, TOUCH_WIDTH, TOUCH_HEIGHT))
 
   def _render_lane_row(self, rect: rl.Rectangle, lanes, a: float) -> None:
     n = len(lanes)
-    # centered under the glyph, but never past the content's left edge
     x = max(rect.x + 8 + LANE_SLOT / 2, rect.x + CENTER_X - LANE_SLOT * (n - 1) / 2)
     cy = rect.y + LANE_TOP
     for lane in lanes:

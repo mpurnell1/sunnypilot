@@ -4,14 +4,9 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-The approach banner: the expanded skin of the transient nav system on the 3X. A top-center
-card with the maneuver icon, the distance, the street text, and a Then chip for the maneuver
-after it, with the lane guidance row beneath. Geometry follows the nav-commacon banner the
-community already drove with, using its direction_*.png icon set.
-
-The banner is display only in the sense of the control policy, but it is a touch target:
-a tap collapses it (or unpins), and holding it cancels the route outright, logged and
-confirmation-free, mirroring how little ceremony setting a destination has.
+The expanded skin of the transient nav system on the 3X: a top-center card with icon,
+distance, street text, a Then chip, and the lane row beneath. Geometry and icons follow the
+nav-commacon banner. A tap collapses or unpins it; a hold cancels the route.
 """
 from dataclasses import dataclass
 from pathlib import Path
@@ -40,8 +35,7 @@ ICON_PAD = 30
 DISTANCE_FONT_SIZE = 48
 DISTANCE_TOP = 166
 
-# street text starts past the icon column and stops short of the Then chip; the reservation
-# is unconditional so the text does not reflow when a route's last maneuver drops the chip
+# the Then chip's width is reserved even when absent, so the street text never reflows
 TEXT_X = 233
 THEN_WIDTH = 180
 STREET_FONT_SIZE = 75
@@ -61,11 +55,9 @@ HOLD_CANCEL_SECONDS = 0.65
 BACKGROUND = rl.Color(0, 0, 0, 180)
 LANE_BACKGROUND = rl.Color(0, 0, 0, 140)
 DIVIDER = rl.Color(255, 255, 255, 50)
-# the off-route and rerouting treatments dim with the chip's searching alpha
 DIM_TREATMENT = rl.Color(255, 255, 255, 110)
 
-# the consolidated speed pill that stands in for the set-speed box and the center current
-# speed while the banner is up, so the banner does not sit on top of either
+# the speed pill that replaces the set-speed box and the current speed while the banner is up
 PILL_X = 60
 PILL_Y = 45
 PILL_WIDTH = 200
@@ -74,22 +66,16 @@ PILL_BOTTOM = PILL_Y + PILL_HEIGHT
 
 ICONS_PATH = "../../sunnypilot/selfdrive/assets/navigation"
 _ICONS_DIR = Path(__file__).resolve().parents[4] / "sunnypilot" / "selfdrive" / "assets" / "navigation"
-# listed once at import so the fallback chain tests membership instead of touching the
-# filesystem per frame
 ICON_FILES = frozenset(p.stem for p in _ICONS_DIR.glob("direction_*.png"))
 DEFAULT_ICON = 'direction_turn_straight'
 
 # navigationd publishes string_to_direction's camelCase modifiers; the files use snake_case
 MODIFIER_FILE = {'slightLeft': 'slight_left', 'slightRight': 'slight_right',
                  'sharpLeft': 'sharp_left', 'sharpRight': 'sharp_right'}
-# compound roundabout types the icon set has no files of its own for
 TYPE_ALIASES = {'roundabout turn': 'roundabout', 'exit roundabout': 'roundabout', 'exit rotary': 'rotary'}
 
 
 def icon_name(maneuver_type: str, modifier: str) -> str:
-  """Resolve a maneuver to an icon along a fallback chain: the exact type and modifier
-  pair, the bare type, the same modifier in the turn family, the bare modifier (which is
-  what carries the uturn glyph), and finally the straight arrow."""
   t = TYPE_ALIASES.get(maneuver_type, maneuver_type).replace(' ', '_')
   m = MODIFIER_FILE.get(modifier, modifier)
   if m and m != 'none':
@@ -103,8 +89,6 @@ def icon_name(maneuver_type: str, modifier: str) -> str:
 
 
 def wrap_two_lines(text: str, max_width: float, measure) -> list[str]:
-  """Greedy word wrap into at most two lines; whatever does not fit is elided. A word too
-  wide for a line of its own is kept and elided rather than dropped."""
   words = text.split()
   if not words:
     return []
@@ -142,25 +126,18 @@ class BannerContent:
   then_type: str | None
   then_modifier: str | None
   lanes: list
-  # off the route the icon dims and the distance drops; rerouting swaps the icon for the
-  # searching flag (red once recompute requests are failing). Only PINNED ever wears these:
-  # APPROACH force-collapses when the route is lost.
   route_state: str = 'onRoute'
   failing: bool = False
 
 
 def banner_content(state: TransientNavState, mode: ChipMode, msg, lane_guidance: int) -> BannerContent | None:
-  """What the banner shows this frame, or None while it is down. Pure so the gating is
-  testable: expanded state and a live route are both required, and lanes are double-gated
-  on the NavLaneGuidance setting exactly like the old rail card."""
   if mode != ChipMode.LIVE or state not in (TransientNavState.APPROACH, TransientNavState.PINNED):
     return None
   idx = pick_upcoming_index(msg.allManeuvers)
   if idx is None:
     return None
   m = msg.allManeuvers[idx]
-  # the parsed banner text is the concise street name; the maneuver's spoken-style
-  # instruction covers the stretch before Mapbox raises the banner
+  # the instruction covers the stretch before Mapbox raises the banner
   street = msg.bannerInstructions or m.instruction
   then = msg.allManeuvers[idx + 1] if len(msg.allManeuvers) > idx + 1 else None
   lanes = list(msg.lanes) if lane_guidance else []
@@ -210,8 +187,7 @@ class NavBannerRenderer(Widget):
   def _cancel_route(self) -> None:
     self._hold_fired = True
     self._params.put('MapboxRoute', '')
-    # the shared status polls the param at 1 Hz; clearing its model too makes the banner
-    # and chip drop on the next frame instead of after the poll
+    # nav_status polls the param at 1 Hz; clearing its model drops the banner this frame
     self._nav.nav_status.destination = ''
     cloudlog.event("nav route cancelled from banner hold")
 
@@ -234,16 +210,13 @@ class NavBannerRenderer(Widget):
 
     icon_cx = card.x + ICON_PAD + ICON_SIZE / 2
     if content.route_state == 'rerouting':
-      # the searching flag stands in for the maneuver icon while the route is recomputed,
-      # red once the recompute requests are failing
       _draw_flag(icon_cx, card.y + 12 + ICON_SIZE / 2, BAD if content.failing else DIM_TREATMENT, ICON_SIZE * 0.55)
     else:
       icon = gui_app.texture(f"{ICONS_PATH}/{icon_name(content.maneuver_type, content.modifier)}.png", ICON_SIZE, ICON_SIZE)
       tint = DIM_TREATMENT if content.route_state == 'offRoute' else rl.WHITE
       rl.draw_texture_ex(icon, rl.Vector2(card.x + ICON_PAD, card.y + 12), 0, 1.0, tint)
 
-    # off route or rerouting, the distance is a number counting toward a maneuver the car
-    # is not approaching, so it is the one thing that goes away rather than dim
+    # off route, the distance would count toward a maneuver the car is not approaching
     if content.route_state == 'onRoute':
       distance = format_distance(content.distance, ui_state.is_metric)
       size = measure_text_cached(self._font_bold, distance, DISTANCE_FONT_SIZE)
@@ -256,7 +229,6 @@ class NavBannerRenderer(Widget):
       ys = [card.y + (BANNER_HEIGHT - STREET_FONT_SIZE) / 2]
     else:
       ys = [card.y + 30, card.y + 30 + STREET_LINE_SPACING]
-    # one street line takes the first slot of two; strict would reject that pairing
     for line, y in zip(lines, ys, strict=False):
       rl.draw_text_ex(self._font_bold, line, rl.Vector2(card.x + TEXT_X, y), STREET_FONT_SIZE, 0, rl.WHITE)
 
@@ -275,7 +247,6 @@ class NavBannerRenderer(Widget):
     if len(content.lanes):
       self._render_lane_row(rect, card, content.lanes)
 
-    # the touch target is the card alone, not the lane row beneath it
     self.set_rect(card)
     self._check_hold()
 
@@ -288,6 +259,5 @@ class NavBannerRenderer(Widget):
     cy = row.y + row.height / 2
     x = row.x + width / 2 - LANE_SLOT * (n - 1) / 2
     for lane in lanes:
-      # the same elbow glyphs as the quiet chip, so the row matches overhead lane signage
       draw_lane_glyph(x, cy, lane_direction(lane), TURN_COLOR if lane.active else LANE_INACTIVE, LANE_ICON_SIZE)
       x += LANE_SLOT
