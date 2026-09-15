@@ -27,6 +27,7 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.sunnypilot.system.statsd import statlog
 from openpilot.system.hardware.power_monitoring import PowerMonitoring
 from openpilot.system.hardware.fan_controller import FanController
+from openpilot.system.hardware.chestnut.flash import set_pcie_power
 from openpilot.system.hardware.chestnut.status import ChestnutStatus
 from openpilot.common.version import terms_version, training_version, get_build_metadata, terms_version_sp
 
@@ -442,6 +443,8 @@ def hardware_thread(end_event, hw_queue) -> None:
       started_ts = None
       if off_ts is None:
         off_ts = time.monotonic()
+        # the asm never drops the gpu rail on its own, and some cars keep 12V live when parked
+        set_pcie_power(False)
 
     # Offroad power monitoring
     voltage = None if peripheralState.pandaType == log.PandaState.PandaType.unknown else peripheralState.voltage
