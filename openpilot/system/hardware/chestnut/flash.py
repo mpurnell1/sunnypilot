@@ -105,17 +105,36 @@ def open_device(path):
   return os.open(f"/dev/bus/usb/{bus:03d}/{dev:03d}", os.O_RDWR)
 
 
-def link_up() -> bool:
-  # asm enumerates on USB-C alone, gpu is only usable once pcie link is up
+def open_chestnut():
   try:
     path, _, _ = find_chestnut()
-    if path is None:
-      return False
-    fd = open_device(path)
+    return None if path is None else open_device(path)
   except (OSError, RuntimeError):
+    return None
+
+
+def set_pcie_power(enabled: bool) -> bool:
+  # asm switches the gpu's 12V rail, which its firmware brings up at boot
+  fd = open_chestnut()
+  if fd is None:
     return False
   try:
-    fcntl.ioctl(fd, USBDEVFS_CONTROL, Ctrl(0x40, 0xF3, 1, 0, 0, 2000, None))
+    fcntl.ioctl(fd, USBDEVFS_CONTROL, Ctrl(0x40, 0xF3, int(enabled), 0, 0, 2000, None))
+    return True
+  except OSError:
+    return False
+  finally:
+    os.close(fd)
+
+
+def link_up() -> bool:
+  # asm enumerates on USB-C alone, gpu is only usable once pcie link is up
+  if not set_pcie_power(True):
+    return False
+  fd = open_chestnut()
+  if fd is None:
+    return False
+  try:
     buf = (ctypes.c_ubyte * 1)()
     fcntl.ioctl(fd, USBDEVFS_CONTROL, Ctrl(0xC0, 0xE4, 0xB450, 0, 1, 1000, ctypes.cast(buf, ctypes.c_void_p)))
     return buf[0] == 0x78  # LTSSM L0
