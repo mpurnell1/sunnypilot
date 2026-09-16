@@ -86,9 +86,8 @@ is untouched, so comma connect and the CLI sender keep working):
 - `getNavStatus()`: the page's status payload, including whether a set is allowed now.
 - `listDestinations()`: favorites and recents, same shapes as the page.
 - `setDestination(dest, name, summary)`: set a destination, optionally with a chosen
-  route summary, exactly like tapping a route card on the page. Refused while moving
-  (parked or standstill only, same gate as the page) and refused when navigation is
-  disabled on the device.
+  route summary, exactly like tapping a route card on the page. Allowed while driving,
+  like the page; refused when navigation is disabled on the device.
 - `cancelRoute()`: allowed any time, the passenger rule.
 - `getNavState()`: one live guidance snapshot (route state, upcoming maneuvers with
   distances, lanes, time and distance remaining, audio cue stage) for a polling head
@@ -110,8 +109,8 @@ over it where it is available.
 - ETAs reflect traffic at the time the route was requested, not live conditions.
 - Leaving the route triggers a reroute. A chosen alternate is kept while Mapbox still
   offers it and falls back to the fastest route when it does not.
-- Setting a destination requires the car to be parked or stopped. Canceling is always
-  allowed, including by a passenger from the destination page mid-drive.
+- Destinations can be set and cancelled mid-drive, including by a passenger from the
+  destination page: a route swap only ever changes suggestions, never control.
 - To cancel from the wheel: hold the navigation banner for about a second. From the
   page: the Cancel button. From settings: Clear Current Route.
 
