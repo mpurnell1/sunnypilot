@@ -11,8 +11,9 @@ from openpilot.common.swaglog import cloudlog
 
 # MapboxFavorites keeps the shape the settings UI already reads and writes:
 # {"home": "<dest>", "work": "<dest>", "favorites": {"<name>": "<dest>"}}.
-# A route-bound favorite adds "routes": {"<dest>": "<summary>"}; the settings UI rewrites
-# the dict wholesale so the extra key survives its edits untouched.
+# A route-bound favorite adds "routes": {"<dest>": "<summary>"} and, when the pick carried
+# one, "pins": {"<dest>": "<lon,lat>"}, the via point navd routes through; the settings UI
+# rewrites the dict wholesale so the extra keys survive its edits untouched.
 # MapboxRecents is a most-recent-first list of {"name": "<label>", "dest": "<dest>"}.
 # A dest is whatever MapboxRoute accepts: free text or a "lon,lat" string.
 
@@ -47,7 +48,17 @@ def normalize_favorites(favs: Any) -> dict:
     cleaned = {dest: summary for dest, summary in ((_clean(k), _clean(v)) for k, v in routes.items()) if dest and summary and dest in referenced}
     if cleaned:
       normalized["routes"] = cleaned
+  pins = favs.get("pins")
+  if isinstance(pins, dict):
+    bound = normalized.get("routes", {})
+    cleaned = {dest: pin for dest, pin in ((_clean(k), _clean(v)) for k, v in pins.items()) if dest in bound and pin}
+    if cleaned:
+      normalized["pins"] = cleaned
   return normalized
+
+
+def pin_for(favs: Any, dest: str) -> str:
+  return normalize_favorites(favs).get("pins", {}).get(_clean(dest), "")
 
 
 def favorites_view(favs: Any) -> list[dict]:
@@ -57,13 +68,16 @@ def favorites_view(favs: Any) -> list[dict]:
   view = [{"kind": kind, "name": kind.capitalize(), "dest": favs[kind]} for kind in FAVORITE_KINDS if kind in favs]
   view += [{"kind": "favorite", "name": name, "dest": dest}
            for name, dest in sorted(favs.get("favorites", {}).items(), key=lambda item: item[0].casefold())]
+  pins = favs.get("pins", {})
   for entry in view:
     if summary := routes.get(entry["dest"]):
       entry["summary"] = summary
+      if pin := pins.get(entry["dest"]):
+        entry["via"] = pin
   return view
 
 
-def set_favorite(favs: Any, name: str, dest: str, kind: str | None = None, summary: str = "") -> dict:
+def set_favorite(favs: Any, name: str, dest: str, kind: str | None = None, summary: str = "", via: str = "") -> dict:
   favs = normalize_favorites(favs)
   dest = _clean(dest)
   name = _clean(name)
@@ -78,10 +92,16 @@ def set_favorite(favs: Any, name: str, dest: str, kind: str | None = None, summa
   # the save captures the current route pick exactly: a summary binds it, no summary unbinds,
   # so re-saving a favorite without a picked route predictably returns it to fastest-route
   routes = favs.setdefault("routes", {})
+  pins = favs.setdefault("pins", {})
   if summary := _clean(summary):
     routes[dest] = summary
+    if via := _clean(via):
+      pins[dest] = via
+    else:
+      pins.pop(dest, None)
   else:
     routes.pop(dest, None)
+    pins.pop(dest, None)
   return normalize_favorites(favs)
 
 
@@ -140,8 +160,8 @@ class DestinationStore:
   def favorites(self) -> list[dict]:
     return favorites_view(self.params.get("MapboxFavorites"))
 
-  def set_favorite(self, name: str, dest: str, kind: str | None = None, summary: str = "") -> None:
-    self.params.put("MapboxFavorites", set_favorite(self.params.get("MapboxFavorites"), name, dest, kind, summary), block=True)
+  def set_favorite(self, name: str, dest: str, kind: str | None = None, summary: str = "", via: str = "") -> None:
+    self.params.put("MapboxFavorites", set_favorite(self.params.get("MapboxFavorites"), name, dest, kind, summary, via), block=True)
 
   def remove_favorite(self, name: str = "", kind: str | None = None) -> None:
     self.params.put("MapboxFavorites", remove_favorite(self.params.get("MapboxFavorites"), name, kind), block=True)
@@ -156,7 +176,7 @@ class DestinationStore:
   def active_destination(self) -> str:
     return self.params.get("MapboxRoute") or ""
 
-  def set_destination(self, dest: str, name: str = "", route_summary: str = "") -> None:
+  def set_destination(self, dest: str, name: str = "", route_summary: str = "", via: str = "") -> None:
     dest = _clean(dest)
     if not dest:
       return
@@ -164,7 +184,11 @@ class DestinationStore:
     if route_summary:
       # the preference records which destination it was chosen for; navd ignores it on mismatch,
       # so a destination set later through athena or the settings UI cannot inherit it
-      self.params.put("MapboxRoutePreference", {"dest": dest, "summary": route_summary}, block=True)
+      preference = {"dest": dest, "summary": route_summary}
+      # a bound favorite's pin applies to any client that sends the favorite's summary
+      if pin := _clean(via) or pin_for(self.params.get("MapboxFavorites"), dest):
+        preference["via"] = pin
+      self.params.put("MapboxRoutePreference", preference, block=True)
     else:
       self.params.remove("MapboxRoutePreference")
     self.params.put("MapboxRoute", dest, block=True)

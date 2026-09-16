@@ -73,20 +73,20 @@ class DestinationAPI:
       raise ApiError("route preview failed", status=502)
     return {"routes": routes}
 
-  def navigate(self, dest, name="", summary="") -> dict:
+  def navigate(self, dest, name="", summary="", via="") -> dict:
     # settable while driving: nav desires need the driver's blinker and torque, so a route swap never touches control
     if not str(dest or "").strip():
       raise ApiError("dest is required")
-    self.store.set_destination(str(dest), name=str(name or ""), route_summary=str(summary or ""))
+    self.store.set_destination(str(dest), name=str(name or ""), route_summary=str(summary or ""), via=str(via or ""))
     return self.status()
 
   def cancel(self) -> dict:
     self.store.clear_destination(source=self.source)
     return self.status()
 
-  def favorites_action(self, action, name="", dest="", kind=None, summary="") -> dict:
+  def favorites_action(self, action, name="", dest="", kind=None, summary="", via="") -> dict:
     if action == "set" and str(dest or "").strip():
-      self.store.set_favorite(str(name or ""), str(dest), kind=kind, summary=str(summary or ""))
+      self.store.set_favorite(str(name or ""), str(dest), kind=kind, summary=str(summary or ""), via=str(via or ""))
     elif action == "remove":
       self.store.remove_favorite(str(name or ""), kind=kind)
     else:

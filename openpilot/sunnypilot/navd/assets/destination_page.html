@@ -294,7 +294,7 @@ function routeCard(route, note) {
   const go = document.createElement("button");
   go.className = "primary";
   go.textContent = "Go";
-  go.onclick = ev => { ev.stopPropagation(); navigateTo(picked.name, destString(picked), route && route.summary ? route.summary : ""); };
+  go.onclick = ev => { ev.stopPropagation(); navigateTo(picked.name, destString(picked), route && route.summary ? route.summary : "", route ? route.via : ""); };
   div.appendChild(info);
   div.appendChild(go);
   return div;
@@ -318,9 +318,9 @@ function updateBindHint() {
   }
 }
 
-async function navigateTo(name, dest, summary) {
+async function navigateTo(name, dest, summary, via) {
   try {
-    applyStatus(await api("/api/navigate", post({ name, dest, summary })));
+    applyStatus(await api("/api/navigate", post({ name, dest, summary, via: via || "" })));
     toast("Destination set" + (summary ? " via " + summary : ""));
     $("routes-panel").hidden = true;
     $("search-results").replaceChildren();
@@ -331,7 +331,7 @@ async function pickSaved(entry) {
   // a route-bound favorite navigates immediately on its saved route; everything else
   // opens the route chooser, geocoding free text first so there are routes to choose
   if (entry.summary) {
-    await navigateTo(entry.name, entry.dest, entry.summary);
+    await navigateTo(entry.name, entry.dest, entry.summary, entry.via);
     return;
   }
   const m = entry.dest.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
@@ -359,8 +359,9 @@ async function saveFavorite(kind) {
     if (!name) return;
   }
   const summary = pickedRoute && pickedRoute.summary ? pickedRoute.summary : "";
+  const via = summary && pickedRoute.via ? pickedRoute.via : "";
   try {
-    const body = await api("/api/favorites", post({ action: "set", kind, name, dest: destString(picked), summary }));
+    const body = await api("/api/favorites", post({ action: "set", kind, name, dest: destString(picked), summary, via }));
     state.favorites = body.favorites;
     renderSaved();
     toast(summary ? "Saved, bound to " + summary : "Saved");

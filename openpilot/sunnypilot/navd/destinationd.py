@@ -108,12 +108,12 @@ class DestinationHandler(BaseHTTPRequestHandler):
 
   def _handle_navigate(self, api: DestinationAPI) -> dict:
     body = self._read_json() or {}
-    return api.navigate(body.get("dest"), name=body.get("name", ""), summary=body.get("summary", ""))
+    return api.navigate(body.get("dest"), name=body.get("name", ""), summary=body.get("summary", ""), via=body.get("via", ""))
 
   def _handle_favorites(self, api: DestinationAPI) -> dict:
     body = self._read_json() or {}
     return api.favorites_action(body.get("action"), name=body.get("name", ""), dest=body.get("dest", ""),
-                                kind=body.get("kind"), summary=body.get("summary", ""))
+                                kind=body.get("kind"), summary=body.get("summary", ""), via=body.get("via", ""))
 
   def _handle_settings_post(self, api: DestinationAPI) -> dict:
     body = self._read_json()

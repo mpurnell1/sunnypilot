@@ -49,9 +49,17 @@ class TestFavoritesFunctions:
     assert favs == {}
 
   def test_saving_without_a_route_unbinds(self):
-    favs = ds.set_favorite({}, "", "-122.1,47.6", kind="work", summary="I-5 South")
+    favs = ds.set_favorite({}, "", "-122.1,47.6", kind="work", summary="I-5 South", via="-122.0,47.5")
     favs = ds.set_favorite(favs, "", "-122.1,47.6", kind="work")
     assert favs == {"work": "-122.1,47.6"}
+
+  def test_a_pin_lives_with_its_binding(self):
+    favs = ds.set_favorite({}, "", "-122.1,47.6", kind="work", summary="I-5 South", via="-122.0,47.5")
+    assert favs["pins"] == {"-122.1,47.6": "-122.0,47.5"}
+    assert ds.favorites_view(favs)[0]["via"] == "-122.0,47.5"
+    assert ds.pin_for(favs, "-122.1,47.6") == "-122.0,47.5"
+    # a pin for a dest without a binding is noise from an older write and is dropped
+    assert ds.normalize_favorites({"work": "x", "pins": {"x": "-122.0,47.5"}}) == {"work": "x"}
 
   def test_binding_for_an_overwritten_dest_is_pruned(self):
     favs = ds.set_favorite({}, "", "old dest", kind="home", summary="I-5 South")
@@ -118,9 +126,16 @@ class TestDestinationStore:
   def test_route_preference_is_bound_to_its_destination(self):
     self.store.set_destination("-122.1,47.6", name="Work", route_summary="I-5 South")
     assert self.params.get("MapboxRoutePreference") == {"dest": "-122.1,47.6", "summary": "I-5 South"}
+    self.store.set_destination("-122.1,47.6", name="Work", route_summary="I-5 South", via="-122.0,47.5")
+    assert self.params.get("MapboxRoutePreference") == {"dest": "-122.1,47.6", "summary": "I-5 South", "via": "-122.0,47.5"}
     # a later set without a chosen route must not leave the old preference behind
     self.store.set_destination("-122.2,47.7", name="Gym")
     assert self.params.get("MapboxRoutePreference") is None
+
+  def test_a_bound_favorite_lends_its_pin_to_a_send_without_one(self):
+    self.store.set_favorite("", "-122.1,47.6", kind="work", summary="I-5 South", via="-122.0,47.5")
+    self.store.set_destination("-122.1,47.6", name="Work", route_summary="I-5 South")
+    assert self.params.get("MapboxRoutePreference")["via"] == "-122.0,47.5"
 
   def test_clear_destination_clears_preference(self):
     self.store.set_destination("-122.1,47.6", route_summary="I-5 South")

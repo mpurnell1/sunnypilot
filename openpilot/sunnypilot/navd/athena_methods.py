@@ -56,13 +56,13 @@ def listDestinations() -> dict:
   return {"favorites": api.store.favorites(), "recents": api.store.recents()}
 
 
-def setDestination(dest: str = "", name: str = "", summary: str = "") -> dict:
+def setDestination(dest: str = "", name: str = "", summary: str = "", via: str = "") -> dict:
   api = _api()
   # the page cannot be reached at all while navigation is disabled; the honest mirror of
   # that here is a refusal, not a destination navd will silently never read
   if not api.params.get_bool("AllowNavigation"):
     raise ApiError("navigation is disabled on the device", status=409)
-  return api.navigate(dest, name=name, summary=summary)
+  return api.navigate(dest, name=name, summary=summary, via=via)
 
 
 def cancelRoute() -> dict:

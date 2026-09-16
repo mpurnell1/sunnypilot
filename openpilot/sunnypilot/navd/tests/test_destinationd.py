@@ -168,11 +168,11 @@ class TestDestinationd:
     assert self.get("/api/routes?lon=-119.03&lat=34.22").status_code == 409
 
   def test_navigate_writes_route_preference_and_recent(self):
-    res = self.post("/api/navigate", {"dest": "-119.03,34.22", "name": "Library", "summary": "CA-1"})
+    res = self.post("/api/navigate", {"dest": "-119.03,34.22", "name": "Library", "summary": "CA-1", "via": "-119.1,34.3"})
     assert res.status_code == 200
     assert res.json()["destination"] == "-119.03,34.22"
     assert self.params.get("MapboxRoute") == "-119.03,34.22"
-    assert self.params.get("MapboxRoutePreference") == {"dest": "-119.03,34.22", "summary": "CA-1"}
+    assert self.params.get("MapboxRoutePreference") == {"dest": "-119.03,34.22", "summary": "CA-1", "via": "-119.1,34.3"}
     recents = self.params.get("MapboxRecents")
     assert recents and recents[0] == {"name": "Library", "dest": "-119.03,34.22"}
 
@@ -205,8 +205,8 @@ class TestDestinationd:
     assert self.post("/api/favorites", {"action": "set"}).status_code == 400
 
   def test_route_bound_favorite_round_trip(self):
-    res = self.post("/api/favorites", {"action": "set", "kind": "work", "dest": "-119.1,34.2", "summary": "US-101 North"})
-    assert res.json()["favorites"] == [{"kind": "work", "name": "Work", "dest": "-119.1,34.2", "summary": "US-101 North"}]
+    res = self.post("/api/favorites", {"action": "set", "kind": "work", "dest": "-119.1,34.2", "summary": "US-101 North", "via": "-119.2,34.3"})
+    assert res.json()["favorites"] == [{"kind": "work", "name": "Work", "dest": "-119.1,34.2", "summary": "US-101 North", "via": "-119.2,34.3"}]
     # re-saving with no route picked returns the favorite to fastest-route behavior
     res = self.post("/api/favorites", {"action": "set", "kind": "work", "dest": "-119.1,34.2"})
     assert res.json()["favorites"] == [{"kind": "work", "name": "Work", "dest": "-119.1,34.2"}]

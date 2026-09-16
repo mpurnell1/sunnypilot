@@ -11,6 +11,7 @@ import requests
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.sunnypilot.navd.helpers import Coordinate
+from openpilot.sunnypilot.navd.navigation_helpers.route_pin import parse_pin, pin_ahead, pin_point
 
 GEOCODING_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places'
 # driving-traffic: durations include live traffic, so the ETA is an estimate rather than the
@@ -85,12 +86,14 @@ class MapboxIntegration:
     # a route preference exists only if the destination page stored one, and it names the
     # destination it was chosen for: a destination set any other way must get the fastest route
     preference = None
+    pin = None
     stored = self.params.get('MapboxRoutePreference')
     if isinstance(stored, dict) and stored.get('dest') == destination.get('place_name'):
       preference = stored.get('summary')
+      pin = parse_pin(stored.get('via'))
 
     token = self.get_public_token()
-    route = self.generate_route(start, end, token, bearing, preference)
+    route = self.generate_route(start, end, token, bearing, preference, pin)
     if not route:
       # storing an empty route here would discard a working one on a failed reroute, and would
       # read as an accepted destination that navd then has no reason to recompute
@@ -139,12 +142,13 @@ class MapboxIntegration:
     """Route alternates with live and typical durations, for the pick-a-route step.
 
     steps=true is required even though the steps are discarded: without it the leg summary
-    comes back empty, and the summary is what identifies the chosen alternate later.
+    comes back empty. Each alternate carries a via pin, the point on it farthest from the
+    other alternates, which is what makes a picked route reproducible later.
     """
     token = self.get_public_token()
     if not token:
       return None
-    params = {'access_token': token, 'geometries': 'geojson', 'steps': 'true', 'overview': 'false', 'alternatives': 'true'}
+    params = {'access_token': token, 'geometries': 'geojson', 'steps': 'true', 'overview': 'simplified', 'alternatives': 'true'}
     data = _get_json("route preview", f'{DIRECTIONS_URL}/{_lonlat(start)};{_lonlat(end)}', params, timeout=10)
     if data is None:
       return None
@@ -152,15 +156,18 @@ class MapboxIntegration:
       cloudlog.error("navd: route preview returned no route (code=%s)", data.get('code'))
       return None
     try:
-      return [
-        {
+      shapes = [[Coordinate(c[1], c[0]) for c in route['geometry']['coordinates']] for route in data['routes']]
+      previews = []
+      for i, route in enumerate(data['routes']):
+        pin = pin_point(shapes[i], shapes[:i] + shapes[i + 1:])
+        previews.append({
           'summary': (route.get('legs') or [{}])[0].get('summary', ''),
           'distance': route['distance'],
           'duration': route['duration'],
           'durationTypical': route.get('duration_typical', route['duration']),
-        }
-        for route in data['routes']
-      ]
+          'via': _lonlat(pin) if pin else '',
+        })
+      return previews
     except (KeyError, IndexError, TypeError) as e:
       cloudlog.error("navd: could not parse route preview response: %s", e)
       return None
@@ -197,7 +204,7 @@ class MapboxIntegration:
 
   @staticmethod
   def generate_route(start: Coordinate, end: Coordinate, token: str, bearing: float | None = None,
-                     preference: str | None = None) -> dict | None:
+                     preference: str | None = None, pin: Coordinate | None = None) -> dict | None:
     if not token:
       cloudlog.error("navd: route generation skipped, no MapboxToken set")
       return None
@@ -213,10 +220,19 @@ class MapboxIntegration:
       'alternatives': 'true',
       'banner_instructions': 'true',
     }
+    coordinates = [start, end]
+    if pin is not None and pin_ahead(start, pin, end):
+      # a coordinate left out of 'waypoints' is a silent via that keeps the leg whole; Directions
+      # offers no alternates once a third coordinate is present, so the pin is the whole preference
+      coordinates = [start, pin, end]
+      params['waypoints'] = '0;2'
+      params['alternatives'] = 'false'
+      preference = None
+      cloudlog.warning("navd: routing through the pinned point %s", _lonlat(pin))
     if bearing is not None:
-      params['bearings'] = f'{int((bearing + 360) % 360):.0f},90;'
+      params['bearings'] = f'{int((bearing + 360) % 360):.0f},90' + ';' * (len(coordinates) - 1)
 
-    data = _get_json("directions", f'{DIRECTIONS_URL}/{_lonlat(start)};{_lonlat(end)}', params, timeout=5)
+    data = _get_json("directions", f'{DIRECTIONS_URL}/{";".join(_lonlat(c) for c in coordinates)}', params, timeout=5)
     if data is None:
       return None
     routes = data.get('routes')
