@@ -270,10 +270,14 @@ def _glyph_texture(key: tuple, draw, side: int) -> rl.RenderTexture:
   tex = _glyph_cache.get(key)
   if tex is None:
     tex = rl.load_render_texture(side, side)
+    # the GL scissor box survives BeginTextureMode, and the road view's box is the screen,
+    # which on mici (240 px) is shorter than this texture and would clip the glyph's top
+    rl.rl_disable_scissor_test()
     rl.begin_texture_mode(tex)
     rl.clear_background(rl.BLANK)
     draw()
     rl.end_texture_mode()
+    rl.rl_enable_scissor_test()
     rl.set_texture_filter(tex.texture, rl.TextureFilter.TEXTURE_FILTER_BILINEAR)
     _glyph_cache[key] = tex
   return tex
