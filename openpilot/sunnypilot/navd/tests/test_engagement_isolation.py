@@ -23,7 +23,7 @@ NAV_EVENTS = [
 NON_BLOCKING = {ET.WARNING, ET.PERMANENT}
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def selfdrived():
   return SelfdriveD(car.CarParams.new_message(), custom.CarParamsSP.new_message())
 
