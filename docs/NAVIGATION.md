@@ -65,7 +65,8 @@ influence steering never appear on the page, so consent for them happens in the 
    - From the device, pick a saved favorite in Settings, Navigation.
 3. Route choice is yours: the destination page previews alternates with live and
    typical times. A favorite can be bound to a route you always want; a bound favorite
-   starts navigating on that route in one tap.
+   starts navigating on that route in one tap. The pick is pinned by a point on the
+   chosen road, so the route holds even when Mapbox no longer offers it as an alternate.
 
 ## Away from the car (comma prime / athena)
 
@@ -85,8 +86,8 @@ is untouched, so comma connect and the CLI sender keep working):
 
 - `getNavStatus()`: the page's status payload, including whether a set is allowed now.
 - `listDestinations()`: favorites and recents, same shapes as the page.
-- `setDestination(dest, name, summary)`: set a destination, optionally with a chosen
-  route summary, exactly like tapping a route card on the page. Refused while moving
+- `setDestination(dest, name, summary, via)`: set a destination, optionally with a chosen
+  route's summary and via pin, exactly like tapping a route card on the page. Refused while moving
   (parked or standstill only, same gate as the page) and refused when navigation is
   disabled on the device.
 - `cancelRoute()`: allowed any time, the passenger rule.
@@ -108,8 +109,9 @@ over it where it is available.
 - Routing needs internet. If the connection drops mid-drive, guidance holds the route
   it already has; it just cannot reroute until the connection returns.
 - ETAs reflect traffic at the time the route was requested, not live conditions.
-- Leaving the route triggers a reroute. A chosen alternate is kept while Mapbox still
-  offers it and falls back to the fastest route when it does not.
+- Leaving the route triggers a reroute. A chosen route's pin is kept while it still lies
+  ahead and dropped once passed; a favorite bound before pins existed is matched by its
+  summary while Mapbox offers it and falls back to the fastest route when it does not.
 - Setting a destination requires the car to be parked or stopped. Canceling is always
   allowed, including by a passenger from the destination page mid-drive.
 - To cancel from the wheel: hold the navigation banner for about a second. From the
