@@ -11,6 +11,7 @@ import requests
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.sunnypilot.navd.helpers import Coordinate
+from openpilot.sunnypilot.navd.navigation_helpers.route_line import overview_points
 
 GEOCODING_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places'
 # driving-traffic: durations include live traffic, so the ETA is an estimate rather than the
@@ -136,7 +137,7 @@ class MapboxIntegration:
       return None
 
   def preview_routes(self, start: Coordinate, end: Coordinate) -> list[dict] | None:
-    """Route alternates with live and typical durations, for the pick-a-route step.
+    """Route alternates with live and typical durations and their overview shapes, for the pick-a-route step.
 
     steps=true is required even though the steps are discarded: without it the leg summary
     comes back empty, and the summary is what identifies the chosen alternate later.
@@ -144,7 +145,7 @@ class MapboxIntegration:
     token = self.get_public_token()
     if not token:
       return None
-    params = {'access_token': token, 'geometries': 'geojson', 'steps': 'true', 'overview': 'false', 'alternatives': 'true'}
+    params = {'access_token': token, 'geometries': 'geojson', 'steps': 'true', 'overview': 'simplified', 'alternatives': 'true'}
     data = _get_json("route preview", f'{DIRECTIONS_URL}/{_lonlat(start)};{_lonlat(end)}', params, timeout=10)
     if data is None:
       return None
@@ -158,6 +159,7 @@ class MapboxIntegration:
           'distance': route['distance'],
           'duration': route['duration'],
           'durationTypical': route.get('duration_typical', route['duration']),
+          'points': overview_points((route.get('geometry') or {}).get('coordinates') or []),
         }
         for route in data['routes']
       ]
