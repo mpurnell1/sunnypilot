@@ -113,7 +113,7 @@ class DestinationHandler(BaseHTTPRequestHandler):
   def _handle_favorites(self, api: DestinationAPI) -> dict:
     body = self._read_json() or {}
     return api.favorites_action(body.get("action"), name=body.get("name", ""), dest=body.get("dest", ""),
-                                kind=body.get("kind"), summary=body.get("summary", ""))
+                                kind=body.get("kind"), summary=body.get("summary", ""), names=body.get("names"))
 
   def _handle_settings_post(self, api: DestinationAPI) -> dict:
     body = self._read_json()

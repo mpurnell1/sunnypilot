@@ -19,11 +19,27 @@ class TestFavoritesFunctions:
     favs = ds.set_favorite(favs, "Gym", "456 Gym Ave")
     assert favs == {"home": "123 Home St", "favorites": {"Gym": "456 Gym Ave"}}
 
-  def test_view_orders_home_work_then_named(self):
+  def test_view_orders_home_work_then_named_as_stored(self):
     favs = {"work": "w", "home": "h", "favorites": {"zeta": "z", "Alpha": "a"}}
     view = ds.favorites_view(favs)
-    assert [entry["name"] for entry in view] == ["Home", "Work", "Alpha", "zeta"]
-    assert [entry["dest"] for entry in view] == ["h", "w", "a", "z"]
+    assert [entry["name"] for entry in view] == ["Home", "Work", "zeta", "Alpha"]
+    assert [entry["dest"] for entry in view] == ["h", "w", "z", "a"]
+
+  def test_new_favorites_append_and_resaves_keep_their_place(self):
+    favs = ds.set_favorite({}, "Gym", "g")
+    favs = ds.set_favorite(favs, "Cafe", "c")
+    favs = ds.set_favorite(favs, "Gym", "g2")
+    assert list(favs["favorites"]) == ["Gym", "Cafe"]
+    assert favs["favorites"]["Gym"] == "g2"
+
+  def test_reorder_puts_named_favorites_in_the_given_order(self):
+    favs = {"home": "h", "favorites": {"a": "1", "b": "2", "c": "3"}}
+    favs = ds.reorder_favorites(favs, ["c", "a"])
+    assert list(favs["favorites"]) == ["c", "a", "b"]
+    assert [entry["name"] for entry in ds.favorites_view(favs)] == ["Home", "c", "a", "b"]
+    # unknown names are ignored and garbage leaves the order alone
+    assert list(ds.reorder_favorites(favs, ["zzz", " b "])["favorites"]) == ["b", "c", "a"]
+    assert ds.reorder_favorites(favs, "b") == favs
 
   def test_remove_favorite_by_kind_and_name(self):
     favs = {"home": "h", "favorites": {"Gym": "g"}}
@@ -105,6 +121,10 @@ class TestDestinationStore:
     self.store.set_favorite("Gym", "456 Gym Ave")
     assert self.params.get("MapboxFavorites") == {"home": "123 Home St", "favorites": {"Gym": "456 Gym Ave"}}
     assert [entry["name"] for entry in self.store.favorites()] == ["Home", "Gym"]
+    self.store.set_favorite("Cafe", "789 Cafe Rd")
+    self.store.reorder_favorites(["Cafe", "Gym"])
+    assert [entry["name"] for entry in self.store.favorites()] == ["Home", "Cafe", "Gym"]
+    self.store.remove_favorite("Cafe")
     self.store.remove_favorite("Gym")
     self.store.remove_favorite(kind="home")
     assert self.store.favorites() == []
