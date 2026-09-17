@@ -199,10 +199,16 @@ class TestDestinationd:
     assert [f["kind"] for f in res.json()["favorites"]] == ["home"]
     res = self.post("/api/favorites", {"action": "set", "name": "Gym", "dest": "-119.1,34.2"})
     assert len(res.json()["favorites"]) == 2
+    res = self.post("/api/favorites", {"action": "set", "name": "Cafe", "dest": "-119.2,34.3"})
+    assert [f["name"] for f in res.json()["favorites"]] == ["Home", "Gym", "Cafe"]
+    res = self.post("/api/favorites", {"action": "reorder", "names": ["Cafe", "Gym"]})
+    assert [f["name"] for f in res.json()["favorites"]] == ["Home", "Cafe", "Gym"]
     res = self.post("/api/favorites", {"action": "remove", "name": "Gym"})
+    res = self.post("/api/favorites", {"action": "remove", "name": "Cafe"})
     res = self.post("/api/favorites", {"action": "remove", "kind": "home"})
     assert res.json()["favorites"] == []
     assert self.post("/api/favorites", {"action": "set"}).status_code == 400
+    assert self.post("/api/favorites", {"action": "reorder"}).status_code == 400
 
   def test_route_bound_favorite_round_trip(self):
     res = self.post("/api/favorites", {"action": "set", "kind": "work", "dest": "-119.1,34.2", "summary": "US-101 North"})
