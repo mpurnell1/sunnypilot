@@ -86,6 +86,10 @@ class TestMapbox:
       assert route['durationTypical'] > 0
       # the summary identifies a chosen alternate later, so it must not come back empty
       assert isinstance(route['summary'], str) and route['summary']
+      # the overview shape starts near here and ends near the destination, as [lat, lon]
+      assert len(route['points']) >= 2
+      assert abs(route['points'][0][0] - self.here.latitude) < 0.01
+      assert abs(route['points'][-1][1] - self.destination['longitude']) < 0.01
 
   def test_bearing_misalign(self):
     progress = self.route.progress(self.route.steps[1].location)

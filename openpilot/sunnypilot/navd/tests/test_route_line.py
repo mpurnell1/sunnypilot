@@ -9,7 +9,7 @@ import pytest
 from openpilot.common.params import Params
 from openpilot.sunnypilot.navd.helpers import Coordinate, project_onto_geometry
 from openpilot.sunnypilot.navd.navigation_helpers.route import Route
-from openpilot.sunnypilot.navd.navigation_helpers.route_line import DECIMATION_TOLERANCE_M, route_id, route_line_snapshot
+from openpilot.sunnypilot.navd.navigation_helpers.route_line import DECIMATION_TOLERANCE_M, overview_points, route_id, route_line_snapshot
 
 M_PER_DEG_LAT = 111319.5
 
@@ -28,6 +28,16 @@ def _route(geometry: list[dict]) -> dict:
 def _put_route(params: Params, geometry: list[dict]) -> None:
   # block: the default put is fire-and-forget and the very next line reads the param back
   params.put('MapboxSettings', {'navData': {'current': geometry[0], 'route': _route(geometry)}}, block=True)
+
+
+class TestOverviewPoints:
+  def test_geojson_becomes_decimated_lat_lon(self):
+    # a 1 m kink between two points on a straight north-south line drops out at the 10 m tolerance
+    kink = 1.0 / M_PER_DEG_LAT
+    coordinates = [[-119.0, 34.2], [-119.0 + kink, 34.25], [-119.0, 34.3]]
+    assert overview_points(coordinates) == [[34.2, -119.0], [34.3, -119.0]]
+    assert overview_points([[-119.0, 34.2], [-119.1, 34.3]]) == [[34.2, -119.0], [34.3, -119.1]]
+    assert overview_points([]) == []
 
 
 class TestRouteId:

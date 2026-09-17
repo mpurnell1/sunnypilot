@@ -72,6 +72,15 @@ def _decimate(points: list[list[float]], tolerance_m: float) -> list[bool]:
   return keep
 
 
+def overview_points(coordinates: list, tolerance_m: float = DECIMATION_TOLERANCE_M) -> list[list[float]]:
+  """A GeoJSON [lon, lat] line as decimated [lat, lon] points, the route line's own shape."""
+  points = [[float(c[1]), float(c[0])] for c in coordinates]
+  if len(points) > 2:
+    keep = _decimate(points, tolerance_m)
+    points = [p for p, kept in zip(points, keep, strict=True) if kept]
+  return points
+
+
 def route_line_snapshot(params: Params, tolerance_m: float = DECIMATION_TOLERANCE_M) -> dict:
   value = params.get('MapboxSettings')
   route = value['navData']['route'] if value else None
