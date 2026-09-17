@@ -84,13 +84,15 @@ class DestinationAPI:
     self.store.clear_destination(source=self.source)
     return self.status()
 
-  def favorites_action(self, action, name="", dest="", kind=None, summary="") -> dict:
+  def favorites_action(self, action, name="", dest="", kind=None, summary="", names=None) -> dict:
     if action == "set" and str(dest or "").strip():
       self.store.set_favorite(str(name or ""), str(dest), kind=kind, summary=str(summary or ""))
     elif action == "remove":
       self.store.remove_favorite(str(name or ""), kind=kind)
+    elif action == "reorder" and isinstance(names, list):
+      self.store.reorder_favorites(names)
     else:
-      raise ApiError("action must be set (with dest) or remove")
+      raise ApiError("action must be set (with dest), remove, or reorder (with names)")
     return {"favorites": self.store.favorites()}
 
   # display and audio only: consent for steering influence (NavDesiresAllowed, assist level) happens in the car

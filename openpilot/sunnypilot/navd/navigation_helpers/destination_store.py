@@ -12,7 +12,9 @@ from openpilot.common.swaglog import cloudlog
 # MapboxFavorites keeps the shape the settings UI already reads and writes:
 # {"home": "<dest>", "work": "<dest>", "favorites": {"<name>": "<dest>"}}.
 # A route-bound favorite adds "routes": {"<dest>": "<summary>"}; the settings UI rewrites
-# the dict wholesale so the extra key survives its edits untouched.
+# the dict wholesale so the extra key survives its edits untouched. The named dict's
+# insertion order is the display order (JSON and Python both keep it, and the settings
+# UI writes it back as read), so a reorder rewrites the dict in the new order.
 # MapboxRecents is a most-recent-first list of {"name": "<label>", "dest": "<dest>"}.
 # A dest is whatever MapboxRoute accepts: free text or a "lon,lat" string.
 
@@ -51,12 +53,11 @@ def normalize_favorites(favs: Any) -> dict:
 
 
 def favorites_view(favs: Any) -> list[dict]:
-  """Flat listing for the API: home, then work, then named favorites by name."""
+  """Flat listing for the API: home, then work, then named favorites in their stored order."""
   favs = normalize_favorites(favs)
   routes = favs.get("routes", {})
   view = [{"kind": kind, "name": kind.capitalize(), "dest": favs[kind]} for kind in FAVORITE_KINDS if kind in favs]
-  view += [{"kind": "favorite", "name": name, "dest": dest}
-           for name, dest in sorted(favs.get("favorites", {}).items(), key=lambda item: item[0].casefold())]
+  view += [{"kind": "favorite", "name": name, "dest": dest} for name, dest in favs.get("favorites", {}).items()]
   for entry in view:
     if summary := routes.get(entry["dest"]):
       entry["summary"] = summary
@@ -96,6 +97,18 @@ def remove_favorite(favs: Any, name: str = "", kind: str | None = None) -> dict:
       favs.pop("favorites", None)
   # re-normalizing prunes any binding the removed favorite was the last reference to
   return normalize_favorites(favs)
+
+
+def reorder_favorites(favs: Any, names: Any) -> dict:
+  """Named favorites in the given order; names not listed keep their relative order after them."""
+  favs = normalize_favorites(favs)
+  named = favs.get("favorites", {})
+  wanted = [name for name in (_clean(n) for n in (names if isinstance(names, list) else [])) if name in named]
+  ordered = {name: named[name] for name in wanted}
+  ordered.update({name: dest for name, dest in named.items() if name not in ordered})
+  if ordered:
+    favs["favorites"] = ordered
+  return favs
 
 
 def normalize_recents(recents: Any) -> list[dict]:
@@ -145,6 +158,9 @@ class DestinationStore:
 
   def remove_favorite(self, name: str = "", kind: str | None = None) -> None:
     self.params.put("MapboxFavorites", remove_favorite(self.params.get("MapboxFavorites"), name, kind), block=True)
+
+  def reorder_favorites(self, names: list) -> None:
+    self.params.put("MapboxFavorites", reorder_favorites(self.params.get("MapboxFavorites"), names), block=True)
 
   def recents(self) -> list[dict]:
     return normalize_recents(self.params.get("MapboxRecents"))
