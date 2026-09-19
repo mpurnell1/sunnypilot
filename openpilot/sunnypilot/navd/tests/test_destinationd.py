@@ -219,42 +219,36 @@ class TestDestinationd:
 
   def test_settings_round_trip(self):
     body = self.get("/api/settings").json()
-    assert body == {"navHudMode": 3, "navAudio": 0, "laneGuidanceDisplay": False,
+    assert body == {"navHudMode": 3, "navAudio": 0, "navDesiresAllowed": False, "laneGuidance": 0,
                     "recompute": False, "quietGlyph": False, "tokenSet": True}
-    res = self.post("/api/settings", {"navHudMode": 1, "navAudio": 2, "laneGuidanceDisplay": True, "recompute": True,
-                                      "quietGlyph": True})
+    res = self.post("/api/settings", {"navHudMode": 1, "navAudio": 2, "navDesiresAllowed": True, "laneGuidance": 2,
+                                      "recompute": True, "quietGlyph": True})
     assert res.status_code == 200
     body = res.json()
-    assert body["navHudMode"] == 1 and body["navAudio"] == 2
-    assert body["laneGuidanceDisplay"] is True and body["recompute"] is True and body["quietGlyph"] is True
+    assert body["navHudMode"] == 1 and body["navAudio"] == 2 and body["laneGuidance"] == 2
+    assert body["navDesiresAllowed"] is True and body["recompute"] is True and body["quietGlyph"] is True
     assert self.params.get("NavHudMode") == 1
     assert self.params.get("NavigationAudio") == 2
-    assert self.params.get("NavLaneGuidance") == 1
+    assert self.params.get_bool("NavDesiresAllowed")
+    assert self.params.get("NavLaneGuidance") == 2
     assert self.params.get_bool("MapboxRecompute")
     assert self.params.get_bool("NavMiciQuietGlyph")
     # posted settings persist in the shared param space; put the defaults back for the tests behind us
-    self.post("/api/settings", {"navHudMode": 3, "navAudio": 0, "laneGuidanceDisplay": False, "recompute": False,
-                                "quietGlyph": False})
+    self.post("/api/settings", {"navHudMode": 3, "navAudio": 0, "navDesiresAllowed": False, "laneGuidance": 0,
+                                "recompute": False, "quietGlyph": False})
 
   def test_settings_reject_bad_values(self):
     assert self.post("/api/settings", {"navHudMode": 7}).status_code == 400
     # bool is an int in Python; True must not slip through as mode 1
     assert self.post("/api/settings", {"navHudMode": True}).status_code == 400
     assert self.post("/api/settings", {"navAudio": -1}).status_code == 400
+    assert self.post("/api/settings", {"laneGuidance": 3}).status_code == 400
 
   def test_settings_refused_while_moving(self):
     # a passenger may cancel or reroute mid-drive, not reconfigure
     self.vehicle.can_set = False
     assert self.post("/api/settings", {"recompute": True}).status_code == 409
     assert not self.params.get_bool("MapboxRecompute")
-
-  def test_lane_guidance_display_preserves_assist(self):
-    self.params.put("NavLaneGuidance", 2, block=True)
-    body = self.post("/api/settings", {"laneGuidanceDisplay": True}).json()
-    assert body["laneGuidanceDisplay"] is True
-    assert self.params.get("NavLaneGuidance") == 2, "assist set on the device survives the page's on"
-    self.post("/api/settings", {"laneGuidanceDisplay": False})
-    assert self.params.get("NavLaneGuidance") == 0
 
   def test_token_is_write_only(self):
     res = self.post("/api/settings", {"token": "pk.replacement-token"})
