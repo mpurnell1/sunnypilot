@@ -77,6 +77,8 @@ class DestinationAPI:
     # settable while driving: nav desires need the driver's blinker and torque, so a route swap never touches control
     if not str(dest or "").strip():
       raise ApiError("dest is required")
+    if not self.params.get_bool("AllowNavigation"):
+      raise ApiError("navigation is disabled on the device", status=409)
     self.store.set_destination(str(dest), name=str(name or ""), route_summary=str(summary or ""))
     return self.status()
 
@@ -98,6 +100,7 @@ class DestinationAPI:
   def settings_view(self) -> dict:
     p = self.params
     return {
+      "allowNavigation": p.get_bool("AllowNavigation"),
       "navHudMode": p.get("NavHudMode", return_default=True),
       "navAudio": p.get("NavigationAudio", return_default=True),
       "navDesiresAllowed": p.get_bool("NavDesiresAllowed"),
@@ -118,6 +121,8 @@ class DestinationAPI:
       raise ApiError("settings can only be changed while parked", status=409)
 
     p = self.params
+    if "allowNavigation" in body:
+      p.put_bool("AllowNavigation", bool(body["allowNavigation"]), block=True)
     if "navHudMode" in body:
       if not self._valid_index(body["navHudMode"], 3):
         raise ApiError("navHudMode must be an integer 0 to 3")

@@ -103,6 +103,10 @@
 <h2>Settings</h2>
 <div class="card">
   <div class="row">
+    <div class="grow">Allow Navigation <span class="muted">(the navigation service; off, no destination can be set)</span></div>
+    <button id="set-allow" class="small"></button>
+  </div>
+  <div class="row" style="margin-top:12px">
     <div class="grow">Navigation Desires <span class="muted">(steer through a turn on the route once you signal for it)</span></div>
     <button id="set-desires" class="small"></button>
   </div>
@@ -180,7 +184,7 @@ function applyStatus(s) {
   $("cancel").hidden = !s.destination;
   const setup = $("setup-banner");
   if (!s.tokenSet) { setup.textContent = "No Mapbox token is set on the device."; setup.className = "banner warn"; }
-  else if (!s.navEnabled) { setup.textContent = "Navigation is disabled in the device settings."; setup.className = "banner warn"; }
+  else if (!s.navEnabled) { setup.textContent = "Navigation is off: turn it on under Settings below."; setup.className = "banner warn"; }
   else setup.className = "banner";
   renderSaved();
 }
@@ -412,6 +416,7 @@ function onOff(btn, value, save) {
 
 function renderSettings() {
   if (!settings) return;
+  onOff($("set-allow"), settings.allowNavigation, v => saveSettings({ allowNavigation: v }));
   onOff($("set-desires"), settings.navDesiresAllowed, v => saveSettings({ navDesiresAllowed: v }));
   segmented($("set-hud"), HUD_LABELS, settings.navHudMode, v => saveSettings({ navHudMode: v }));
   segmented($("set-lanes"), LANE_LABELS, settings.laneGuidance, v => saveSettings({ laneGuidance: v }));
@@ -430,6 +435,7 @@ async function loadSettings() {
 async function saveSettings(change) {
   try { settings = await api("/api/settings", post(change)); renderSettings(); toast("Saved"); }
   catch (e) { toast(e.message); }
+  if ("allowNavigation" in change) refresh();
 }
 
 $("token-form").onsubmit = async ev => {
