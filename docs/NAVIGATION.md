@@ -19,7 +19,8 @@ you will do it. The pieces:
   a Tailscale tailnet.
 
 Only the first two are required. Without the app, the device's own page does the
-sending from a phone on the car's network (see [The device page](#the-device-page)).
+setup and the sending from a phone on the car's network (see
+[The device page](#the-device-page)).
 
 ## 1. Install the branch
 
@@ -35,26 +36,7 @@ sudo reboot
 `op switch` swaps the code and submodules and keeps `/data/params`, so your car and
 toggle settings survive. The first boot rebuilds, which takes a few minutes.
 
-## 2. Turn navigation on
-
-On a comma 3X: Settings, **Navigation**, turn on **Allow Navigation**. The rest of that
-panel (Navigation HUD, Lane Guidance, Navigation Audio, Sound Tour, the Mapbox token,
-favorites) is the same set of choices the phone app and the device page offer, under
-the same names.
-
-On a comma four: settings, toggles, **navigation**. The four's screen is small, so only
-the toggle and the two choices that influence steering live there (**navigation
-desires** and **lane guidance**, both off by default, see
-[Steering suggestions](#steering-suggestions)). Everything else is set from the phone.
-
-Turn on **Mapbox Recompute** as well, from the 3X panel or later from the phone: it is
-off by default, and without it a missed turn leaves you off the route until you find
-your own way back.
-
-Navigation runs while the device is onroad; offroad the status reads "Waiting for a
-drive", which is normal.
-
-## 3. Mapbox tokens
+## 2. Mapbox tokens
 
 Routing, search and the head unit's map come from Mapbox, billed per request to a
 Mapbox account by its access token. A household's driving stays well inside the free
@@ -78,20 +60,17 @@ leave only `styles:tiles` ticked for the phone token. If you would rather manage
 token, one public token with `styles:tiles` works in both places; the steps below
 read the same either way.
 
-Where they go:
-
-- Device token: on a 3X, Settings, Navigation, **Mapbox Token**, Edit. On a four, or
-  from the sofa on either device, the phone app's Navigation section (Mapbox Token
-  row) or the device page's Settings block, once the phone can reach the device
-  (steps 4 and 5). The token is stored on the device and never sent to a browser.
-- Phone token: the sunnynav app's Map section (the first-run walk asks for it as its
-  second step). It stays on the phone. Without it the head unit still draws the route
-  line, over dark ground, and search away from the car is off.
+Both are entered on the phone: the phone token in the app's first-run walk (step 3),
+the device token in the app's Navigation section once the phone reaches the device
+(step 5). Nothing is typed on the device's screen. The device token is stored on the
+device and never sent to a browser; the phone token stays on the phone, and without it
+the head unit still draws the route line, over dark ground, and search away from the
+car is off.
 
 A token in the wrong place fails quietly: the route line draws with no map behind it.
 **Test Connection** in the app reports the phone token's verdict.
 
-## 4. The phone app
+## 3. The phone app
 
 sunnynav is an Android Auto app on Google Play's internal testing track (it is not in
 the public store). Ask for a tester invite by opening an issue on the fork
@@ -110,7 +89,7 @@ route.
 Everything on that walk can be changed later from Settings (the gear on the Navigate
 screen).
 
-## 5. Reaching the device
+## 4. Reaching the device
 
 The phone reaches the device over whichever of three routes answers first. Which ones
 you set up depends on how much you want away from home.
@@ -144,9 +123,24 @@ Pick by what you drive:
 3. Wireless Android Auto with the mirror away from home: Tailscale on the phone and
    the device.
 
+## 5. Turn navigation on
+
+With the phone on a route that answers, open Settings (the gear on the Navigate
+screen). The **Navigation** section is the device's: turn on **Allow Navigation**,
+set the **Mapbox Token** row to the device token, and turn on **Mapbox Recompute**
+(off by default; without it a missed turn leaves you off the route until you find
+your own way back). These rows write only while the car is parked; while it is
+driving they dim with "Device is driving".
+
+The same toggle is on the device for the car: a 3X has it under Settings,
+**Navigation** as **Allow Navigation**, with the display and audio choices under it; a
+four has **navigation** in its toggles beside the two steering choices (see
+[Steering suggestions](#steering-suggestions)). Navigation runs while the device is
+onroad; offroad the status reads "Waiting for a drive", which is normal.
+
 ## 6. Your first route
 
-With the car parked and the phone on a route that answers:
+With the car parked:
 
 1. Open sunnynav on the phone. The Navigate screen shows the device's status at the
    top ("No route" once it is reached), then search, favorites and recents.
@@ -250,13 +244,14 @@ and a change made in one shows in the others:
 
 | Setting | What it does |
 |---|---|
+| Allow Navigation | the navigation service; off, no destination can be set |
 | Navigation HUD | Off, Turns (the turn card), ETA (the arrival pill), Both |
 | Lane Guidance | Off, Display, Assist |
 | Navigation Audio | Off, Tones, Morse |
 | Navigation Desires | route turns once you signal (device screen and phone) |
 | Mapbox Recompute | reroute automatically after leaving the route |
 | Quiet Glyph | the four's dim between-maneuver arrow |
-| Mapbox Token | the device's token, write-only |
+| Mapbox Token | the device's token, write-only (phone and page only) |
 
 The phone app's own settings (the connection routes, the phone's Mapbox token,
 Tailscale for Android Auto) are the phone's and appear nowhere else.
@@ -266,7 +261,8 @@ Tailscale for Android Auto) are the phone's and appear nowhere else.
 The device serves a page at `http://<device-address>:5050` (on its hotspot,
 `http://192.168.43.1:5050`) whenever navigation is on. It is the zero-install way to
 use everything the phone app does on the car's network: search, the route pick with
-live and typical times, favorites, recents, cancel, and the settings block. Nothing
+live and typical times, favorites, recents, cancel, and the settings block, Allow
+Navigation and the device token included. Nothing
 to install, any browser, LAN only by design: the page never rides comma's relay and
 the Mapbox token never reaches the browser.
 
