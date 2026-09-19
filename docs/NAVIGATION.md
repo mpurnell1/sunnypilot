@@ -15,8 +15,8 @@ you will do it. The pieces:
 - two Mapbox tokens (or one), because Mapbox does the routing and the map;
 - **sunnynav**, an Android Auto app for the phone, where destinations are searched,
   picked and sent, and which mirrors the guidance on the head unit;
-- a way for the phone to reach the device, from the car's wifi to, for advanced users,
-  a Tailscale tailnet.
+- a way for the phone to reach the device, from the car's wifi to a Tailscale tailnet
+  (for advanced users).
 
 Only the first two are required. Without the app, the device's own page does the
 setup and the sending from a phone on the car's network (see
@@ -77,8 +77,8 @@ device and never sent to a browser; the phone token stays on the phone, and with
 the head unit still draws the route line, over dark ground, and search away from the
 car is off.
 
-A token in the wrong place fails quietly: the route line draws with no map behind it.
-**Test Connection** in the app reports the phone token's verdict.
+If the route line is drawing with no map behind it, use **Test Connection** in the app
+to verify it is set up.
 
 ## 3. The phone app
 
