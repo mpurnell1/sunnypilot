@@ -104,7 +104,7 @@ to verify it is set up.
 sunnynav is an Android Auto app on Google Play's internal testing track (it is not in
 the public store). Ask mpurnell1 for a tester invite on the sunnypilot community forum
 or by Discord DM, accept the opt-in link on the phone, and install it from the Play
-page the link opens. Updates arrive like any Play update.
+Store page the link opens. Updates arrive through the Play Store like any other.
 
 On first run the app walks two steps. Step one is the connection screen: the three
 ways the phone can reach the device, tried in the order shown, the first that
@@ -363,7 +363,7 @@ printing the device's 100.x address. On a 3X on home wifi the whole thing took
 under half a minute plus the login click. If the page does not end on a connected
 confirmation, running the script again prints a fresh link.
 
-On the phone: install Tailscale from Play, log in, connect once by hand so Android
+On the phone: install Tailscale from the Play Store, log in, connect once by hand so Android
 holds the VPN permission, and in Tailscale's settings turn **Use Tailscale DNS
 settings** off (the Android client's DNS breaks name resolution inside the tunnel as
 of 1.102; the app uses the address, not the name). Then in sunnynav's connection
