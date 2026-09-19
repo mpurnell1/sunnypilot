@@ -121,7 +121,7 @@ why it lives in the app's private storage and never in a web page).
 wireless Android Auto, which takes the phone's wifi. See
 [Advanced: Tailscale](#advanced-tailscale).
 
-Pick by what you drive:
+Pick by what you want from it:
 
 1. App plus the Mapbox tokens: send and cancel from anywhere over the relay; search
    and the route pick from anywhere over the phone's own token; favorites, settings
@@ -194,7 +194,7 @@ the status. The same language holds on both devices and the head unit.
 - Arrival: a pill with remaining time, distance and arrival time (Navigation HUD:
   ETA or Both).
 
-![The 3X: quiet chip, approach banner with lanes, off route](assets/nav/3x-states.png)
+![The 3X: quiet chip, approach banner with lanes, the searching flags, failing, off route](assets/nav/3x-states.png)
 
 ### On the comma four
 
@@ -258,7 +258,7 @@ and a change made in one shows in the others:
 | Navigation HUD | Off, Turns (the turn card), ETA (the arrival pill), Both |
 | Lane Guidance | Off, Display, Assist |
 | Navigation Audio | Off, Tones, Morse |
-| Navigation Desires | route turns once you signal (device screen and phone) |
+| Navigation Desires | route turns once you signal |
 | Mapbox Recompute | reroute automatically after leaving the route |
 | Quiet Glyph | the four's dim between-maneuver arrow |
 | Mapbox Token | the device's token, write-only (phone and page only) |
@@ -269,12 +269,12 @@ Tailscale for Android Auto) are the phone's and appear nowhere else.
 ## The device page
 
 The device serves a page at `http://<device-address>:5050` (on its hotspot,
-`http://192.168.43.1:5050`) whenever navigation is on. It is the zero-install way to
-use everything the phone app does on the car's network: search, the route pick with
-live and typical times, favorites, recents, cancel, and the settings block, Allow
-Navigation and the device token included. Nothing
-to install, any browser, LAN only by design: the page never rides comma's relay and
-the Mapbox token never reaches the browser.
+`http://192.168.43.1:5050`) whenever it is on. It is the zero-install way to use
+everything the phone app does on the car's network: search, the route pick with live
+and typical times, favorites, recents, cancel, and the settings block, Allow
+Navigation and the device token included. Nothing to install, any browser, LAN only
+by design: the page never rides comma's relay and the Mapbox token never reaches the
+browser.
 
 ![The device page in a phone browser](assets/nav/device-page.png)
 
