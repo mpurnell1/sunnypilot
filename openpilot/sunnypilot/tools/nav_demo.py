@@ -522,8 +522,8 @@ def run_ui(names, save_shots: bool, speedup: float, metric: bool, quiet_glyph: b
     gui_app.close()
 
   if shots:
-    from openpilot.common.hardware import TICI
-    if TICI:
+    from openpilot.common.hardware import COMMA_HARDWARE
+    if COMMA_HARDWARE:
       # the panel framebuffer is portrait; the captures need a 90 degree clockwise rotation
       from PIL import Image
       for fn in shots:
