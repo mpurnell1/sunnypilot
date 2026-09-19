@@ -98,8 +98,6 @@ class NavigationLayout(Widget):
                                         tr("Learn the navigation sounds: each cue plays in your selected style while the screen shows the card it will accompany."),  # noqa: E501
                                         self._play_sound_tour, enabled=lambda: ui_state.is_offroad)
 
-    self._mapbox_token_item = button_item(tr("Mapbox Token"), tr("Edit"), tr("Enter your Mapbox public token."),
-                                          partial(self._show_param_input, "MapboxToken", tr("Enter Mapbox Token")))
     self._mapbox_route_item = button_item(tr("Mapbox Route"), tr("Edit"), "",
                                           partial(self._show_param_input, "MapboxRoute", tr("Enter Mapbox Route")))
 
@@ -122,7 +120,7 @@ class NavigationLayout(Widget):
                                                    callback=self._favorites_callback)
 
     items = [
-      self._mapbox_token_item, self._mapbox_route_item,
+      self._mapbox_route_item,
       button_item(tr("Clear Current Route"), tr("Clear"), "", self._clear_route),
       self._favorites_item,
       *self._vis_items[:4],
@@ -226,7 +224,6 @@ class NavigationLayout(Widget):
 
   def _update_state(self):
     self._nav_status.update()
-    self._mapbox_token_item.action_item.set_value(self._params.get("MapboxToken") or tr("Mapbox token not set"))
     self._mapbox_route_item.action_item.set_value(self._params.get("MapboxRoute") or tr("Destination not set"))
     self._update_navigation_visibility(self._params.get_bool("AllowNavigation"))
 
