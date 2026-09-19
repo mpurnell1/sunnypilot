@@ -4,10 +4,9 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-How a navigation cue sounds; navigationd only says what it means. Two renderings: a 700 Hz
-CW sidetone keying a Morse letter vocabulary, and Tones, four sounds whose contour is the
-direction (rising right, falling left, doubled when imminent) plus a lane blip, a reroute
-pair and an arrival arpeggio. The kind of turn lives on the screen, not in the sound.
+How a navigation cue sounds; navigationd only says what it means. Four sounds: a pair whose
+contour is the direction (rising right, falling left, doubled when imminent), a lane blip, a
+reroute pair and an arrival arpeggio. The kind of turn lives on the screen, not in the sound.
 """
 import threading
 
@@ -17,48 +16,9 @@ from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 
 SAMPLE_RATE = 48000
-CW_FREQ = 700.0
 BASE_FREQ = 587.33  # D5: the low anchor note has to clear road noise on the device speaker
 AMPLITUDE = 0.85
 EDGE_S = 0.005  # raised-cosine attack/release
-
-AUDIO_OFF = 0
-AUDIO_TONES = 1
-AUDIO_MORSE = 2
-
-MORSE = {
-  'A': '.-', 'B': '-...', 'C': '-.-.', 'D': '-..', 'E': '.', 'F': '..-.', 'G': '--.',
-  'H': '....', 'I': '..', 'J': '.---', 'K': '-.-', 'L': '.-..', 'M': '--', 'N': '-.',
-  'O': '---', 'P': '.--.', 'Q': '--.-', 'R': '.-.', 'S': '...', 'T': '-', 'U': '..-',
-  'V': '...-', 'W': '.--', 'X': '-..-', 'Y': '-.--', 'Z': '--..',
-  '0': '-----', '1': '.----', '2': '..---', '3': '...--', '4': '....-', '5': '.....',
-  '6': '-....', '7': '--...', '8': '---..', '9': '----.',
-}
-# the arrival cue is the AR prosign, di-dah-di-dah-dit run together as one character
-PROSIGNS = {'AR': '.-.-.'}
-
-# the agreed ham vocabulary, as prefix + side letter; kinds outside this table have
-# dedicated codes in vocabulary_code
-KIND_PREFIXES = {'turn': '', 'slightTurn': 'S', 'sharpTurn': 'H', 'keep': 'K', 'exit': 'X', 'merge': 'M'}
-SIDE_LETTERS = {'left': 'L', 'right': 'R'}
-
-
-def vocabulary_code(kind: str, direction: str = 'none', count: int = 0) -> str:
-  """The letter code a cue keys as, or '' for a kind this build cannot spell."""
-  if kind == 'reroute':
-    return 'QRX'  # ham for 'stand by'
-  if kind == 'arrive':
-    return 'AR'
-  if kind == 'uturn':
-    return 'U'
-  if kind == 'roundabout':
-    return f'O{count}' if count else 'O'
-  if kind == 'laneChange':
-    side = SIDE_LETTERS.get(direction, '')
-    return 'C' + side if side else ''
-  prefix = KIND_PREFIXES.get(kind)
-  side = SIDE_LETTERS.get(direction)
-  return prefix + side if prefix is not None and side else ''
 
 
 def _tone(freq: float, dur: float, sr: int = SAMPLE_RATE, amp: float = AMPLITUDE) -> np.ndarray:
@@ -85,24 +45,6 @@ def _note(semitones: float, dur: float, sr: int, amp: float = AMPLITUDE) -> np.n
   return _tone(BASE_FREQ * 2 ** (semitones / 12), dur, sr, amp)
 
 
-def morse_wave(code: str, wpm: int, freq: float = CW_FREQ, sr: int = SAMPLE_RATE) -> np.ndarray:
-  """Standard timing: dah = 3 dits, intra-character gap 1, inter-character 3, word gap 7."""
-  dit = 1.2 / max(5, wpm)
-  parts: list[np.ndarray] = []
-  chars = [PROSIGNS[code]] if code in PROSIGNS else [MORSE.get(c, ' ') for c in code.upper()]
-  for i, char in enumerate(chars):
-    if char == ' ':
-      parts.append(_gap(4 * dit, sr))  # with the surrounding character gaps this totals 7
-      continue
-    for j, element in enumerate(char):
-      if j > 0:
-        parts.append(_gap(dit, sr))
-      parts.append(_tone(freq, dit if element == '.' else 3 * dit, sr))
-    if i < len(chars) - 1:
-      parts.append(_gap(3 * dit, sr))
-  return np.concatenate(parts) if parts else _gap(0, sr)
-
-
 def _pair(direction: str, note_dur: float, gap_dur: float, sr: int) -> list[np.ndarray]:
   """The directional two-note shape: contour is the entire message."""
   step = {'right': 7, 'left': -7}.get(direction, 0)
@@ -127,22 +69,10 @@ def earcon_wave(kind: str, stage: str, direction: str = 'none', sr: int = SAMPLE
   return np.concatenate(parts)
 
 
-def cue_wave(kind: str, stage: str, direction: str, count: int, mode: int, wpm: int, sr: int = SAMPLE_RATE) -> np.ndarray:
-  if mode == AUDIO_MORSE:
-    # a digest keys the maneuver code, a word gap, then the mile count as a digit
-    code = vocabulary_code(kind, direction, 0 if stage == 'digest' else count)
-    if not code:
-      return _gap(0, sr)
-    if stage == 'digest' and count:
-      code = f'{code} {count}'
-    return morse_wave(code, wpm, sr=sr)
-  return earcon_wave(kind, stage, direction, sr=sr)
-
-
 class NavAudioPlayer:
   """Feeds nav cue samples to soundd's mixer.
 
-  Owns the edge detection on audioCueId and the mode/WPM params; soundd only asks for
+  Owns the edge detection on audioCueId and the NavigationAudio param; soundd only asks for
   frames and decides whether the channel is free (no alert playing, quiet mode off).
 
   update() runs on soundd's 20 Hz loop and the rest on the PortAudio callback thread, so
@@ -153,8 +83,7 @@ class NavAudioPlayer:
   def __init__(self, sr: int = SAMPLE_RATE):
     self.params = Params()
     self.sr = sr
-    self.mode: int = 0
-    self.wpm: int = 30
+    self.enabled = False
     self._frame = 0
     self._last_cue_id: int | None = None
     self._buf = np.zeros(0, dtype=np.float32)
@@ -164,8 +93,7 @@ class NavAudioPlayer:
     self._read_params()
 
   def _read_params(self) -> None:
-    self.mode = self.params.get('NavigationAudio', return_default=True)
-    self.wpm = int(np.clip(self.params.get('NavAudioWpm', return_default=True), 5, 60))
+    self.enabled = self.params.get_bool('NavigationAudio')
 
   def load_params(self) -> None:
     self._frame += 1
@@ -186,13 +114,11 @@ class NavAudioPlayer:
     self._last_cue_id = cue_id
     kind = str(nav.audioCueKind)
     stage = str(nav.audioCueStage)
-    if self.mode == AUDIO_OFF or not kind:
-      return
-    # counting mile-beeps is a Morse skill; in tones the approach prompt covers the turn
-    if self.mode == AUDIO_TONES and stage == 'digest':
+    # a digest carries a mile count, which a tone pair cannot say; the approach cue covers the turn
+    if not self.enabled or not kind or stage == 'digest':
       return
     try:
-      buf = cue_wave(kind, stage, str(nav.audioCueDirection), int(nav.audioCueCount), self.mode, self.wpm, self.sr)
+      buf = earcon_wave(kind, stage, str(nav.audioCueDirection), sr=self.sr)
     except Exception:
       # a newer navigationd, or a replayed log, can carry kinds this build cannot render;
       # letting that out would abort the stream and take soundd down with it

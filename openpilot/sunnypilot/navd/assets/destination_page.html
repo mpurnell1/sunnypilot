@@ -118,8 +118,10 @@
   </div>
   <div class="muted" style="margin-top:12px">Lane Change Timer <span id="set-lane-timer-note"></span></div>
   <div class="chips" id="set-lane-timer"></div>
-  <div class="muted" style="margin-top:12px">Navigation Audio</div>
-  <div class="chips" id="set-audio"></div>
+  <div class="row" style="margin-top:12px">
+    <div class="grow">Navigation Audio <span class="muted">(a tone pair for each maneuver: rising means right, falling means left)</span></div>
+    <button id="set-audio" class="small"></button>
+  </div>
   <div class="row" style="margin-top:12px">
     <div class="grow">Mapbox Recompute <span class="muted">(recompute the route after leaving it)</span></div>
     <button id="set-recompute" class="small"></button>
@@ -392,7 +394,6 @@ $("edit-favs").onclick = () => {
 // --- settings: the token is write-only and never echoed back ---
 let settings = null;
 const HUD_LABELS = ["Off", "Turns", "ETA", "Both"];
-const AUDIO_LABELS = ["Off", "Tones", "Morse"];
 const LANE_TIMER_LABELS = ["Off", "Nudgeless", "0.5 s", "1 s", "2 s", "3 s"];
 const LANE_TIMER_NOTE = "(a signaled lane change toward an exit or merge on the route starts without the steering nudge after this delay; turns keep the nudge)";
 
@@ -421,7 +422,7 @@ function renderSettings() {
   onOff($("set-lanes"), settings.laneGuidance, v => saveSettings({ laneGuidance: v }));
   segmented($("set-lane-timer"), LANE_TIMER_LABELS, settings.navLaneChangeTimer, v => saveSettings({ navLaneChangeTimer: v }));
   $("set-lane-timer-note").textContent = settings.navLaneChangeTimer ? LANE_TIMER_NOTE : "";
-  segmented($("set-audio"), AUDIO_LABELS, settings.navAudio, v => saveSettings({ navAudio: v }));
+  onOff($("set-audio"), settings.navAudio, v => saveSettings({ navAudio: v }));
   onOff($("set-recompute"), settings.recompute, v => saveSettings({ recompute: v }));
   onOff($("set-quiet-glyph"), settings.quietGlyph, v => saveSettings({ quietGlyph: v }));
   $("token-state").textContent = settings.tokenSet ? "set" : "not set";
