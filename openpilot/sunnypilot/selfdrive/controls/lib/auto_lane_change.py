@@ -43,10 +43,13 @@ class AutoLaneChangeController:
     self.lane_change_delay = 0.0
 
     self.lane_change_set_timer = self.params.get("AutoLaneChangeTimer", return_default=True)
+    self.nav_lane_change_set_timer = self.params.get("NavLaneChangeTimer", return_default=True)
+    self.nav_lane_change_delay = 0.0
     self.lane_change_bsm_delay = False
 
     self.prev_brake_pressed = False
     self.auto_lane_change_allowed = False
+    self.nav_lane_change_allowed = False
     self.prev_lane_change = False
 
     self.read_params()
@@ -62,6 +65,8 @@ class AutoLaneChangeController:
   def read_params(self) -> None:
     self.lane_change_bsm_delay = self.params.get_bool("AutoLaneChangeBsmDelay")
     self.lane_change_set_timer = self.params.get("AutoLaneChangeTimer", return_default=True)
+    # 0 is Off: the same lookup reads it as Nudge, which is what happens without the route
+    self.nav_lane_change_set_timer = self.params.get("NavLaneChangeTimer", return_default=True)
 
   def update_params(self) -> None:
     if self.param_read_counter % 50 == 0:
@@ -71,22 +76,26 @@ class AutoLaneChangeController:
   def update_lane_change_timers(self, blindspot_detected: bool) -> None:
     self.lane_change_delay = AUTO_LANE_CHANGE_TIMER.get(self.lane_change_set_timer,
                                                         AUTO_LANE_CHANGE_TIMER[AutoLaneChangeMode.NUDGE])
+    self.nav_lane_change_delay = AUTO_LANE_CHANGE_TIMER.get(self.nav_lane_change_set_timer,
+                                                            AUTO_LANE_CHANGE_TIMER[AutoLaneChangeMode.NUDGE])
 
     self.lane_change_wait_timer += DT_MDL
 
-    if self.lane_change_bsm_delay and blindspot_detected and self.lane_change_delay > 0:
-      if self.lane_change_delay == AUTO_LANE_CHANGE_TIMER[AutoLaneChangeMode.NUDGELESS]:
+    # the hold ends one second after the blind spot clears for whichever timer fires first
+    delays = [d for d in (self.lane_change_delay, self.nav_lane_change_delay) if d > 0]
+    if self.lane_change_bsm_delay and blindspot_detected and delays:
+      if min(delays) == AUTO_LANE_CHANGE_TIMER[AutoLaneChangeMode.NUDGELESS]:
         self.lane_change_wait_timer = ONE_SECOND_DELAY
       else:
-        self.lane_change_wait_timer = self.lane_change_delay + ONE_SECOND_DELAY
+        self.lane_change_wait_timer = min(delays) + ONE_SECOND_DELAY
 
-  def update_allowed(self) -> bool:
+  def _allowed(self, set_timer: int, delay: float) -> bool:
     # Auto lane change allowed if:
     # 1. A valid delay is set (non-zero)
     # 2. Brake wasn't previously pressed
     # 3. We've waited long enough
 
-    if self.lane_change_set_timer in (AutoLaneChangeMode.OFF, AutoLaneChangeMode.NUDGE):
+    if set_timer in (AutoLaneChangeMode.OFF, AutoLaneChangeMode.NUDGE):
       return False
 
     if self.prev_brake_pressed:
@@ -95,7 +104,14 @@ class AutoLaneChangeController:
     if self.prev_lane_change:
       return False
 
-    return bool(self.lane_change_wait_timer > self.lane_change_delay)
+    return bool(self.lane_change_wait_timer > delay)
+
+  def update_allowed(self) -> bool:
+    return self._allowed(self.lane_change_set_timer, self.lane_change_delay)
+
+  # the route's own timer, for a lane change it asked for; only ever shorter than the driver's
+  def update_nav_allowed(self) -> bool:
+    return self._allowed(self.nav_lane_change_set_timer, self.nav_lane_change_delay)
 
   def update_lane_change(self, blindspot_detected: bool, brake_pressed: bool) -> None:
     if brake_pressed and not self.prev_brake_pressed:
@@ -104,6 +120,7 @@ class AutoLaneChangeController:
     self.update_lane_change_timers(blindspot_detected)
 
     self.auto_lane_change_allowed = self.update_allowed()
+    self.nav_lane_change_allowed = self.update_nav_allowed()
 
   def update_state(self):
     if self.DH.lane_change_state == log.LaneChangeState.laneChangeStarting:

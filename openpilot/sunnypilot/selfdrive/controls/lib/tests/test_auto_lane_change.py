@@ -10,6 +10,7 @@ from openpilot.selfdrive.controls.lib.desire_helper import DesireHelper, LaneCha
 from openpilot.sunnypilot.selfdrive.controls.lib.auto_lane_change import AutoLaneChangeController, AutoLaneChangeMode, \
   AUTO_LANE_CHANGE_TIMER, ONE_SECOND_DELAY
 from openpilot.common.test import OpenpilotTestCase
+from openpilot.sunnypilot.navd.constants import NAV_LANE_CHANGE_OFF
 
 AUTO_LANE_CHANGE_TIMER_COMBOS = [
   (AutoLaneChangeMode.NUDGELESS, AUTO_LANE_CHANGE_TIMER[AutoLaneChangeMode.NUDGELESS]),
@@ -28,6 +29,7 @@ class TestAutoLaneChangeController(OpenpilotTestCase):
   def _reset_states(self):
     self.alc.lane_change_bsm_delay = False
     self.alc.lane_change_set_timer = AutoLaneChangeMode.NUDGE
+    self.alc.nav_lane_change_set_timer = NAV_LANE_CHANGE_OFF
     self.lane_change_wait_timer = 0.0
     self.prev_brake_pressed = False
     self.prev_lane_change = False
@@ -210,3 +212,52 @@ class TestAutoLaneChangeController(OpenpilotTestCase):
 
     # Lane change should never be allowed
     assert not self.alc.auto_lane_change_allowed
+
+
+class TestNavLaneChangeTimer(OpenpilotTestCase):
+  """The route's timer runs beside the driver's on the same wait clock and gates only the
+  nav confirmation, so a Nudge driver can still have exits and merges go on the blinker."""
+
+  def setup_method(self):
+    self.DH = DesireHelper()
+    self.alc = AutoLaneChangeController(self.DH)
+    self.alc.lane_change_bsm_delay = False
+    self.alc.lane_change_set_timer = AutoLaneChangeMode.NUDGE
+
+  def _run(self, seconds: float, blindspot: bool = False, brake: bool = False):
+    for _ in range(int(seconds / DT_MDL) + 1):
+      self.alc.update_lane_change(blindspot_detected=blindspot, brake_pressed=brake)
+
+  def test_off_never_allows(self):
+    self.alc.nav_lane_change_set_timer = NAV_LANE_CHANGE_OFF
+    self._run(10.0)
+    assert not self.alc.nav_lane_change_allowed
+    assert not self.alc.auto_lane_change_allowed
+
+  @parameterized.expand(AUTO_LANE_CHANGE_TIMER_COMBOS)
+  def test_allows_after_its_own_delay_with_the_driver_on_nudge(self, timer_state, timer_delay):
+    self.alc.nav_lane_change_set_timer = timer_state
+    self.alc.update_lane_change(blindspot_detected=False, brake_pressed=False)
+    assert not self.alc.nav_lane_change_allowed
+    self._run(timer_delay)
+    assert self.alc.nav_lane_change_allowed
+    assert not self.alc.auto_lane_change_allowed
+
+  def test_brake_and_a_previous_lane_change_gate_it_like_the_driver_timer(self):
+    self.alc.nav_lane_change_set_timer = AutoLaneChangeMode.NUDGELESS
+    self._run(1.0, brake=True)
+    assert not self.alc.nav_lane_change_allowed
+
+    self.alc.prev_brake_pressed = False
+    self.alc.prev_lane_change = True
+    self._run(1.0)
+    assert not self.alc.nav_lane_change_allowed
+
+  def test_bsm_delay_holds_the_nav_timer_too(self):
+    self.alc.lane_change_bsm_delay = True
+    self.alc.nav_lane_change_set_timer = AutoLaneChangeMode.NUDGELESS
+    self._run(1.0, blindspot=True)
+    assert self.alc.lane_change_wait_timer == ONE_SECOND_DELAY
+    assert not self.alc.nav_lane_change_allowed
+    self._run(1.0)
+    assert self.alc.nav_lane_change_allowed

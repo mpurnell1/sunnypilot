@@ -17,7 +17,7 @@ from openpilot.common.params import Params
 from openpilot.common.realtime import Ratekeeper
 from openpilot.common.swaglog import cloudlog
 
-from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST, NAV_RETRY
+from openpilot.sunnypilot.navd.constants import NAV_LANE_CHANGE_OFF, NAV_RETRY
 from openpilot.sunnypilot.navd.helpers import Coordinate, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.nav_audio import NavAudioCues
 from openpilot.sunnypilot.navd.navigation_helpers.destination_store import DestinationStore
@@ -122,7 +122,8 @@ class Navigationd:
     self.route_request: Future | None = None
 
     self.allow_navigation: bool = False
-    self.lane_guidance: int = 0  # 0 off, 1 display, 2 display + assist
+    self.lane_guidance = False  # lanes on the turn card
+    self.lane_assist = False  # lane change hints for the controls side
     self.recompute_allowed: bool = False
     self.reroute_counter: int = 0
     self.arrival_counter: int = 0
@@ -156,6 +157,7 @@ class Navigationd:
   def _poll_params(self) -> None:
     self.allow_navigation = self.params.get('AllowNavigation', return_default=True)
     self.lane_guidance = self.params.get('NavLaneGuidance', return_default=True)
+    self.lane_assist = self.params.get('NavLaneChangeTimer', return_default=True) != NAV_LANE_CHANGE_OFF
     self.new_destination = self.params.get('MapboxRoute')
     self.recompute_allowed = self.params.get('MapboxRecompute', return_default=True)
 
@@ -262,7 +264,7 @@ class Navigationd:
     large_distance = progress.distance_from_route > float(interp(v_ego, OFF_ROUTE_SPEED_BP, OFF_ROUTE_DIST))
     misaligned = self.route.bearing_misaligned(progress, self.last_bearing, v_ego)
 
-    if self.lane_guidance >= LANE_GUIDANCE_ASSIST:
+    if self.lane_assist:
       # off the route or waiting on a failed reroute, the stale route must not prompt lane changes
       route_trusted = not large_distance and not misaligned and self.retry.failed_attempts == 0
       guidance.lane_change_direction = self.hint.update(lane_change_hint(progress, v_ego) if route_trusted else 'none')
