@@ -102,15 +102,17 @@
 
 <h2>Settings</h2>
 <div class="card">
-  <div class="muted">Navigation HUD</div>
+  <div class="row">
+    <div class="grow">Navigation Desires <span class="muted">(steer through a turn on the route once you signal for it)</span></div>
+    <button id="set-desires" class="small"></button>
+  </div>
+  <div class="muted" style="margin-top:12px">Navigation HUD</div>
   <div class="chips" id="set-hud"></div>
+  <div class="muted" style="margin-top:12px">Lane Guidance <span id="set-lanes-note"></span></div>
+  <div class="chips" id="set-lanes"></div>
   <div class="muted" style="margin-top:12px">Audio cues</div>
   <div class="chips" id="set-audio"></div>
   <div class="row" style="margin-top:12px">
-    <div class="grow">Lane guidance display</div>
-    <button id="set-lanes" class="small"></button>
-  </div>
-  <div class="row" style="margin-top:8px">
     <div class="grow">Automatic reroute</div>
     <button id="set-recompute" class="small"></button>
   </div>
@@ -380,10 +382,16 @@ $("edit-favs").onclick = () => {
   renderSaved();
 };
 
-// --- settings: display and audio only; the token is write-only and never echoed back ---
+// --- settings: the token is write-only and never echoed back ---
 let settings = null;
 const HUD_LABELS = ["Off", "Turns", "ETA", "Both"];
 const AUDIO_LABELS = ["Off", "Tones", "Morse"];
+const LANE_LABELS = ["Off", "Display", "Assist"];
+const LANE_NOTES = [
+  "(no lane guidance)",
+  "(which lanes lead to the next maneuver, on the turn card)",
+  "(also confirms a signaled lane change toward an exit or merge without a steering nudge; turns keep the nudge)",
+];
 
 function segmented(el, labels, value, save) {
   el.replaceChildren();
@@ -404,9 +412,11 @@ function onOff(btn, value, save) {
 
 function renderSettings() {
   if (!settings) return;
+  onOff($("set-desires"), settings.navDesiresAllowed, v => saveSettings({ navDesiresAllowed: v }));
   segmented($("set-hud"), HUD_LABELS, settings.navHudMode, v => saveSettings({ navHudMode: v }));
+  segmented($("set-lanes"), LANE_LABELS, settings.laneGuidance, v => saveSettings({ laneGuidance: v }));
+  $("set-lanes-note").textContent = LANE_NOTES[settings.laneGuidance] || "";
   segmented($("set-audio"), AUDIO_LABELS, settings.navAudio, v => saveSettings({ navAudio: v }));
-  onOff($("set-lanes"), settings.laneGuidanceDisplay, v => saveSettings({ laneGuidanceDisplay: v }));
   onOff($("set-recompute"), settings.recompute, v => saveSettings({ recompute: v }));
   onOff($("set-quiet-glyph"), settings.quietGlyph, v => saveSettings({ quietGlyph: v }));
   $("token-state").textContent = settings.tokenSet ? "set" : "not set";

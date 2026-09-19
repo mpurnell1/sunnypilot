@@ -95,13 +95,13 @@ class DestinationAPI:
       raise ApiError("action must be set (with dest), remove, or reorder (with names)")
     return {"favorites": self.store.favorites()}
 
-  # display and audio only: consent for steering influence (NavDesiresAllowed, assist level) happens in the car
   def settings_view(self) -> dict:
     p = self.params
     return {
       "navHudMode": p.get("NavHudMode", return_default=True),
       "navAudio": p.get("NavigationAudio", return_default=True),
-      "laneGuidanceDisplay": (p.get("NavLaneGuidance", return_default=True) or 0) >= 1,
+      "navDesiresAllowed": p.get_bool("NavDesiresAllowed"),
+      "laneGuidance": p.get("NavLaneGuidance", return_default=True) or 0,
       "recompute": p.get_bool("MapboxRecompute"),
       "quietGlyph": p.get_bool("NavMiciQuietGlyph"),
       # write-only: set or not set is all a client learns of the token
@@ -126,13 +126,12 @@ class DestinationAPI:
       if not self._valid_index(body["navAudio"], 2):
         raise ApiError("navAudio must be an integer 0 to 2")
       p.put("NavigationAudio", body["navAudio"], block=True)
-    if "laneGuidanceDisplay" in body:
-      # an assist level set in the car survives the display toggle staying on
-      current = p.get("NavLaneGuidance", return_default=True) or 0
-      if not body["laneGuidanceDisplay"]:
-        p.put("NavLaneGuidance", 0, block=True)
-      elif current < 1:
-        p.put("NavLaneGuidance", 1, block=True)
+    if "navDesiresAllowed" in body:
+      p.put_bool("NavDesiresAllowed", bool(body["navDesiresAllowed"]), block=True)
+    if "laneGuidance" in body:
+      if not self._valid_index(body["laneGuidance"], 2):
+        raise ApiError("laneGuidance must be an integer 0 to 2")
+      p.put("NavLaneGuidance", body["laneGuidance"], block=True)
     if "recompute" in body:
       p.put_bool("MapboxRecompute", bool(body["recompute"]), block=True)
     if "quietGlyph" in body:

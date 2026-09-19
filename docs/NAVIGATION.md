@@ -47,10 +47,10 @@ is a corner, not a card:
 
 Setup on the four is deliberately small: settings has the **navigation** toggle and,
 under it, the two choices that influence steering, **navigation desires** and **lane
-guidance** (off, display, assist), so consent for those happens in the car. Everything
-else (destinations, HUD and audio choices, the Mapbox token) lives on the phone page
-the device serves once navigation is on. The page has a real keyboard and room for
-descriptions; the steering options never appear on it.
+guidance** (off, display, assist). Everything, those two included, is also on the phone
+page the device serves once navigation is on (destinations, HUD and audio choices, the
+Mapbox token), and every setting there is written only while the car is parked. The page
+has a real keyboard and room for descriptions; the in-car rows are the backup.
 
 ## Setup
 
