@@ -87,11 +87,11 @@ the public store). Ask mpurnell1 for a tester invite on the sunnypilot community
 or by Discord DM, accept the opt-in link on the phone, and install it from the Play
 page the link opens. Updates arrive like any Play update.
 
-On first run the app walks two steps. Step one is the connection screen: the routes
-by which the phone reaches the device, tried in the order shown, the first that
+On first run the app walks two steps. Step one is the connection screen: the three
+ways the phone can reach the device, tried in the order shown, the first that
 answers is used. Set the ones you have (the next section says which you want) and tap
 **Test Connection**. Step two is the phone's Mapbox token. Finish needs at least one
-route.
+connection.
 
 ![The first-run walk's connection step](assets/nav/phone-firstrun-connection.png)
 
@@ -100,8 +100,8 @@ screen).
 
 ## 4. Reaching the device
 
-The phone reaches the device over whichever of three routes answers first. Which ones
-you set up depends on how much you want away from home.
+The phone reaches the device over whichever of three connections answers first.
+Which ones you set up depends on how much you want away from home.
 
 **Local network.** Any network the phone and device share: home wifi with the car in
 the driveway, or the device's own hotspot. Everything works here: search, the route
@@ -134,7 +134,7 @@ Pick by what you drive:
 
 ## 5. Turn navigation on
 
-With the phone on a route that answers, open Settings (the gear on the Navigate
+With the phone connected to the device, open Settings (the gear on the Navigate
 screen). The **Navigation** section is the device's: turn on **Allow Navigation**,
 set the **Mapbox Token** row to the device token, and turn on **Mapbox Recompute**
 (off by default; without it a missed turn leaves you off the route until you find
@@ -164,8 +164,9 @@ With the car parked:
 
 ![The Navigate screen and the route pick](assets/nav/phone-navigate-routepick.png)
 
-Destinations can be set while driving too, from every route, but the device's
-settings only change while it is parked (the rows dim with "Device is driving").
+Destinations can be set while driving too, over any of the three connections, but
+the device's settings only change while it is parked (the rows dim with "Device is
+driving").
 
 Sending from the head unit: sunnynav appears in Android Auto's launcher. Its list
 screen sends favorites and recents in one tap and searches (by voice while moving,
@@ -262,7 +263,7 @@ and a change made in one shows in the others:
 | Quiet Glyph | the four's dim between-maneuver arrow |
 | Mapbox Token | the device's token, write-only (phone and page only) |
 
-The phone app's own settings (the connection routes, the phone's Mapbox token,
+The phone app's own settings (the connections, the phone's Mapbox token,
 Tailscale for Android Auto) are the phone's and appear nowhere else.
 
 ## The device page
