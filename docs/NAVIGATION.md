@@ -1,119 +1,343 @@
 # Navigation
 
-sunnypilot navigation is a driving aid: it shows and speaks turn-by-turn guidance while
-you drive the car. It is not point-to-point autonomy. The route never steers the car,
-changes lanes, or takes an exit on its own; every maneuver is yours to make, with the
-same attention driving always demands.
+sunnypilot navigation on this branch is a driving aid: it shows and speaks turn-by-turn
+guidance while you drive the car. It is not point-to-point autonomy. The route never
+steers the car, changes lanes, or takes an exit on its own; every maneuver is yours to
+make, with the same attention driving always demands.
 
 This implementation builds on the navd work of **discountchubbs**, whose navigation
-daemon is the foundation everything here extends. If you find this feature useful,
-that groundwork is why it exists.
+daemon is the foundation everything here extends.
 
-## What it does
+This page takes you from a stock sunnypilot install to your first route, in the order
+you will do it. The pieces:
 
-- A quiet chip in the onroad UI carries the route state: absent means no route, a glyph
-  with a distance means routing. While searching, the destination flag raises in stages:
-  a bare pole until GPS has a fix, pole and banner while the route is requested, and red
-  if requests are failing. It expands into a banner as a maneuver approaches and gets
-  out of the way after.
-- The display is honest about being lost: off the route, the glyph dims and the
-  distance disappears rather than counting down to a turn you are not approaching;
-  while rerouting, the searching flag returns until the new route lands.
-- Audio cues, if enabled, sound as maneuvers approach. The sound tells you what and
-  when; the screen tells you where.
-- The arrival pill shows remaining time, distance, and arrival time.
-- While navigating, the route's speed limit can fill in the speed limit sign when
-  neither the car nor map data knows one. Route data can be stale; posted signs win.
-- Optional, off by default, and always driver-confirmed: navigation can suggest turns
-  and lane changes to the driving model, but only after your own blinker or steering
-  input agrees. Nothing acts without a driver signal.
+- the `nav` branch on the device, which routes, guides and serves a small phone page;
+- two Mapbox tokens (or one), because Mapbox does the routing and the map;
+- **sunnynav**, an Android Auto app for the phone, where destinations are searched,
+  picked and sent, and which mirrors the guidance on the head unit;
+- a way for the phone to reach the device, from the car's wifi to, for advanced users,
+  a Tailscale tailnet.
 
-## On the comma four
+Only the first two are required. Without the app, the device's own page does the
+sending from a phone on the car's network (see [The device page](#the-device-page)).
 
-The four's screen is small and its UI keeps itself out of the way, so navigation there
-is a corner, not a card:
+## 1. Install the branch
 
-- Between maneuvers the screen shows nothing (the page's **Quiet glyph** setting keeps
-  a faint next-turn arrow there for those who want it). Audio carries the street
-  names; the corner carries the shape of the turn.
-- As a maneuver approaches, a glyph, the distance, and a small lane row fade into the
-  top-left corner, in the slot the set-speed circle uses. They fade back out once the
-  turn is made. Alerts and the set-speed circle take the slot with priority.
-- Tap the corner to pin it as a persistent corner across maneuvers; tap again to let
-  it breathe. There is no hold-to-cancel on the four: cancel from the phone page,
-  athena, or by toggling navigation off in settings.
-- The same status language applies: the searching flag with its stages, red when
-  requests fail, a dimmed glyph when off route.
+Over SSH on a device already running sunnypilot:
 
-Setup on the four is deliberately small: settings has the **navigation** toggle and,
-under it, the two choices that influence steering, **navigation desires** and **lane
-guidance** (off, display, assist). Everything, those two included, is also on the phone
-page the device serves once navigation is on (destinations, HUD and audio choices, the
-Mapbox token), and every setting there is written only while the car is parked. The page
-has a real keyboard and room for descriptions; the in-car rows are the backup.
+```
+cd /data/openpilot
+git remote add mpurnell https://github.com/mpurnell1/sunnypilot.git
+./tools/op.sh switch mpurnell nav
+sudo reboot
+```
 
-## Setup
+`op switch` swaps the code and submodules and keeps `/data/params`, so your car and
+toggle settings survive. The first boot rebuilds, which takes a few minutes.
 
-1. Enable navigation: on the 3X, set a Mapbox token in Settings and enable
-   **Allow Navigation** under Settings, Navigation. On the four, turn on the
-   **navigation** toggle in settings, then set the token from the phone page's
-   Settings section.
-2. Set a destination:
-   - From a phone on the same network or the device hotspot, open
-     `http://<device-ip>:5050`. Search, compare routes with live traffic, and go.
-   - From anywhere, comma prime users can send a destination through athena
-     (`tools/send_nav_destination.py`, or the richer RPC methods below).
-   - From the device, pick a saved favorite in Settings, Navigation.
-3. Route choice is yours: the destination page previews alternates with live and
-   typical times. A favorite can be bound to a route you always want; a bound favorite
-   starts navigating on that route in one tap.
+## 2. Turn navigation on
 
-## Away from the car (comma prime / athena)
+On a comma 3X: Settings, **Navigation**, turn on **Allow Navigation**. The rest of that
+panel (Navigation HUD, Lane Guidance, Navigation Audio, Sound Tour, the Mapbox token,
+favorites) is the same set of choices the phone app and the device page offer, under
+the same names.
 
-The destination page only works on the car's network. Away from it, the same contract
-rides the websocket the device already keeps open to `athena.comma.ai` (this assumes a
-comma prime subscription; whether the tunnel works without one is untested). Clients
-POST JSON-RPC to `https://athena.comma.ai/<dongleId>` with an `Authorization: JWT
-<token>` header, using a comma account token from https://jwt.comma.ai.
+On a comma four: settings, toggles, **navigation**. The four's screen is small, so only
+the toggle and the two choices that influence steering live there (**navigation
+desires** and **lane guidance**, both off by default, see
+[Steering suggestions](#steering-suggestions)). Everything else is set from the phone.
 
-That token is full access to the device, so it belongs in an app or a script you run
-yourself, never in a web page: a browser cannot keep it secret, and this fork never
-serves or logs it anywhere. The token check is comma's; the device additionally answers
-only to accounts paired with it.
+Turn on **Mapbox Recompute** as well, from the 3X panel or later from the phone: it is
+off by default, and without it a missed turn leaves you off the route until you find
+your own way back.
 
-The fork registers six additive methods next to the stock `setNavDestination` (which
-is untouched, so comma connect and the CLI sender keep working):
+Navigation runs while the device is onroad; offroad the status reads "Waiting for a
+drive", which is normal.
+
+## 3. Mapbox tokens
+
+Routing, search and the head unit's map come from Mapbox, billed per request to a
+Mapbox account by its access token. A household's driving stays well inside the free
+tier. Create an account at https://account.mapbox.com and read Mapbox's own two pages
+before making tokens: the token guide (https://docs.mapbox.com/accounts/guides/tokens/)
+and how to use Mapbox securely
+(https://docs.mapbox.com/help/dive-deeper/how-to-use-mapbox-securely/). Their advice,
+followed here: one token per application, each with the least scope it needs, never
+the account's default token and never a secret (`sk.`) token anywhere.
+
+Two applications ask Mapbox for things:
+
+| Token | Lives on | Used for | Scopes |
+|---|---|---|---|
+| device | the comma device | routes, search, timezone lookup | none needed |
+| phone | the sunnynav app | map tiles behind the route line; search and the route preview when the phone is away from the car | `styles:tiles` |
+
+Make two public tokens at https://console.mapbox.com/account/access-tokens/: **Create
+a token**, name it for where it will live, untick every scope for the device token and
+leave only `styles:tiles` ticked for the phone token. If you would rather manage one
+token, one public token with `styles:tiles` works in both places; the steps below
+read the same either way.
+
+Where they go:
+
+- Device token: on a 3X, Settings, Navigation, **Mapbox Token**, Edit. On a four, or
+  from the sofa on either device, the phone app's Navigation section (Mapbox Token
+  row) or the device page's Settings block, once the phone can reach the device
+  (steps 4 and 5). The token is stored on the device and never sent to a browser.
+- Phone token: the sunnynav app's Map section (the first-run walk asks for it as its
+  second step). It stays on the phone. Without it the head unit still draws the route
+  line, over dark ground, and search away from the car is off.
+
+A token in the wrong place fails quietly: the route line draws with no map behind it.
+**Test Connection** in the app reports the phone token's verdict.
+
+## 4. The phone app
+
+sunnynav is an Android Auto app on Google Play's internal testing track (it is not in
+the public store). Ask for a tester invite by opening an issue on the fork
+(https://github.com/mpurnell1/sunnypilot/issues), accept the opt-in link on the
+phone, and install it from the Play page the link opens. Updates arrive like any Play
+update.
+
+On first run the app walks two steps. Step one is the connection screen: the routes
+by which the phone reaches the device, tried in the order shown, the first that
+answers is used. Set the ones you have (the next section says which you want) and tap
+**Test Connection**. Step two is the phone's Mapbox token. Finish needs at least one
+route.
+
+![The first-run walk's connection step](assets/nav/phone-firstrun-connection.png)
+
+Everything on that walk can be changed later from Settings (the gear on the Navigate
+screen).
+
+## 5. Reaching the device
+
+The phone reaches the device over whichever of three routes answers first. Which ones
+you set up depends on how much you want away from home.
+
+**Local network.** Any network the phone and device share: home wifi with the car in
+the driveway, or the device's own hotspot. Everything works here: search, the route
+pick, favorites, settings, and the head unit mirror. Enter the device's address on
+your home network in **Device Address** (Settings, Network, IP Address on the device).
+On the device's hotspot no address is needed: sunnypilot's hotspot is always
+192.168.43.1 and the app tries it by itself.
+
+**comma relay.** Anywhere with signal, through comma's servers, for a device on comma
+prime. Send and cancel only: comma asks forks to keep relay traffic at stock
+openpilot's rate, so the guidance mirror and search never ride it. Enter the **Dongle
+ID** (Settings, Device on the device) and a **Device Token** from https://jwt.comma.ai
+(a comma account token, good for 90 days; it is full access to the device, which is
+why it lives in the app's private storage and never in a web page).
+
+**Tailscale.** For advanced users who want the head unit mirror away from home with
+wireless Android Auto, which takes the phone's wifi. See
+[Advanced: Tailscale](#advanced-tailscale).
+
+Pick by what you drive:
+
+1. App plus the Mapbox tokens: send and cancel from anywhere over the relay; search
+   and the route pick from anywhere over the phone's own token; favorites, settings
+   and the mirror on home wifi. Enough for most.
+2. Wired Android Auto: join the phone to the device's hotspot once (Settings, Network,
+   Tethering on the device) and the mirror and the map come with it on every drive,
+   no extra apps.
+3. Wireless Android Auto with the mirror away from home: Tailscale on the phone and
+   the device.
+
+## 6. Your first route
+
+With the car parked and the phone on a route that answers:
+
+1. Open sunnynav on the phone. The Navigate screen shows the device's status at the
+   top ("No route" once it is reached), then search, favorites and recents.
+2. Type an address or a place and search. Pick a result.
+3. The route pick shows the alternates Mapbox offers over a preview map, with time
+   in traffic, typical time and distance; sort them as you like. Tap **Go**.
+   **Favorite** saves the destination; **Always take the selected route** binds a
+   favorite to the road you picked, so one tap on it later goes that way whenever
+   Mapbox still offers it.
+4. The device has the route. Drive: the chip, corner or head unit card wakes up as
+   the first maneuver approaches.
+
+![The Navigate screen and the route pick](assets/nav/phone-navigate-routepick.png)
+
+Destinations can be set while driving too, from every route, but the device's
+settings only change while it is parked (the rows dim with "Device is driving").
+
+Sending from the head unit: sunnynav appears in Android Auto's launcher. Its list
+screen sends favorites and recents in one tap and searches (by voice while moving,
+the head unit's rule); the guidance screen mirrors the device's next turn over the
+route line and can cancel.
+
+## What you will see and hear
+
+The design is transient: nothing is on screen between maneuvers, and what appears is
+the status. The same language holds on both devices and the head unit.
+
+### On the comma 3X
+
+- No route: nothing. Searching: the destination flag raises in stages, a bare pole
+  until GPS has a fix, pole and banner while the route is requested, red if requests
+  are failing.
+- Routing: a quiet chip with the next turn's glyph and distance. As a maneuver
+  approaches the chip expands into a banner with the instruction, the following turn
+  and, when Mapbox knows them, the lanes that lead there. It collapses once the turn
+  is made. Tap the chip to pin it open across maneuvers, tap again to let it
+  breathe; press and hold to cancel the route.
+- Off route: the glyph dims and the distance disappears rather than counting down to
+  a turn you are not approaching. While rerouting, the searching flag returns until
+  the new route lands.
+- Arrival: a pill with remaining time, distance and arrival time (Navigation HUD:
+  ETA or Both).
+
+![The 3X: quiet chip, approach banner with lanes, off route](assets/nav/3x-states.png)
+
+### On the comma four
+
+The four's screen keeps itself out of the way, so navigation there is a corner, not a
+card, in the slot the set-speed circle uses at the top left:
+
+- Between maneuvers the corner is empty (the **Quiet Glyph** setting keeps a dim
+  next-turn arrow there for those who want it). Audio carries the street names.
+- As a maneuver approaches, the glyph, the distance and a small lane row fade in,
+  and fade out once the turn is made. Alerts and the set-speed circle take the slot
+  with priority. Tap the corner to pin it, tap again to release it.
+- The same flags: searching in stages, red when requests fail, a dimmed glyph off
+  route. Arrival is audio only. There is no hold-to-cancel on the four: cancel from
+  the phone, the head unit or the device page.
+
+![The four: quiet, approach with lanes, searching, off route, failing](assets/nav/four-states.png)
+
+### On the head unit
+
+sunnynav's guidance screen is Android Auto's own navigation card over a map the app
+draws itself: the device's route line, heading up around the car, on Mapbox tiles
+paid for by the phone's token. The card shows the next maneuver, its distance and
+the lanes, and the arrival estimate; "No route", "Off route" and "Not connected" are
+spelled out. It updates within about a second of the device on a shared network.
+
+![The head unit: guidance over the route line, day and night, full screen and beside the media card](assets/nav/headunit-guidance.png)
+
+### Sounds
+
+**Navigation Audio** picks the style: Off, **Tones** (short pitch cues, rising for
+right, falling for left, wider for sharper) or **Morse** (the maneuver keyed as a
+code: R for a right turn, O3 for a roundabout's third exit). Cues sound in stages as
+a maneuver approaches, at distances scaled to your speed, and never twice for the
+same maneuver; a maneuver that needs no action gets no cue. The **Sound Tour** on the
+3X's Navigation panel plays every cue in your chosen style against the card it will
+accompany, which is the way to learn them before a drive.
+
+### Speed limits
+
+While navigating, the route's speed limit fills in the speed limit sign when neither
+the car nor map data knows one. Route data can be stale; posted signs win.
+
+### Steering suggestions
+
+Off by default and always driver-confirmed. **Navigation Desires** lets the driving
+model take a route turn once you signal for it; **Lane Guidance** shows the lanes on
+the turn card (Display) or additionally confirms a signaled lane change toward an
+exit or merge without the steering nudge (Assist). Every lane change still starts
+with your blinker, and nothing acts without a driver signal. Both live on the device
+screen so that consent happens in the car; they also read and write from the phone
+while parked.
+
+## Settings, one name everywhere
+
+A setting has the same name on the device screen, the device page and the phone app,
+and a change made in one shows in the others:
+
+| Setting | What it does |
+|---|---|
+| Navigation HUD | Off, Turns (the turn card), ETA (the arrival pill), Both |
+| Lane Guidance | Off, Display, Assist |
+| Navigation Audio | Off, Tones, Morse |
+| Navigation Desires | route turns once you signal (device screen and phone) |
+| Mapbox Recompute | reroute automatically after leaving the route |
+| Quiet Glyph | the four's dim between-maneuver arrow |
+| Mapbox Token | the device's token, write-only |
+
+The phone app's own settings (the connection routes, the phone's Mapbox token,
+Tailscale for Android Auto) are the phone's and appear nowhere else.
+
+## The device page
+
+The device serves a page at `http://<device-address>:5050` (on its hotspot,
+`http://192.168.43.1:5050`) whenever navigation is on. It is the zero-install way to
+use everything the phone app does on the car's network: search, the route pick with
+live and typical times, favorites, recents, cancel, and the settings block. Nothing
+to install, any browser, LAN only by design: the page never rides comma's relay and
+the Mapbox token never reaches the browser.
+
+![The device page in a phone browser](assets/nav/device-page.png)
+
+## Away from the car: the relay contract
+
+For scripts and apps of your own, the destination contract the app uses rides the
+websocket the device keeps open to `athena.comma.ai` (comma prime). POST JSON-RPC to
+`https://athena.comma.ai/<dongleId>` with `Authorization: JWT <token>`, the token from
+https://jwt.comma.ai. That token is full access to the device: keep it in an app or a
+script you run yourself, never in a web page.
+
+Four additive methods sit next to the stock `setNavDestination`, which is untouched,
+so comma connect keeps working:
 
 - `getNavStatus()`: the page's status payload, including whether a set is allowed now.
-- `listDestinations()`: favorites and recents, same shapes as the page.
+- `listDestinations()`: favorites and recents, the page's shapes.
 - `setDestination(dest, name, summary)`: set a destination, optionally with a chosen
-  route summary, exactly like tapping a route card on the page. Allowed while driving,
-  like the page; refused when navigation is disabled on the device.
+  route summary, exactly like tapping a route on the page. Refused when navigation is
+  disabled on the device.
 - `cancelRoute()`: allowed any time, the passenger rule.
-- `getNavState()`: one live guidance snapshot (route state, upcoming maneuvers with
-  distances, lanes, time and distance remaining, audio cue stage) for a polling head
-  unit client. Read-only, so it has no gate; `active: false` means navigationd is not
-  publishing. The page serves the same payload at `GET /api/state` for clients on the
-  car's network.
-- `searchPlaces(query)`: the page's search over the tunnel, forward geocoding through
-  the device's Mapbox token with proximity bias to the last known position. Read-only
-  and ungated like the page's, but refused while navigation is disabled.
 
-Refusals come back as JSON-RPC errors carrying the same sentences the page uses.
-sunnypilot's own sunnylink connection shares the method table, so the same calls work
-over it where it is available.
+Refusals come back as JSON-RPC errors carrying the page's sentences. Guidance state
+and search deliberately have no relay method: the relay is for rare, user-initiated
+calls, and those two ride the device's HTTP API on the car's network. sunnypilot's
+own sunnylink connection shares the method table where it is available.
+`tools/send_nav_destination.py` is a one-file sender for a share link, coordinates or
+an address.
 
 ## Expectations
 
-- Routing needs internet. If the connection drops mid-drive, guidance holds the route
-  it already has; it just cannot reroute until the connection returns.
-- ETAs reflect traffic at the time the route was requested, not live conditions.
+- Routing needs internet on the device. If the connection drops mid-drive, guidance
+  holds the route it has and cannot reroute until it returns.
+- ETAs reflect traffic at the time the route was requested.
 - Leaving the route triggers a reroute. A chosen alternate is kept while Mapbox still
   offers it and falls back to the fastest route when it does not.
-- Destinations can be set and cancelled mid-drive, including by a passenger from the
-  destination page: a route swap only ever changes suggestions, never control.
-- To cancel from the wheel: hold the navigation banner for about a second. From the
-  page: the Cancel button. From settings: Clear Current Route.
+- A route swap, from anyone, only ever changes suggestions, never control.
+- Street names read lower case in the four's alerts: that is the four's house style.
+
+## Advanced: Tailscale
+
+Wireless Android Auto takes the phone's wifi, so away from home nothing local reaches
+the device and the head unit mirror needs a network of its own. A Tailscale tailnet
+gives the phone and the device a private address each, over any connection. Two
+conditions: the device needs its own internet (comma prime's SIM or one of your own),
+and you accept that a VPN is up on the phone while you drive. The app drives it, so
+it is never on all day.
+
+On the device, over SSH:
+
+```
+cd /data/openpilot
+openpilot/sunnypilot/tools/tailscale_install.sh
+```
+
+The script downloads Tailscale's static build into `/data/tailscale`, where the
+branch's process manager starts it on every boot (it survives sunnypilot and AGNOS
+updates: nothing is written outside `/data`, and nothing runs as root), and prints
+a login link. Open it, connect the device to your tailnet, and the script ends by
+printing the device's 100.x address. On a 3X on home wifi the whole thing took
+under half a minute plus the login click. If the page does not end on a connected
+confirmation, running the script again prints a fresh link.
+
+On the phone: install Tailscale from Play, log in, connect once by hand so Android
+holds the VPN permission, and in Tailscale's settings turn **Use Tailscale DNS
+settings** off (the Android client's DNS breaks name resolution inside the tunnel as
+of 1.102; the app uses the address, not the name). Then in sunnynav's connection
+screen enter the device's **Tailnet Address** (100.x) and turn on **Auto-connect
+Tailscale VPN during Android Auto drives**: the app connects the VPN when the head
+unit session starts and drops it when it ends.
 
 ## Credits
 
