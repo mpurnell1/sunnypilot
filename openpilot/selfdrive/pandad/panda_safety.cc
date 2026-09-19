@@ -14,6 +14,11 @@ void PandaSafety::configureSafetyMode(bool is_onroad) {
       safety_configured_ = true;
     }
   } else if (!is_onroad) {
+    if (initialized_) {
+      // card's handshake must come from the current session; the manager's clear on the onroad edge can land after pandad has read it
+      params_.remove("FirmwareQueryDone");
+      params_.remove("ControlsReady");
+    }
     initialized_ = false;
     safety_configured_ = false;
     log_once_ = false;
