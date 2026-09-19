@@ -272,9 +272,9 @@ The device serves a page at `http://<device-address>:5050` (on its hotspot,
 `http://192.168.43.1:5050`) whenever it is on. It is the zero-install way to use
 everything the phone app does on the car's network: search, the route pick with live
 and typical times, favorites, recents, cancel, and the settings block, Allow
-Navigation and the device token included. Nothing to install, any browser, LAN only
-by design: the page never rides comma's relay and the Mapbox token never reaches the
-browser.
+Navigation and the device token included. Any browser works and there is nothing to
+install. It stays on the car's network by design: the page never rides comma's relay,
+and the Mapbox token never reaches the browser.
 
 ![The device page in a phone browser](assets/nav/device-page.png)
 
