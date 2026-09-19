@@ -114,6 +114,10 @@
     <div class="grow">Automatic reroute</div>
     <button id="set-recompute" class="small"></button>
   </div>
+  <div class="row" style="margin-top:8px">
+    <div class="grow">Quiet glyph <span class="muted">(comma four: keep a dim next-turn arrow between maneuvers)</span></div>
+    <button id="set-quiet-glyph" class="small"></button>
+  </div>
   <div style="margin-top:14px">
     <div class="muted">Mapbox token: <span id="token-state"></span></div>
     <form id="token-form" class="row" style="margin-top:6px">
@@ -404,6 +408,7 @@ function renderSettings() {
   segmented($("set-audio"), AUDIO_LABELS, settings.navAudio, v => saveSettings({ navAudio: v }));
   onOff($("set-lanes"), settings.laneGuidanceDisplay, v => saveSettings({ laneGuidanceDisplay: v }));
   onOff($("set-recompute"), settings.recompute, v => saveSettings({ recompute: v }));
+  onOff($("set-quiet-glyph"), settings.quietGlyph, v => saveSettings({ quietGlyph: v }));
   $("token-state").textContent = settings.tokenSet ? "set" : "not set";
 }
 

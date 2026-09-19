@@ -33,8 +33,8 @@ that groundwork is why it exists.
 The four's screen is small and its UI keeps itself out of the way, so navigation there
 is a corner, not a card:
 
-- Between maneuvers the screen shows nothing (a faint hint glyph is available behind
-  the `NavMiciQuietGlyph` parameter for those who want it). Audio carries the street
+- Between maneuvers the screen shows nothing (the page's **Quiet glyph** setting keeps
+  a faint next-turn arrow there for those who want it). Audio carries the street
   names; the corner carries the shape of the turn.
 - As a maneuver approaches, a glyph, the distance, and a small lane row fade into the
   top-left corner, in the slot the set-speed circle uses. They fade back out once the
