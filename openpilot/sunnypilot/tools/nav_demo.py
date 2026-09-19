@@ -422,7 +422,7 @@ def run_ui(names, save_shots: bool, speedup: float, metric: bool, quiet_glyph: b
   assert params.get('DongleId') is None, 'params are not isolated, refusing to run'
   params.put_bool('AllowNavigation', True)
   params.put('NavHudMode', 3)
-  params.put('NavLaneGuidance', 1)
+  params.put_bool('NavLaneGuidance', True)
   params.put('MapboxRoute', DEST)
   params.put('NavDestinationTimezone', DEST_TZ)
   params.put_bool('NavMiciQuietGlyph', quiet_glyph)

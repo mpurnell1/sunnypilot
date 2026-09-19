@@ -112,8 +112,12 @@
   </div>
   <div class="muted" style="margin-top:12px">Navigation HUD</div>
   <div class="chips" id="set-hud"></div>
-  <div class="muted" style="margin-top:12px">Lane Guidance <span id="set-lanes-note"></span></div>
-  <div class="chips" id="set-lanes"></div>
+  <div class="row" style="margin-top:12px">
+    <div class="grow">Lane Guidance <span class="muted">(which lanes lead to the next maneuver, on the turn card)</span></div>
+    <button id="set-lanes" class="small"></button>
+  </div>
+  <div class="muted" style="margin-top:12px">Lane Change Timer <span id="set-lane-timer-note"></span></div>
+  <div class="chips" id="set-lane-timer"></div>
   <div class="muted" style="margin-top:12px">Navigation Audio</div>
   <div class="chips" id="set-audio"></div>
   <div class="row" style="margin-top:12px">
@@ -132,7 +136,6 @@
     </form>
   </div>
   <div class="muted" style="margin-top:10px">
-    Options that influence steering stay on the device, so that consent happens in the car.
     Settings save while parked, like destinations.
   </div>
 </div>
@@ -390,12 +393,8 @@ $("edit-favs").onclick = () => {
 let settings = null;
 const HUD_LABELS = ["Off", "Turns", "ETA", "Both"];
 const AUDIO_LABELS = ["Off", "Tones", "Morse"];
-const LANE_LABELS = ["Off", "Display", "Assist"];
-const LANE_NOTES = [
-  "(no lane guidance)",
-  "(which lanes lead to the next maneuver, on the turn card)",
-  "(also confirms a signaled lane change toward an exit or merge without a steering nudge; turns keep the nudge)",
-];
+const LANE_TIMER_LABELS = ["Off", "Nudgeless", "0.5 s", "1 s", "2 s", "3 s"];
+const LANE_TIMER_NOTE = "(a signaled lane change toward an exit or merge on the route starts without the steering nudge after this delay; turns keep the nudge)";
 
 function segmented(el, labels, value, save) {
   el.replaceChildren();
@@ -419,8 +418,9 @@ function renderSettings() {
   onOff($("set-allow"), settings.allowNavigation, v => saveSettings({ allowNavigation: v }));
   onOff($("set-desires"), settings.navDesiresAllowed, v => saveSettings({ navDesiresAllowed: v }));
   segmented($("set-hud"), HUD_LABELS, settings.navHudMode, v => saveSettings({ navHudMode: v }));
-  segmented($("set-lanes"), LANE_LABELS, settings.laneGuidance, v => saveSettings({ laneGuidance: v }));
-  $("set-lanes-note").textContent = LANE_NOTES[settings.laneGuidance] || "";
+  onOff($("set-lanes"), settings.laneGuidance, v => saveSettings({ laneGuidance: v }));
+  segmented($("set-lane-timer"), LANE_TIMER_LABELS, settings.navLaneChangeTimer, v => saveSettings({ navLaneChangeTimer: v }));
+  $("set-lane-timer-note").textContent = settings.navLaneChangeTimer ? LANE_TIMER_NOTE : "";
   segmented($("set-audio"), AUDIO_LABELS, settings.navAudio, v => saveSettings({ navAudio: v }));
   onOff($("set-recompute"), settings.recompute, v => saveSettings({ recompute: v }));
   onOff($("set-quiet-glyph"), settings.quietGlyph, v => saveSettings({ quietGlyph: v }));

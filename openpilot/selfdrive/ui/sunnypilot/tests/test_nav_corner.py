@@ -35,24 +35,24 @@ TWO_STEPS = (('depart', 'none', 0.0), ('turn', 'right', 400.0))
 class TestStatusStates:
   def test_searching_shows_the_faint_flag_in_any_state(self):
     for state in TransientNavState:
-      content = corner_content(state, ChipMode.SEARCHING, _msg(), 1, False)
+      content = corner_content(state, ChipMode.SEARCHING, _msg(), True, False)
       assert content is not None and content.kind == 'searching'
       assert content.alpha == SEARCH_ALPHA
 
   def test_failure_shows_the_flag_brighter(self):
-    content = corner_content(TransientNavState.QUIET, ChipMode.FAILURE, _msg(), 0, False)
+    content = corner_content(TransientNavState.QUIET, ChipMode.FAILURE, _msg(), False, False)
     assert content is not None and content.kind == 'failure'
     assert content.alpha == FAILURE_ALPHA
 
   def test_searching_flag_carries_its_stage(self):
     # pole only until the GPS fix, pole plus banner once the wait is on Mapbox
-    lowered = corner_content(TransientNavState.QUIET, ChipMode.SEARCHING, _msg(), 0, False, raised=False)
+    lowered = corner_content(TransientNavState.QUIET, ChipMode.SEARCHING, _msg(), False, False, raised=False)
     assert lowered is not None and not lowered.raised
-    raised = corner_content(TransientNavState.QUIET, ChipMode.SEARCHING, _msg(), 0, False, raised=True)
+    raised = corner_content(TransientNavState.QUIET, ChipMode.SEARCHING, _msg(), False, False, raised=True)
     assert raised is not None and raised.raised
 
   def test_failure_flag_always_flies_full(self):
-    content = corner_content(TransientNavState.QUIET, ChipMode.FAILURE, _msg(), 0, False, raised=False)
+    content = corner_content(TransientNavState.QUIET, ChipMode.FAILURE, _msg(), False, False, raised=False)
     assert content is not None and content.raised
 
 
@@ -61,70 +61,70 @@ class TestRouteStateTreatments:
     # PINNED wears the same treatment instead of collapsing; APPROACH never sees offRoute
     # because the machine force-collapses it first
     for state in (TransientNavState.QUIET, TransientNavState.PINNED):
-      content = corner_content(state, ChipMode.LIVE, _msg(TWO_STEPS, 2, route_state='offRoute'), 1, False)
+      content = corner_content(state, ChipMode.LIVE, _msg(TWO_STEPS, 2, route_state='offRoute'), True, False)
       assert content is not None and content.kind == 'maneuver'
       assert content.alpha == QUIET_ALPHA
       assert content.distance is None and content.lanes == ()
 
   def test_rerouting_shows_the_searching_flag(self):
-    content = corner_content(TransientNavState.PINNED, ChipMode.LIVE, _msg(TWO_STEPS, route_state='rerouting'), 0, False)
+    content = corner_content(TransientNavState.PINNED, ChipMode.LIVE, _msg(TWO_STEPS, route_state='rerouting'), False, False)
     assert content is not None and content.kind == 'searching'
 
   def test_rerouting_failures_turn_the_flag_red(self):
     content = corner_content(TransientNavState.QUIET, ChipMode.LIVE,
-                             _msg(TWO_STEPS, route_state='rerouting', failures=1), 0, False)
+                             _msg(TWO_STEPS, route_state='rerouting', failures=1), False, False)
     assert content is not None and content.kind == 'failure'
 
   def test_hidden_mode_is_an_empty_corner(self):
-    assert corner_content(TransientNavState.APPROACH, ChipMode.HIDDEN, _msg(TWO_STEPS), 1, True) is None
+    assert corner_content(TransientNavState.APPROACH, ChipMode.HIDDEN, _msg(TWO_STEPS), True, True) is None
 
 
 class TestQuietState:
   def test_default_quiet_is_an_empty_corner(self):
-    assert corner_content(TransientNavState.QUIET, ChipMode.LIVE, _msg(TWO_STEPS), 1, False) is None
+    assert corner_content(TransientNavState.QUIET, ChipMode.LIVE, _msg(TWO_STEPS), True, False) is None
 
   def test_param_turns_on_the_faint_glyph(self):
-    content = corner_content(TransientNavState.QUIET, ChipMode.LIVE, _msg(TWO_STEPS), 1, True)
+    content = corner_content(TransientNavState.QUIET, ChipMode.LIVE, _msg(TWO_STEPS), True, True)
     assert content is not None and content.kind == 'maneuver'
     assert (content.maneuver_type, content.modifier) == ('turn', 'right')
     assert content.alpha == QUIET_ALPHA
 
   def test_faint_glyph_is_a_glyph_only(self):
     # no text beyond distance is the mici rule, and the quiet hint has not even that
-    content = corner_content(TransientNavState.QUIET, ChipMode.LIVE, _msg(TWO_STEPS, lane_count=3), 2, True)
+    content = corner_content(TransientNavState.QUIET, ChipMode.LIVE, _msg(TWO_STEPS, lane_count=3), True, True)
     assert content.distance is None
     assert content.lanes == ()
 
   def test_off_state_is_empty_even_with_the_param(self):
-    assert corner_content(TransientNavState.OFF, ChipMode.LIVE, _msg(TWO_STEPS), 1, True) is None
+    assert corner_content(TransientNavState.OFF, ChipMode.LIVE, _msg(TWO_STEPS), True, True) is None
 
 
 class TestExpandedStates:
   def test_approach_carries_distance_and_lanes(self):
-    content = corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(TWO_STEPS, lane_count=3), 1, False)
+    content = corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(TWO_STEPS, lane_count=3), True, False)
     assert content is not None
     assert content.alpha == FULL_ALPHA
     assert content.distance == 400.0
     assert len(content.lanes) == 3
 
   def test_pinned_matches_approach(self):
-    approach = corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(TWO_STEPS), 1, False)
-    pinned = corner_content(TransientNavState.PINNED, ChipMode.LIVE, _msg(TWO_STEPS), 1, False)
+    approach = corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(TWO_STEPS), True, False)
+    pinned = corner_content(TransientNavState.PINNED, ChipMode.LIVE, _msg(TWO_STEPS), True, False)
     assert approach == pinned
 
   def test_lane_guidance_off_drops_the_lane_row(self):
-    content = corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(TWO_STEPS, lane_count=3), 0, False)
+    content = corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(TWO_STEPS, lane_count=3), False, False)
     assert content.lanes == ()
 
   def test_a_lone_arrive_step_still_shows(self):
-    content = corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg((('arrive', 'none', 120.0),)), 1, False)
+    content = corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg((('arrive', 'none', 120.0),)), True, False)
     assert content is not None
     assert content.maneuver_type == 'arrive'
 
   def test_no_upcoming_maneuver_is_an_empty_corner(self):
-    assert corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(), 1, False) is None
+    assert corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(), True, False) is None
     # a lone non-arrive step is the step being driven, with nothing ahead to show
-    assert corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg((('depart', 'none', 0.0),)), 1, False) is None
+    assert corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg((('depart', 'none', 0.0),)), True, False) is None
 
 
 class TestCornerCanDraw:

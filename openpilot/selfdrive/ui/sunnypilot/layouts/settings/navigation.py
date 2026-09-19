@@ -21,7 +21,7 @@ from openpilot.system.ui.widgets.scroller_tici import Scroller
 
 from openpilot.system.ui.sunnypilot.widgets import get_highlighted_description
 from openpilot.system.ui.sunnypilot.widgets.input_dialog import InputDialogSP
-from openpilot.system.ui.sunnypilot.widgets.list_view import toggle_item_sp, multiple_button_item_sp
+from openpilot.system.ui.sunnypilot.widgets.list_view import toggle_item_sp, multiple_button_item_sp, option_item_sp
 
 NAV_BANNER_BUTTONS = [tr("Off"), tr("Increments"), tr("Always")]
 
@@ -41,13 +41,7 @@ NAV_HUD_DESCRIPTIONS = [
   tr("Both: Turn card and arrival pill."),
 ]
 
-NAV_LANE_BUTTONS = [tr("Off"), tr("Display"), tr("Assist")]
-
-NAV_LANE_DESCRIPTIONS = [
-  tr("Off: No lane guidance."),
-  tr("Display: Show which lanes lead to the next maneuver on the turn card."),
-  tr("Assist: Also confirm a signaled lane change toward an exit or merge immediately, without a steering nudge. Lane changes before turns keep the nudge, and every lane change starts with the blinker."),  # noqa: E501
-]
+NAV_LANE_TIMER_LABELS = [tr("Off"), tr("Nudgeless"), f"0.5 {tr('s')}", f"1 {tr('s')}", f"2 {tr('s')}", f"3 {tr('s')}"]
 
 NAV_AUDIO_BUTTONS = [tr("Off"), tr("Tones"), tr("Morse")]
 
@@ -90,8 +84,11 @@ class NavigationLayout(Widget):
 
     self._nav_hud_item = multiple_button_item_sp(tr("Navigation HUD"), self._get_nav_hud_description,
                                                  NAV_HUD_BUTTONS, param="NavHudMode")
-    self._lane_guidance_item = multiple_button_item_sp(tr("Lane Guidance"), self._get_lane_guidance_description,
-                                                       NAV_LANE_BUTTONS, param="NavLaneGuidance")
+    self._lane_guidance_item = toggle_item_sp(tr("Lane Guidance"), tr("Show which lanes lead to the next maneuver on the turn card."),
+                                              param="NavLaneGuidance")
+    self._lane_timer_item = option_item_sp(tr("Lane Change Timer"), "NavLaneChangeTimer", 0, len(NAV_LANE_TIMER_LABELS) - 1,
+                                           tr("A signaled lane change toward an exit or merge on the route starts without the steering nudge after this delay. Lane changes before turns keep the nudge, and every lane change starts with the blinker."),  # noqa: E501
+                                           label_callback=lambda i: NAV_LANE_TIMER_LABELS[i])
     self._nav_audio_item = multiple_button_item_sp(tr("Navigation Audio"), self._get_nav_audio_description,
                                                    NAV_AUDIO_BUTTONS, param="NavigationAudio")
     self._sound_tour_item = button_item(tr("Sound Tour"), tr("Play"),
@@ -127,7 +124,7 @@ class NavigationLayout(Widget):
       toggle_item_sp(tr("Allow Navigation"), tr("Enable the navigation service."), callback=self._update_navigation_visibility,
                      param="AllowNavigation"),
       *self._vis_items[4:],
-      self._nav_hud_item, self._lane_guidance_item, self._nav_audio_item, self._sound_tour_item,
+      self._nav_hud_item, self._lane_guidance_item, self._lane_timer_item, self._nav_audio_item, self._sound_tour_item,
     ]
     self._scroller = Scroller(items, line_separator=True, spacing=0)
 
@@ -207,9 +204,6 @@ class NavigationLayout(Widget):
 
   def _get_nav_hud_description(self) -> str:
     return get_highlighted_description(self._params, "NavHudMode", NAV_HUD_DESCRIPTIONS)
-
-  def _get_lane_guidance_description(self) -> str:
-    return get_highlighted_description(self._params, "NavLaneGuidance", NAV_LANE_DESCRIPTIONS)
 
   def _play_sound_tour(self) -> None:
     if self._tour is None:

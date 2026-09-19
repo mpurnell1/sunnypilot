@@ -66,7 +66,7 @@ class CornerContent:
 
 
 def corner_content(state: TransientNavState, mode: ChipMode, msg,
-                   lane_guidance: int, quiet_glyph: bool, raised: bool = True) -> CornerContent | None:
+                   lane_guidance: bool, quiet_glyph: bool, raised: bool = True) -> CornerContent | None:
   if mode == ChipMode.SEARCHING:
     return CornerContent('searching', SEARCH_ALPHA, raised=raised)
   if mode == ChipMode.FAILURE:
