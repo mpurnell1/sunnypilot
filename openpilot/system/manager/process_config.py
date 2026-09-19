@@ -71,11 +71,6 @@ def livestream(started: bool, params: Params, CP: car.CarParams) -> bool:
 def use_copyparty(started, params, CP: car.CarParams) -> bool:
   return bool(params.get_bool("EnableCopyparty"))
 
-def use_nav_server(started, params, CP: car.CarParams) -> bool:
-  # runs onroad too: setting a destination is refused by the handler unless the car is
-  # parked, but a passenger canceling guidance mid-drive is deliberate
-  return bool(params.get_bool("AllowNavigation"))
-
 TAILSCALE_DIR = "/data/tailscale"
 
 def use_tailscale(started, params, CP: car.CarParams) -> bool:
@@ -192,7 +187,7 @@ procs += [
 
   # navigationd
   PythonProcess("navigationd", "openpilot.sunnypilot.navd.navigationd", only_onroad),
-  PythonProcess("destinationd", "openpilot.sunnypilot.navd.destinationd", use_nav_server),
+  PythonProcess("destinationd", "openpilot.sunnypilot.navd.destinationd", always_run),
   NativeProcess("tailscaled", TAILSCALE_DIR, ["./tailscaled", f"--state={TAILSCALE_DIR}/tailscaled.state",
                 f"--socket={TAILSCALE_DIR}/tailscaled.sock", "--tun=userspace-networking"], use_tailscale, enabled=not PC),
 
