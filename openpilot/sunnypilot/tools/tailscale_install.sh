@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tailscale on the device for the nav transport's tailnet route (docs/NAVIGATION.md,
+# Tailscale on the device for the nav transport's tailnet route (the forum guide's
 # "Advanced: Tailscale"). The static build lands in /data/tailscale and the process
 # manager runs it from there (system/manager/process_config.py), so it survives
 # sunnypilot and AGNOS updates; nothing is written outside /data and nothing needs root.
