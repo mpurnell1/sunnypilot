@@ -73,7 +73,7 @@ class TestAthenaNavMethods:
     assert self.params.get("MapboxRoute") == "-119.03,34.22"
 
   def test_set_destination_refused_when_navigation_disabled(self):
-    # the page simply is not running with navigation off; the honest athena mirror is a refusal
+    # the shared handler's refusal, so the relay cannot set a destination navd would never read
     self.params.put("AllowNavigation", False, block=True)
     response = rpc_call("setDestination", {"dest": "-119.03,34.22"})
     assert response["error"]["message"] == "navigation is disabled on the device"

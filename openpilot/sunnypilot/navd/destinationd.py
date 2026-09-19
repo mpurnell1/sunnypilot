@@ -10,10 +10,11 @@ The page is deliberately LAN-only; away from the car the same contract rides com
 athena connection (navd/athena_methods.py), where auth is the comma account JWT.
 
 Search, route choice, favorites, and recents talk to Mapbox from the device with the
-public token; the token itself is never sent to the browser. The daemon runs whenever
-navigation is enabled so a passenger can cancel guidance mid-drive, but setting a
-destination is only allowed offroad or at a standstill. The handlers themselves live
-in navigation_helpers/destination_api.py, shared with the athena transport.
+public token; the token itself is never sent to the browser. The daemon always runs:
+it is where a phone turns navigation on, and a passenger cancels guidance mid-drive.
+Setting a destination is refused while navigation is off, and settings only change
+offroad or at a standstill. The handlers themselves live in
+navigation_helpers/destination_api.py, shared with the athena transport.
 """
 import argparse
 import json

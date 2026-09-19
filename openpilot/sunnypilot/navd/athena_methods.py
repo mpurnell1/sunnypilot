@@ -15,13 +15,14 @@ as upstream's setNavDestination. comma's note to fork maintainers caps prime and
 connect usage at openpilot-master capacities, so the sustained state poll and search
 live on destinationd's HTTP API, reached directly over wifi or a tailnet.
 
-Gating parity with the page: setting a destination needs offroad or standstill,
-cancel works any time. athenad has no vehicle thread, so the gate here is a one-shot
-carState read with the same conservative deny when no fresh reading exists.
+Gating parity with the page: the status reports whether settings may be written
+(offroad or standstill); destinations and cancel work any time. athenad has no vehicle
+thread, so the gate here is a one-shot carState read with the same conservative deny
+when no fresh reading exists.
 """
 import openpilot.cereal.messaging as messaging
 from openpilot.common.params import Params
-from openpilot.sunnypilot.navd.navigation_helpers.destination_api import ApiError, DestinationAPI, STANDSTILL_SPEED
+from openpilot.sunnypilot.navd.navigation_helpers.destination_api import DestinationAPI, STANDSTILL_SPEED
 
 CARSTATE_TIMEOUT_MS = 1000
 
@@ -57,12 +58,7 @@ def listDestinations() -> dict:
 
 
 def setDestination(dest: str = "", name: str = "", summary: str = "") -> dict:
-  api = _api()
-  # the page cannot be reached at all while navigation is disabled; the honest mirror of
-  # that here is a refusal, not a destination navd will silently never read
-  if not api.params.get_bool("AllowNavigation"):
-    raise ApiError("navigation is disabled on the device", status=409)
-  return api.navigate(dest, name=name, summary=summary)
+  return _api().navigate(dest, name=name, summary=summary)
 
 
 def cancelRoute() -> dict:
