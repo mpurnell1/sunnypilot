@@ -45,11 +45,12 @@ is a corner, not a card:
 - The same status language applies: the searching flag with its stages, red when
   requests fail, a dimmed glyph when off route.
 
-Setup on the four is deliberately one switch: settings has a single **navigation**
-toggle, and everything else (destinations, HUD and audio choices, the Mapbox token)
-lives on the phone page the device serves once that toggle is on. The page has a real
-keyboard and room for descriptions; the car has one decision to make. Options that
-influence steering never appear on the page, so consent for them happens in the car.
+Setup on the four is deliberately small: settings has the **navigation** toggle and,
+under it, the two choices that influence steering, **navigation desires** and **lane
+guidance** (off, display, assist), so consent for those happens in the car. Everything
+else (destinations, HUD and audio choices, the Mapbox token) lives on the phone page
+the device serves once navigation is on. The page has a real keyboard and room for
+descriptions; the steering options never appear on it.
 
 ## Setup
 
