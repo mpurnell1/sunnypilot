@@ -281,10 +281,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"NavLaneChangeTimer", {PERSISTENT | BACKUP, INT, "0"}},
     // mici only: faint next-turn glyph in the quiet state between maneuvers; no UI, set over SSH
     {"NavMiciQuietGlyph", {PERSISTENT | BACKUP, BOOL, "0"}},
-    // 0 = off, 1 = tone cues, 2 = Morse code cues
-    {"NavigationAudio", {PERSISTENT | BACKUP, INT, "0"}},
-    // Morse character speed; no UI, tune over SSH
-    {"NavAudioWpm", {PERSISTENT | BACKUP, INT, "30"}},
+    {"NavigationAudio", {PERSISTENT | BACKUP, BOOL, "0"}},
 
     // mapd
     {"MapAdvisorySpeedLimit", {CLEAR_ON_ONROAD_TRANSITION, FLOAT}},

@@ -16,16 +16,13 @@ from typing import NamedTuple
 import numpy as np
 import pyray as rl
 
-from openpilot.common.params import Params
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import (
   ARROW_ANGLES, BACKGROUND, TURN_COLOR, _draw_flag, _draw_fork, _draw_merge,
   _draw_roundabout, _draw_turn, _draw_uturn, format_distance)
 from openpilot.selfdrive.ui.onroad.hud_renderer import UI_CONFIG
 from openpilot.selfdrive.ui.ui_state import ui_state
-from openpilot.sunnypilot.navd.constants import NAV_CV
 from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES
-from openpilot.sunnypilot.selfdrive.ui.nav_sounds import (
-  AUDIO_MORSE, AUDIO_OFF, AUDIO_TONES, MORSE, PROSIGNS, SAMPLE_RATE, cue_wave, vocabulary_code)
+from openpilot.sunnypilot.selfdrive.ui.nav_sounds import SAMPLE_RATE, earcon_wave
 from openpilot.system.ui.lib.application import FontWeight, gui_app
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.lib.text_measure import measure_text_cached
@@ -52,85 +49,38 @@ class Step(NamedTuple):
   kind: str
   stage: str
   direction: str
-  count: int
   title: str
   caption: str
   # the turn card shown while the cue plays: (maneuver type, modifier, distance in
   # meters or None for no distance row); None shows no card at all
   card: tuple[str, str, float | None] | None
-  # kinds whose sound only exists in Morse mode; Tones renders them all as the same
-  # directional pair, so its tour skips them
-  morse_only: bool = False
 
 
-LANE_CAPTION = tr("The route wants you one lane over. Signal it; on an exit or merge approach the signal alone confirms, before a turn add the usual wheel nudge.")  # noqa: E501
+LANE_CAPTION = tr("The route wants you one lane over. Signal it; with a lane change timer set, an exit or merge approach confirms without the wheel nudge once the timer runs out, before a turn add the usual nudge.")  # noqa: E501
 
 STEPS = [
-  Step('turn', 'approach', 'right', 0, tr("Right Turn Ahead"),
+  Step('turn', 'approach', 'right', tr("Right Turn Ahead"),
        tr("Rising means right. Plays about a quarter mile out, when this card appears."), ('turn', 'right', APPROACH_M)),
-  Step('turn', 'imminent', 'right', 0, tr("Right Turn Now"),
+  Step('turn', 'imminent', 'right', tr("Right Turn Now"),
        tr("The same sound, faster and doubled: about 300 feet to go."), ('turn', 'right', IMMINENT_M)),
-  Step('turn', 'approach', 'left', 0, tr("Left Turn"),
+  Step('turn', 'approach', 'left', tr("Left Turn"),
        tr("Falling means left. One sound covers every kind of turn; the card shows which."), ('turn', 'left', APPROACH_M)),
-  Step('slightTurn', 'approach', 'left', 0, tr("Slight Left"),
-       tr("A shallow bend rather than a full turn."), ('turn', 'slightLeft', APPROACH_M), morse_only=True),
-  Step('slightTurn', 'approach', 'right', 0, tr("Slight Right"),
-       tr("A shallow bend rather than a full turn."), ('turn', 'slightRight', APPROACH_M), morse_only=True),
-  Step('sharpTurn', 'approach', 'left', 0, tr("Sharp Left"),
-       tr("Sharper than a right angle."), ('turn', 'sharpLeft', APPROACH_M), morse_only=True),
-  Step('sharpTurn', 'approach', 'right', 0, tr("Sharp Right"),
-       tr("Sharper than a right angle."), ('turn', 'sharpRight', APPROACH_M), morse_only=True),
-  Step('keep', 'approach', 'left', 0, tr("Keep Left"),
-       tr("The road forks; stay to the left."), ('fork', 'slightLeft', APPROACH_M), morse_only=True),
-  Step('keep', 'approach', 'right', 0, tr("Keep Right"),
-       tr("The road forks; stay to the right."), ('fork', 'slightRight', APPROACH_M), morse_only=True),
-  Step('exit', 'approach', 'left', 0, tr("Exit Left"),
-       tr("Leave the highway on the left."), ('off ramp', 'slightLeft', APPROACH_M), morse_only=True),
-  Step('exit', 'approach', 'right', 0, tr("Exit Right"),
-       tr("Leave the highway on the right."), ('off ramp', 'slightRight', APPROACH_M), morse_only=True),
-  Step('merge', 'approach', 'left', 0, tr("Merge Left"),
-       tr("The lane joins traffic on the left."), ('merge', 'slightLeft', APPROACH_M), morse_only=True),
-  Step('merge', 'approach', 'right', 0, tr("Merge Right"),
-       tr("The lane joins traffic on the right."), ('merge', 'slightRight', APPROACH_M), morse_only=True),
-  Step('uturn', 'approach', 'left', 0, tr("U-Turn"),
-       tr("Turn back the way you came."), ('turn', 'uturn', APPROACH_M), morse_only=True),
-  Step('roundabout', 'approach', 'right', 3, tr("Roundabout, 3rd Exit"),
-       tr("The exit number follows the O: copy the digit."), ('roundabout', 'right', APPROACH_M), morse_only=True),
-  Step('laneChange', 'lane', 'left', 0, tr("Lane Change Left"), LANE_CAPTION, ('lane', 'slightLeft', None)),
-  Step('laneChange', 'lane', 'right', 0, tr("Lane Change Right"), LANE_CAPTION, ('lane', 'slightRight', None)),
-  Step('turn', 'digest', 'right', 3, tr("Next Turn in 3 Miles"),
-       tr("After a maneuver with a long quiet stretch ahead: the turn code, then the mile count."),
-       ('turn', 'right', 3 * NAV_CV.METERS_PER_MILE), morse_only=True),
-  Step('reroute', 'reroute', 'none', 0, tr("Rerouting"),
-       tr("You've left the route. QRX, ham radio for 'stand by', plays once while a new route is computed."), None),
-  Step('arrive', 'arrive', 'none', 0, tr("Arrived"),
-       tr("The AR prosign signs the route off. You're there."), ('arrive', 'none', 30.0)),
+  Step('laneChange', 'lane', 'left', tr("Lane Change Left"), LANE_CAPTION, ('lane', 'slightLeft', None)),
+  Step('laneChange', 'lane', 'right', tr("Lane Change Right"), LANE_CAPTION, ('lane', 'slightRight', None)),
+  Step('reroute', 'reroute', 'none', tr("Rerouting"),
+       tr("You've left the route. A low pair plays once while a new route is computed."), None),
+  Step('arrive', 'arrive', 'none', tr("Arrived"),
+       tr("A rising three-note run signs the route off. You're there."), ('arrive', 'none', 30.0)),
 ]
-
-
-def display_code(step: Step) -> str:
-  code = vocabulary_code(step.kind, step.direction, 0 if step.stage == 'digest' else step.count)
-  if step.stage == 'digest' and step.count:
-    code = f'{code} {step.count}'
-  return code
-
-
-def morse_text(code: str) -> str:
-  # plain ASCII dits and dahs: the UI font atlas only loads the default codepoints
-  if code in PROSIGNS:
-    return PROSIGNS[code]
-  return '   '.join(MORSE.get(c, '/') for c in code.upper() if c in MORSE or c == ' ')
 
 
 class NavAudioTour(Widget):
   def __init__(self):
     super().__init__()
-    self._params = Params()
     self._font = gui_app.font(FontWeight.SEMI_BOLD)
     self._title_font = gui_app.font(FontWeight.BOLD)
     self._caption_font = gui_app.font(FontWeight.MEDIUM)
 
-    self._steps: list[Step] = STEPS
     self._sounds: list = []
     self._durations: list[float] = []
     self._tmpdir: str | None = None
@@ -138,22 +88,12 @@ class NavAudioTour(Widget):
     self._step_started = 0.0
 
   def show_event(self):
-    # synthesized fresh per run: the mode or the Morse speed may have changed in settings
-    mode = self._params.get('NavigationAudio', return_default=True)
-    if mode == AUDIO_OFF:
-      mode = AUDIO_TONES
-    wpm = int(np.clip(self._params.get('NavAudioWpm', return_default=True), 5, 60))
-
     if not rl.is_audio_device_ready():
       rl.init_audio_device()
 
-    # tones collapses the maneuver vocabulary into one directional pair, so its tour
-    # only teaches the sounds that actually exist in that mode
-    self._steps = [step for step in STEPS if mode == AUDIO_MORSE or not step.morse_only]
-
     self._tmpdir = tempfile.mkdtemp(prefix='nav_tour_')
-    for i, step in enumerate(self._steps):
-      samples = cue_wave(step.kind, step.stage, step.direction, step.count, mode, wpm)
+    for i, step in enumerate(STEPS):
+      samples = earcon_wave(step.kind, step.stage, step.direction)
       path = os.path.join(self._tmpdir, f'step{i}.wav')
       with wavelib.open(path, 'w') as f:
         f.setnchannels(1)
@@ -183,7 +123,7 @@ class NavAudioTour(Widget):
     if 0 <= self._step < len(self._sounds):
       rl.stop_sound(self._sounds[self._step])
     self._step += 1
-    if self._step >= len(self._steps):
+    if self._step >= len(STEPS):
       gui_app.pop_widget()
       return
     self._step_started = time.monotonic()
@@ -232,17 +172,12 @@ class NavAudioTour(Widget):
 
   def _render(self, rect):
     rl.draw_rectangle_rec(rect, rl.Color(18, 18, 18, 255))
-    step = self._steps[min(self._step, len(self._steps) - 1)] if self._step >= 0 else self._steps[0]
+    step = STEPS[max(0, min(self._step, len(STEPS) - 1))]
 
     # card on the left third, words on the right
     card_cx = rect.x + rect.width * 0.22
     if step.card is not None:
       self._draw_card(card_cx, rect.y + rect.height * 0.18, step.card)
-
-    code = display_code(step)
-    code_line = f'{code}    {morse_text(code)}'
-    size = measure_text_cached(self._font, code_line, 64)
-    rl.draw_text_ex(self._font, code_line, rl.Vector2(card_cx - size.x / 2, rect.y + rect.height * 0.72), 64, 0, TURN_COLOR)
 
     text_x = rect.x + rect.width * 0.42
     text_w = rect.width * 0.50
@@ -253,6 +188,6 @@ class NavAudioTour(Widget):
     hint_size = measure_text_cached(self._font, hint, 40)
     rl.draw_text_ex(self._font, hint, rl.Vector2(rect.x + rect.width - hint_size.x - 60, rect.y + rect.height - 90), 40, 0, rl.Color(255, 255, 255, 120))
 
-    w = int(((self._step + 1) / len(self._steps)) * rect.width)
+    w = int(((self._step + 1) / len(STEPS)) * rect.width)
     rl.draw_rectangle(int(rect.x), int(rect.y + rect.height - 20), w, 20, PROGRESS_COLOR)
     return -1

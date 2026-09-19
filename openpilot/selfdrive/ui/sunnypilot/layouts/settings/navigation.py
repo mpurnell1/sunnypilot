@@ -43,14 +43,6 @@ NAV_HUD_DESCRIPTIONS = [
 
 NAV_LANE_TIMER_LABELS = [tr("Off"), tr("Nudgeless"), f"0.5 {tr('s')}", f"1 {tr('s')}", f"2 {tr('s')}", f"3 {tr('s')}"]
 
-NAV_AUDIO_BUTTONS = [tr("Off"), tr("Tones"), tr("Morse")]
-
-NAV_AUDIO_DESCRIPTIONS = [
-  tr("Off: No navigation sounds."),
-  tr("Tones: Short pitch cues for each maneuver; rising means right, falling means left, wider means sharper."),
-  tr("Morse: Maneuver codes keyed in Morse, e.g. R for a right turn or O3 for a roundabout's third exit. Speed comes from the NavAudioWpm parameter."),
-]
-
 # the status line says in words what the onroad chip says in stages; it shares NavStatus
 # with the chip so the two can never disagree
 NAV_STATUS_TEXTS = {
@@ -89,10 +81,11 @@ class NavigationLayout(Widget):
     self._lane_timer_item = option_item_sp(tr("Lane Change Timer"), "NavLaneChangeTimer", 0, len(NAV_LANE_TIMER_LABELS) - 1,
                                            tr("A signaled lane change toward an exit or merge on the route starts without the steering nudge after this delay. Lane changes before turns keep the nudge, and every lane change starts with the blinker."),  # noqa: E501
                                            label_callback=lambda i: NAV_LANE_TIMER_LABELS[i])
-    self._nav_audio_item = multiple_button_item_sp(tr("Navigation Audio"), self._get_nav_audio_description,
-                                                   NAV_AUDIO_BUTTONS, param="NavigationAudio")
+    self._nav_audio_item = toggle_item_sp(tr("Navigation Audio"),
+                                          tr("A tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn is close."),  # noqa: E501
+                                          param="NavigationAudio")
     self._sound_tour_item = button_item(tr("Sound Tour"), tr("Play"),
-                                        tr("Learn the navigation sounds: each cue plays in your selected style while the screen shows the card it will accompany."),  # noqa: E501
+                                        tr("Learn the navigation sounds: each cue plays while the screen shows the card it will accompany."),
                                         self._play_sound_tour, enabled=lambda: ui_state.is_offroad)
 
     self._mapbox_route_item = button_item(tr("Mapbox Route"), tr("Edit"), "",
@@ -209,9 +202,6 @@ class NavigationLayout(Widget):
     if self._tour is None:
       self._tour = NavAudioTour()
     gui_app.push_widget(self._tour)
-
-  def _get_nav_audio_description(self) -> str:
-    return get_highlighted_description(self._params, "NavigationAudio", NAV_AUDIO_DESCRIPTIONS)
 
   def _get_nav_status_text(self) -> str:
     return nav_status_line(self._nav_status.state, self._nav_status.online)
