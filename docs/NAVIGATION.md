@@ -24,7 +24,20 @@ setup and the sending from a phone on the car's network (see
 
 ## 1. Install the branch
 
-Over SSH on a device already running sunnypilot:
+Use sunnypilot's installer the way the community forum describes for any branch
+(https://community.sunnypilot.ai/t/installing-sunnypilot-using-the-url-method/256):
+on a fresh or just-uninstalled device, choose **Custom Software** and enter
+
+```
+install.sunnypilot.ai/fork/mpurnell1/nav
+```
+
+The `/fork/` part matters: `install.sunnypilot.ai/mpurnell1/nav` without it looks for a
+branch of that name in sunnypilot's own repository and fails. The first boot builds,
+which takes a few minutes.
+
+On a device already running sunnypilot, switching over SSH keeps `/data/params`, so
+your car and toggle settings survive:
 
 ```
 cd /data/openpilot
@@ -32,9 +45,6 @@ git remote add mpurnell https://github.com/mpurnell1/sunnypilot.git
 ./tools/op.sh switch mpurnell nav
 sudo reboot
 ```
-
-`op switch` swaps the code and submodules and keeps `/data/params`, so your car and
-toggle settings survive. The first boot rebuilds, which takes a few minutes.
 
 ## 2. Mapbox tokens
 
@@ -73,10 +83,9 @@ A token in the wrong place fails quietly: the route line draws with no map behin
 ## 3. The phone app
 
 sunnynav is an Android Auto app on Google Play's internal testing track (it is not in
-the public store). Ask for a tester invite by opening an issue on the fork
-(https://github.com/mpurnell1/sunnypilot/issues), accept the opt-in link on the
-phone, and install it from the Play page the link opens. Updates arrive like any Play
-update.
+the public store). Ask mpurnell1 for a tester invite on the sunnypilot community forum
+or by Discord DM, accept the opt-in link on the phone, and install it from the Play
+page the link opens. Updates arrive like any Play update.
 
 On first run the app walks two steps. Step one is the connection screen: the routes
 by which the phone reaches the device, tried in the order shown, the first that
