@@ -103,6 +103,7 @@ class DestinationAPI:
       "navAudio": p.get("NavigationAudio", return_default=True),
       "laneGuidanceDisplay": (p.get("NavLaneGuidance", return_default=True) or 0) >= 1,
       "recompute": p.get_bool("MapboxRecompute"),
+      "quietGlyph": p.get_bool("NavMiciQuietGlyph"),
       # write-only: set or not set is all a client learns of the token
       "tokenSet": bool(self.mapbox.get_public_token()),
     }
@@ -134,6 +135,8 @@ class DestinationAPI:
         p.put("NavLaneGuidance", 1, block=True)
     if "recompute" in body:
       p.put_bool("MapboxRecompute", bool(body["recompute"]), block=True)
+    if "quietGlyph" in body:
+      p.put_bool("NavMiciQuietGlyph", bool(body["quietGlyph"]), block=True)
     if "token" in body:
       # an empty submit is a no-op, not a wipe
       token = str(body["token"]).strip()
