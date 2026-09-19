@@ -104,7 +104,8 @@ class DestinationAPI:
       "navHudMode": p.get("NavHudMode", return_default=True),
       "navAudio": p.get("NavigationAudio", return_default=True),
       "navDesiresAllowed": p.get_bool("NavDesiresAllowed"),
-      "laneGuidance": p.get("NavLaneGuidance", return_default=True) or 0,
+      "laneGuidance": p.get_bool("NavLaneGuidance"),
+      "navLaneChangeTimer": p.get("NavLaneChangeTimer", return_default=True),
       "recompute": p.get_bool("MapboxRecompute"),
       "quietGlyph": p.get_bool("NavMiciQuietGlyph"),
       # write-only: set or not set is all a client learns of the token
@@ -134,9 +135,11 @@ class DestinationAPI:
     if "navDesiresAllowed" in body:
       p.put_bool("NavDesiresAllowed", bool(body["navDesiresAllowed"]), block=True)
     if "laneGuidance" in body:
-      if not self._valid_index(body["laneGuidance"], 2):
-        raise ApiError("laneGuidance must be an integer 0 to 2")
-      p.put("NavLaneGuidance", body["laneGuidance"], block=True)
+      p.put_bool("NavLaneGuidance", bool(body["laneGuidance"]), block=True)
+    if "navLaneChangeTimer" in body:
+      if not self._valid_index(body["navLaneChangeTimer"], 5):
+        raise ApiError("navLaneChangeTimer must be an integer 0 to 5")
+      p.put("NavLaneChangeTimer", body["navLaneChangeTimer"], block=True)
     if "recompute" in body:
       p.put_bool("MapboxRecompute", bool(body["recompute"]), block=True)
     if "quietGlyph" in body:

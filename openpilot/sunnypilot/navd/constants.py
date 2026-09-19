@@ -12,10 +12,8 @@ class BannerMode:
   ALWAYS = 2
 
 
-# NavLaneGuidance modes
-LANE_GUIDANCE_OFF = 0
-LANE_GUIDANCE_DISPLAY = 1
-LANE_GUIDANCE_ASSIST = 2
+# NavLaneChangeTimer: 1 to 5 are AutoLaneChangeMode's Nudgeless through 3 s
+NAV_LANE_CHANGE_OFF = 0
 
 
 class NAV_BANNER:

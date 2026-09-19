@@ -6,8 +6,11 @@ See the LICENSE.md file in the root directory for more details.
 """
 from types import SimpleNamespace
 
+from openpilot.cereal import log
 from openpilot.common.params import Params
-from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST, LANE_GUIDANCE_DISPLAY
+from openpilot.common.realtime import DT_MDL
+from openpilot.selfdrive.controls.lib.desire_helper import DesireHelper
+from openpilot.sunnypilot.navd.constants import NAV_LANE_CHANGE_OFF
 from openpilot.sunnypilot.navd.helpers import Coordinate, compose_banner_text, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.navigation_desires.navigation_desires import NavigationDesires
 from openpilot.sunnypilot.navd.navigation_helpers.route import Maneuver, RouteProgress, Step
@@ -176,7 +179,7 @@ class TestHintTrust:
   def _nav(self, distance_from_route: float) -> Navigationd:
     nav = Navigationd()
     nav.allow_navigation = True
-    nav.lane_guidance = LANE_GUIDANCE_ASSIST
+    nav.lane_assist = True
     nav.route = SimpleNamespace(steps=[{}, {}], progress=lambda position: _trusted_progress(distance_from_route),
                                 bearing_misaligned=lambda *args: False)
     nav.last_position = Coordinate(32.7767, -96.797)
@@ -206,17 +209,17 @@ class TestHintTrust:
 
 
 class TestAssistGate:
-  def test_hint_requires_assist_mode_and_valid_message(self):
+  def test_hint_requires_a_lane_change_timer_and_valid_message(self):
     desires = NavigationDesires()
     msg = desires.sm['navigationd']
 
-    Params().put("NavLaneGuidance", LANE_GUIDANCE_DISPLAY, block=True)
+    Params().put("NavLaneChangeTimer", NAV_LANE_CHANGE_OFF, block=True)
     desires.param_counter = -1
     desires.update_params()
     assert not desires.lane_assist
     assert desires.lane_change_hint() == 'none'
 
-    Params().put("NavLaneGuidance", LANE_GUIDANCE_ASSIST, block=True)
+    Params().put("NavLaneChangeTimer", 1, block=True)
     desires.param_counter = -1
     desires.update_params()
     assert desires.lane_assist
@@ -231,3 +234,31 @@ class TestAssistGate:
     assert desires.lane_change_hint() == 'none'
     desires.sm = {'navigationd': SimpleNamespace(valid=True, laneChangeDirection='left', laneChangeAutoConfirm=True)}
     assert desires.lane_change_hint() == 'left'
+
+
+class TestNavConfirmation:
+  """desire_helper: the blinker alone starts a hinted lane change once the nav timer has run."""
+
+  def _helper(self, mocker, timer: int) -> DesireHelper:
+    Params().put("NavLaneChangeTimer", timer, block=True)
+    dh = DesireHelper()
+    mocker.patch.object(dh.navigation_desires, 'lane_change_hint', return_value='right')
+    mocker.patch.object(dh.navigation_desires, 'update', return_value=log.Desire.none)
+    mocker.patch.object(dh.adjacent_lane_detector, 'available', return_value=True)
+    return dh
+
+  def _signal_for(self, dh: DesireHelper, seconds: float):
+    car = SimpleNamespace(vEgo=30.0, leftBlinker=False, rightBlinker=True, leftBlindspot=False, rightBlindspot=False,
+                          steeringPressed=False, steeringTorque=0, brakePressed=False)
+    for _ in range(int(seconds / DT_MDL) + 2):
+      dh.update(car, True, 1.0)
+    return dh.lane_change_state
+
+  def test_the_hint_starts_the_lane_change_after_the_timer(self, mocker):
+    dh = self._helper(mocker, 2)  # 0.5 s
+    assert self._signal_for(dh, 0.2) == log.LaneChangeState.preLaneChange
+    assert self._signal_for(dh, 0.5) == log.LaneChangeState.laneChangeStarting
+
+  def test_off_leaves_the_nudge_flow_in_place(self, mocker):
+    dh = self._helper(mocker, NAV_LANE_CHANGE_OFF)
+    assert self._signal_for(dh, 5.0) == log.LaneChangeState.preLaneChange

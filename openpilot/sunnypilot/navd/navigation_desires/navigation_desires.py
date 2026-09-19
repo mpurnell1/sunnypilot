@@ -9,7 +9,7 @@ from opendbc.car.structs import car
 from openpilot.cereal import log
 from openpilot.common.constants import CV
 from openpilot.common.params import Params
-from openpilot.sunnypilot.navd.constants import LANE_GUIDANCE_ASSIST
+from openpilot.sunnypilot.navd.constants import NAV_LANE_CHANGE_OFF
 
 
 class NavigationDesires:
@@ -26,10 +26,11 @@ class NavigationDesires:
     self.param_counter += 1
     if self.param_counter % 60 == 0:  # every 3 seconds at 20hz
       self.nav_allowed = self._params.get("NavDesiresAllowed", return_default=True)
-      self.lane_assist = self._params.get("NavLaneGuidance", return_default=True) >= LANE_GUIDANCE_ASSIST
+      self.lane_assist = self._params.get("NavLaneChangeTimer", return_default=True) != NAV_LANE_CHANGE_OFF
 
-  # second half of the double gate: navigationd only publishes a direction in Assist mode, and
-  # the param re-check keeps a stale message from confirming after the mode is switched off.
+  # second half of the double gate: navigationd only publishes a direction while the lane
+  # change timer is set, and the param re-check keeps a stale message from confirming after
+  # it is switched off.
   # autoConfirm is navigationd's judgment that the adjacent lane runs our way
   def lane_change_hint(self) -> str:
     nav_msg = self.sm['navigationd']

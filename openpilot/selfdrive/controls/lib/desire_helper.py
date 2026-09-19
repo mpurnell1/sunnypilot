@@ -79,10 +79,11 @@ class DesireHelper:
 
         self.alc.update_lane_change(blindspot_detected, carstate.brakePressed)
 
-        # the route asking for this exact lane change stands in for the wheel nudge, but
-        # only into a lane the model can actually see: a hint toward a road edge or an
-        # unmarked shoulder leaves the normal nudge flow (and its gates) in place
-        nav_confirmed = self.navigation_desires.lane_change_hint() == \
+        # the route asking for this exact lane change stands in for the wheel nudge once its
+        # timer has run, but only into a lane the model can actually see: a hint toward a road
+        # edge or an unmarked shoulder leaves the normal nudge flow (and its gates) in place
+        nav_confirmed = self.alc.nav_lane_change_allowed and \
+          self.navigation_desires.lane_change_hint() == \
           ('left' if self.lane_change_direction == LaneChangeDirection.left else 'right') and \
           self.adjacent_lane_detector.available(self.lane_change_direction)
 

@@ -130,7 +130,7 @@ class BannerContent:
   failing: bool = False
 
 
-def banner_content(state: TransientNavState, mode: ChipMode, msg, lane_guidance: int) -> BannerContent | None:
+def banner_content(state: TransientNavState, mode: ChipMode, msg, lane_guidance: bool) -> BannerContent | None:
   if mode != ChipMode.LIVE or state not in (TransientNavState.APPROACH, TransientNavState.PINNED):
     return None
   idx = pick_upcoming_index(msg.allManeuvers)

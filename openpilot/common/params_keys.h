@@ -273,8 +273,12 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"NavBannerMode", {PERSISTENT | BACKUP, INT, "1"}},
     // bitmask: 1 = next-turn card, 2 = route summary pill; 0 off, 3 both
     {"NavHudMode", {PERSISTENT | BACKUP, INT, "3"}},
-    // 0 = off, 1 = display lanes on the turn card, 2 = also confirm signaled lane changes
-    {"NavLaneGuidance", {PERSISTENT | BACKUP, INT, "0"}},
+    // lanes on the turn card
+    {"NavLaneGuidance", {PERSISTENT | BACKUP, BOOL, "0"}},
+    // a signaled lane change the route asked for (exit or merge) starts without the wheel nudge
+    // after this delay; AutoLaneChangeTimer's values with Off at 0: 1 nudgeless, 2 = 0.5 s,
+    // 3 = 1 s, 4 = 2 s, 5 = 3 s
+    {"NavLaneChangeTimer", {PERSISTENT | BACKUP, INT, "0"}},
     // mici only: faint next-turn glyph in the quiet state between maneuvers; no UI, set over SSH
     {"NavMiciQuietGlyph", {PERSISTENT | BACKUP, BOOL, "0"}},
     // 0 = off, 1 = tone cues, 2 = Morse code cues

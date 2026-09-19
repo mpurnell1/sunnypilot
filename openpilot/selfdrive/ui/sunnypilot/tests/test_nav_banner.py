@@ -122,63 +122,63 @@ class TestBannerContent:
   def test_down_while_quiet_or_off(self):
     msg = _msg(THREE_STEPS)
     for state in (TransientNavState.OFF, TransientNavState.QUIET):
-      assert banner_content(state, ChipMode.LIVE, msg, 1) is None
+      assert banner_content(state, ChipMode.LIVE, msg, True) is None
 
   def test_down_without_a_live_route(self):
     msg = _msg(THREE_STEPS)
     for mode in (ChipMode.HIDDEN, ChipMode.SEARCHING, ChipMode.FAILURE):
-      assert banner_content(TransientNavState.APPROACH, mode, msg, 1) is None
+      assert banner_content(TransientNavState.APPROACH, mode, msg, True) is None
 
   def test_shows_the_upcoming_maneuver_and_the_one_after(self):
     for state in (TransientNavState.APPROACH, TransientNavState.PINNED):
-      content = banner_content(state, ChipMode.LIVE, _msg(THREE_STEPS), 0)
+      content = banner_content(state, ChipMode.LIVE, _msg(THREE_STEPS), False)
       assert content is not None
       assert (content.maneuver_type, content.modifier) == ('turn', 'right')
       assert (content.then_type, content.then_modifier) == ('fork', 'slightLeft')
 
   def test_no_then_chip_on_the_last_maneuver(self):
-    content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(THREE_STEPS[:2]), 0)
+    content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(THREE_STEPS[:2]), False)
     assert content is not None
     assert content.then_type is None
 
   def test_route_state_rides_along_for_the_pinned_treatments(self):
-    content = banner_content(TransientNavState.PINNED, ChipMode.LIVE, _msg(THREE_STEPS, route_state='offRoute'), 0)
+    content = banner_content(TransientNavState.PINNED, ChipMode.LIVE, _msg(THREE_STEPS, route_state='offRoute'), False)
     assert content is not None
     assert content.route_state == 'offRoute' and not content.failing
 
   def test_rerouting_failures_are_flagged(self):
     content = banner_content(TransientNavState.PINNED, ChipMode.LIVE,
-                             _msg(THREE_STEPS, route_state='rerouting', failures=1), 0)
+                             _msg(THREE_STEPS, route_state='rerouting', failures=1), False)
     assert content is not None
     assert content.route_state == 'rerouting' and content.failing
 
   def test_lone_arrive_still_shows(self):
     content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE,
-                             _msg((('arrive', 'none', 60.0, 'You have arrived'),)), 0)
+                             _msg((('arrive', 'none', 60.0, 'You have arrived'),)), False)
     assert content is not None
     assert content.maneuver_type == 'arrive'
     assert content.then_type is None
 
   def test_down_with_nothing_upcoming(self):
-    assert banner_content(TransientNavState.PINNED, ChipMode.LIVE, _msg(), 0) is None
+    assert banner_content(TransientNavState.PINNED, ChipMode.LIVE, _msg(), False) is None
     assert banner_content(TransientNavState.PINNED, ChipMode.LIVE,
-                          _msg((('depart', 'none', 120.0, 'Head north'),)), 0) is None
+                          _msg((('depart', 'none', 120.0, 'Head north'),)), False) is None
 
   def test_street_prefers_the_parsed_banner_text(self):
     content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE,
-                             _msg(THREE_STEPS, banner='N Neil St'), 0)
+                             _msg(THREE_STEPS, banner='N Neil St'), False)
     assert content is not None
     assert content.street == 'N Neil St'
 
   def test_street_falls_back_to_the_instruction(self):
-    content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(THREE_STEPS), 0)
+    content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(THREE_STEPS), False)
     assert content is not None
     assert content.street == 'Turn right onto North Neil Street'
 
   def test_lanes_are_gated_on_the_setting(self):
     msg = _msg(THREE_STEPS, lane_count=2)
-    off = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, msg, 0)
-    on = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, msg, 1)
+    off = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, msg, False)
+    on = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, msg, True)
     assert off is not None and len(off.lanes) == 0
     assert on is not None and len(on.lanes) == 2
 
