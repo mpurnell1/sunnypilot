@@ -102,7 +102,7 @@ class DestinationAPI:
     return {
       "allowNavigation": p.get_bool("AllowNavigation"),
       "navHudMode": p.get("NavHudMode", return_default=True),
-      "navAudio": p.get("NavigationAudio", return_default=True),
+      "navAudio": p.get_bool("NavigationAudio"),
       "navDesiresAllowed": p.get_bool("NavDesiresAllowed"),
       "laneGuidance": p.get_bool("NavLaneGuidance"),
       "navLaneChangeTimer": p.get("NavLaneChangeTimer", return_default=True),
@@ -129,9 +129,7 @@ class DestinationAPI:
         raise ApiError("navHudMode must be an integer 0 to 3")
       p.put("NavHudMode", body["navHudMode"], block=True)
     if "navAudio" in body:
-      if not self._valid_index(body["navAudio"], 2):
-        raise ApiError("navAudio must be an integer 0 to 2")
-      p.put("NavigationAudio", body["navAudio"], block=True)
+      p.put_bool("NavigationAudio", bool(body["navAudio"]), block=True)
     if "navDesiresAllowed" in body:
       p.put_bool("NavDesiresAllowed", bool(body["navDesiresAllowed"]), block=True)
     if "laneGuidance" in body:

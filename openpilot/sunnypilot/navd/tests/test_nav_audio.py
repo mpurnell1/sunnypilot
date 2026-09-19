@@ -11,7 +11,7 @@ import numpy as np
 from openpilot.sunnypilot.navd.nav_audio import NavAudioCues, maneuver_event
 from openpilot.sunnypilot.navd.navigationd import Guidance
 from openpilot.sunnypilot.selfdrive.ui import nav_sounds
-from openpilot.sunnypilot.selfdrive.ui.nav_sounds import AUDIO_MORSE, NavAudioPlayer, earcon_wave, morse_wave, vocabulary_code
+from openpilot.sunnypilot.selfdrive.ui.nav_sounds import NavAudioPlayer, earcon_wave
 
 # at exactly the 22.4 m/s breakpoint the stage distances are 500 m (approach) and 130 m (imminent)
 V_CRUISE = 22.4
@@ -70,28 +70,6 @@ class TestManeuverEvents:
     assert maneuver_event('roundabout', 'right', 'At the roundabout, exit onto A40 exit') == ('roundabout', 'right', 0)
     assert maneuver_event('roundabout', 'right', 'Take the 1st exit onto A40') == ('roundabout', 'right', 1)
     assert maneuver_event('roundabout', 'right', 'Take the 12th exit') == ('roundabout', 'right', 9)
-
-
-class TestVocabulary:
-  def test_the_agreed_codes(self):
-    assert vocabulary_code('turn', 'right') == 'R'
-    assert vocabulary_code('turn', 'left') == 'L'
-    assert vocabulary_code('slightTurn', 'left') == 'SL'
-    assert vocabulary_code('sharpTurn', 'right') == 'HR'
-    assert vocabulary_code('keep', 'left') == 'KL'
-    assert vocabulary_code('exit', 'right') == 'XR'
-    assert vocabulary_code('merge', 'left') == 'ML'
-    assert vocabulary_code('uturn') == 'U'
-    assert vocabulary_code('roundabout', 'right', 3) == 'O3'
-    assert vocabulary_code('roundabout', 'right') == 'O'
-    assert vocabulary_code('laneChange', 'left') == 'CL'
-    assert vocabulary_code('reroute') == 'QRX'
-    assert vocabulary_code('arrive') == 'AR'
-
-  def test_unspellable_cues_are_empty(self):
-    assert vocabulary_code('turn', 'none') == ''
-    assert vocabulary_code('laneChange', 'none') == ''
-    assert vocabulary_code('somethingNew', 'right') == ''
 
 
 class TestStages:
@@ -185,25 +163,12 @@ ALL_KINDS = [('turn', 'left'), ('turn', 'right'), ('slightTurn', 'left'), ('slig
 
 
 class TestSynthesis:
-  def test_morse_timing_is_standard(self):
-    dit = int(1.2 / 30 * nav_sounds.SAMPLE_RATE)
-    assert len(morse_wave('E', 30)) == dit
-    # A = dit gap dah = 5 dits; R adds a 3-dit gap then dit gap dah gap dit = 7 dits
-    assert len(morse_wave('AR', 30)) < len(morse_wave('A', 30)) + len(morse_wave('R', 30)) + 3 * dit
-    # the prosign runs the elements together as one character: .-.-. = 13 dits
-    assert len(morse_wave('AR', 30)) == 13 * dit
-
-  def test_morse_word_gap(self):
-    assert len(morse_wave('R 5', 30)) > len(morse_wave('R5', 30))
-
-  def test_every_kind_renders_in_both_modes(self):
+  def test_every_kind_renders(self):
     for kind, direction in ALL_KINDS:
       for stage in ('approach', 'imminent'):
         wave = earcon_wave(kind, stage, direction)
         assert wave.dtype == np.float32 and len(wave) > 0
         assert np.all(np.isfinite(wave)) and np.max(np.abs(wave)) <= nav_sounds.AMPLITUDE + 1e-6
-      code = vocabulary_code(kind, direction, 3)
-      assert code and len(morse_wave(code, 30)) > 0
 
   def test_direction_carries_the_tone_contour(self):
     # left and right are the same length but different contours
@@ -211,11 +176,6 @@ class TestSynthesis:
     left = earcon_wave('turn', 'approach', 'left')
     assert len(right) == len(left)
     assert not np.array_equal(right, left)
-
-  def test_digest_keys_the_mile_count(self):
-    with_miles = nav_sounds.cue_wave('turn', 'digest', 'right', 3, AUDIO_MORSE, 30)
-    without = nav_sounds.cue_wave('turn', 'approach', 'right', 0, AUDIO_MORSE, 30)
-    assert len(with_miles) > len(without)
 
   def test_envelopes_kill_clicks(self):
     wave = earcon_wave('turn', 'approach', 'right')
@@ -233,21 +193,21 @@ class _FakeSM:
 
 
 class TestPlayer:
-  def _player(self, monkeypatch, mode: int) -> NavAudioPlayer:
+  def _player(self, monkeypatch, enabled: bool = True) -> NavAudioPlayer:
     monkeypatch.setattr(NavAudioPlayer, '_read_params', lambda self: None)
     player = NavAudioPlayer()
-    player.mode = mode
+    player.enabled = enabled
     return player
 
   def test_late_subscriber_swallows_the_sticky_cue(self, monkeypatch):
-    player = self._player(monkeypatch, AUDIO_MORSE)
+    player = self._player(monkeypatch)
     player.update(_FakeSM(7))
     assert not player.active
     player.update(_FakeSM(8))
     assert player.active
 
-  def test_off_mode_stays_silent(self, monkeypatch):
-    player = self._player(monkeypatch, nav_sounds.AUDIO_OFF)
+  def test_off_stays_silent(self, monkeypatch):
+    player = self._player(monkeypatch, enabled=False)
     player.update(_FakeSM(1))
     player.update(_FakeSM(2))
     assert not player.active
@@ -257,15 +217,15 @@ class TestPlayer:
     # from a newer navigationd than this build
     logged = []
     monkeypatch.setattr(nav_sounds.cloudlog, 'exception', lambda msg: logged.append(msg))
-    real_cue_wave = nav_sounds.cue_wave
+    real_earcon_wave = nav_sounds.earcon_wave
 
-    def picky_cue_wave(kind, *args, **kwargs):
+    def picky_earcon_wave(kind, *args, **kwargs):
       if kind == 'teleport':
         raise KeyError(kind)
-      return real_cue_wave(kind, *args, **kwargs)
+      return real_earcon_wave(kind, *args, **kwargs)
 
-    monkeypatch.setattr(nav_sounds, 'cue_wave', picky_cue_wave)
-    player = self._player(monkeypatch, nav_sounds.AUDIO_TONES)
+    monkeypatch.setattr(nav_sounds, 'earcon_wave', picky_earcon_wave)
+    player = self._player(monkeypatch)
     player.update(_FakeSM(1, kind='teleport'))
     player.update(_FakeSM(2, kind='teleport'))
     player.update(_FakeSM(3, kind='teleport'))
@@ -275,19 +235,14 @@ class TestPlayer:
     player.update(_FakeSM(4, kind='turn'))
     assert player.active
 
-  def test_tones_skip_the_digest(self, monkeypatch):
-    player = self._player(monkeypatch, nav_sounds.AUDIO_TONES)
+  def test_the_digest_is_skipped(self, monkeypatch):
+    player = self._player(monkeypatch)
     player.update(_FakeSM(1))
     player.update(_FakeSM(2, stage='digest', count=3))
     assert not player.active
-    # Morse mode keeps it: digits are natural there
-    player = self._player(monkeypatch, AUDIO_MORSE)
-    player.update(_FakeSM(1))
-    player.update(_FakeSM(2, stage='digest', count=3))
-    assert player.active
 
   def test_alert_cancel_drops_the_transmission(self, monkeypatch):
-    player = self._player(monkeypatch, AUDIO_MORSE)
+    player = self._player(monkeypatch)
     player.update(_FakeSM(1))
     player.update(_FakeSM(2))
     frames = player.get_frames(256)
