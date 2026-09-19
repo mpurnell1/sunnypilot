@@ -8,6 +8,23 @@ make, with the same attention driving always demands.
 This implementation builds on the navd work of **discountchubbs**, whose navigation
 daemon is the foundation everything here extends.
 
+## What it does
+
+- Turn-by-turn guidance on the device's screen, transient: nothing between maneuvers,
+  a chip, corner or banner as one approaches, and sounds if you want them.
+- Destinations from your phone: search, a route pick with live traffic, favorites
+  bound to the road you prefer, from home or from anywhere.
+- An Android Auto app that mirrors the guidance on the head unit over the route line
+  and a map.
+- Optional steering suggestions, off by default and always driver-confirmed.
+
+## Requirements
+
+- A comma 3X or comma four running sunnypilot.
+- A Mapbox account (free tier).
+- For the app: an Android phone with Android Auto. For sending from anywhere: comma
+  prime, so the device keeps its relay connection.
+
 This page takes you from a stock sunnypilot install to your first route, in the order
 you will do it. The pieces:
 
@@ -32,9 +49,11 @@ on a fresh or just-uninstalled device, choose **Custom Software** and enter
 install.sunnypilot.ai/fork/mpurnell1/nav
 ```
 
-The `/fork/` part matters: `install.sunnypilot.ai/mpurnell1/nav` without it looks for a
-branch of that name in sunnypilot's own repository and fails. The first boot builds,
-which takes a few minutes.
+> [!WARNING]
+> The `/fork/` part matters: `install.sunnypilot.ai/mpurnell1/nav` without it looks
+> for a branch of that name in sunnypilot's own repository and fails.
+
+The first boot builds, which takes a few minutes.
 
 On a device already running sunnypilot, switching over SSH keeps `/data/params`, so
 your car and toggle settings survive:
@@ -106,16 +125,20 @@ Which ones you set up depends on how much you want away from home.
 **Local network.** Any network the phone and device share: home wifi with the car in
 the driveway, or the device's own hotspot. Everything works here: search, the route
 pick, favorites, settings, and the head unit mirror. Enter the device's address on
-your home network in **Device Address** (Settings, Network, IP Address on the device).
+your home network in **Device Address** (on the device, Settings → Network shows it
+as IP Address).
 On the device's hotspot no address is needed: sunnypilot's hotspot is always
 192.168.43.1 and the app tries it by itself.
 
 **comma relay.** Anywhere with signal, through comma's servers, for a device on comma
 prime. Send and cancel only: comma asks forks to keep relay traffic at stock
 openpilot's rate, so the guidance mirror and search never ride it. Enter the **Dongle
-ID** (Settings, Device on the device) and a **Device Token** from https://jwt.comma.ai
-(a comma account token, good for 90 days; it is full access to the device, which is
-why it lives in the app's private storage and never in a web page).
+ID** (on the device, Settings → Device) and a **Device Token** from
+https://jwt.comma.ai, a comma account token good for 90 days.
+
+> [!WARNING]
+> The comma token is full access to the device. It lives in the app's private storage
+> and belongs nowhere else, never in a web page.
 
 **Tailscale.** For advanced users who want the head unit mirror away from home with
 wireless Android Auto, which takes the phone's wifi. See
@@ -126,9 +149,9 @@ Pick by what you want from it:
 1. App plus the Mapbox tokens: send and cancel from anywhere over the relay; search
    and the route pick from anywhere over the phone's own token; favorites, settings
    and the mirror on home wifi. Enough for most.
-2. Wired Android Auto: join the phone to the device's hotspot once (Settings, Network,
-   Tethering on the device) and the mirror and the map come with it on every drive,
-   no extra apps.
+2. Wired Android Auto: join the phone to the device's hotspot once (on the device,
+   Settings → Network → Tethering) and the mirror and the map come with it on every
+   drive, no extra apps.
 3. Wireless Android Auto with the mirror away from home: Tailscale on the phone and
    the device.
 
@@ -141,11 +164,14 @@ set the **Mapbox Token** row to the device token, and turn on **Mapbox Recompute
 your own way back). These rows write only while the car is parked; while it is
 driving they dim with "Device is driving".
 
-The same toggle is on the device for the car: a 3X has it under Settings,
-**Navigation** as **Allow Navigation**, with the display and audio choices under it; a
-four has **navigation** in its toggles beside the two steering choices (see
-[Steering suggestions](#steering-suggestions)). Navigation runs while the device is
-onroad; offroad the status reads "Waiting for a drive", which is normal.
+The same toggle is on the device for the car: a 3X has Settings → Navigation →
+**Allow Navigation**, with the display and audio choices under it; a four has
+**navigation** in its toggles beside the two steering choices (see
+[Steering suggestions](#steering-suggestions)).
+
+> [!NOTE]
+> Navigation runs while the device is onroad. Offroad the status reads "Waiting for a
+> drive", which is normal.
 
 ## 6. Your first route
 
@@ -228,9 +254,9 @@ spelled out. It updates within about a second of the device on a shared network.
 right, falling for left, wider for sharper) or **Morse** (the maneuver keyed as a
 code: R for a right turn, O3 for a roundabout's third exit). Cues sound in stages as
 a maneuver approaches, at distances scaled to your speed, and never twice for the
-same maneuver; a maneuver that needs no action gets no cue. The **Sound Tour** on the
-3X's Navigation panel plays every cue in your chosen style against the card it will
-accompany, which is the way to learn them before a drive.
+same maneuver; a maneuver that needs no action gets no cue. On a 3X, Settings →
+Navigation → **Sound Tour** plays every cue in your chosen style against the card it
+will accompany, which is the way to learn them before a drive.
 
 ### Speed limits
 
@@ -252,16 +278,16 @@ while parked.
 A setting has the same name on the device screen, the device page and the phone app,
 and a change made in one shows in the others:
 
-| Setting | What it does |
-|---|---|
-| Allow Navigation | the navigation service; off, no destination can be set |
-| Navigation HUD | Off, Turns (the turn card), ETA (the arrival pill), Both |
-| Lane Guidance | Off, Display, Assist |
-| Navigation Audio | Off, Tones, Morse |
-| Navigation Desires | route turns once you signal |
-| Mapbox Recompute | reroute automatically after leaving the route |
-| Quiet Glyph | the four's dim between-maneuver arrow |
-| Mapbox Token | the device's token, write-only (phone and page only) |
+| Setting | Options | What it does |
+|---|---|---|
+| Allow Navigation | on, off | The navigation service. Off, no destination can be set. |
+| Navigation HUD | Off, Turns, ETA, Both | Off: no navigation HUD elements. Turns: next-turn card under the set speed. ETA: arrival pill tucked under the nav chip. Both: turn card and arrival pill. |
+| Lane Guidance | Off, Display, Assist | Display: show which lanes lead to the next maneuver on the turn card. Assist: also confirm a signaled lane change toward an exit or merge immediately, without a steering nudge; lane changes before turns keep the nudge, and every lane change starts with the blinker. |
+| Navigation Audio | Off, Tones, Morse | Tones: short pitch cues for each maneuver; rising means right, falling means left, wider means sharper. Morse: maneuver codes keyed in Morse, e.g. R for a right turn or O3 for a roundabout's third exit. |
+| Navigation Desires | on, off | Steer through a turn on the route once you signal for it. |
+| Mapbox Recompute | on, off | Recompute the route automatically after leaving it. Off by default. |
+| Quiet Glyph | on, off | Keep a dim next-turn arrow in the corner between maneuvers. comma four only. |
+| Mapbox Token | | The device's own public token, for its route requests and search. Write-only, set from the phone or the page. |
 
 The phone app's own settings (the connections, the phone's Mapbox token,
 Tailscale for Android Auto) are the phone's and appear nowhere else.
