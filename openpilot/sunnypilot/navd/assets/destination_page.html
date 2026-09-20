@@ -111,7 +111,8 @@
   /* one route card flashes once under the route tip, standing in for the tap the tip talks about */
   @keyframes flash { 50% { background: color-mix(in srgb, var(--accent) 25%, transparent); } }
   label.item.flash { animation: flash 0.9s ease 1; }
-  #tour { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px; background: var(--card); border-top: 1px solid var(--line); }
+  /* the tip sits right under the element it rings, a tooltip that scrolls with the page */
+  #tour { margin: 10px 0; }
   #tour .row { margin-top: 8px; }
   .banner.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); display: block; }
   #toast {
@@ -329,7 +330,7 @@
 </div>
 
 <div id="stats" hidden></div>
-<div id="tour" hidden>
+<div id="tour" class="card" hidden>
   <div id="tour-text"></div>
   <div class="row">
     <span id="tour-step" class="muted grow"></span>
@@ -1036,13 +1037,15 @@ function showTour(step) {
   const tip = TOUR[step];
   const el = $(tip.target);
   el.classList.add("tour-target");
+  const tour = $("tour");
+  if (tip.target === "tab-directions-btn") document.querySelector(".tabs").insertAdjacentElement("beforebegin", tour);
+  else el.insertAdjacentElement("afterend", tour);
+  tour.hidden = false;
   el.scrollIntoView({ behavior: "smooth", block: "center" });
-  $("tour").hidden = false;
   $("tour-text").textContent = tip.text;
   $("tour-step").textContent = (step + 1) + " of " + TOUR.length;
   $("tour-back").style.visibility = step === 0 || step === ROUTE_TIP ? "hidden" : "";
   $("tour-next").textContent = step + 1 === TOUR.length ? "Done" : "Next";
-  document.body.style.paddingBottom = "120px";
   const first = $("routes-list").firstElementChild;
   if (step === ROUTE_TIP && first) {
     first.classList.add("flash");
@@ -1054,7 +1057,6 @@ function endTour() {
   $(TOUR[tourStep].target).classList.remove("tour-target");
   tourStep = -1;
   $("tour").hidden = true;
-  document.body.style.paddingBottom = "";
   localStorage.setItem(TOUR_KEY, "1");
   window.scrollTo(0, 0);
 }
