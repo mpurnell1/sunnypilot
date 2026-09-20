@@ -383,16 +383,20 @@ function setView(view) {
   renderRoute();
 }
 
+// the map draws whenever the route's shape is known, the car off the line while rerouting or
+// off route being the useful picture; the list has nothing to say until the card has a turn.
+// An <svg> has no hidden property (that is HTMLElement's), so the map goes by attribute
 function renderRoute() {
   const g = lastGuidance;
   const views = $("guide-views"), list = $("guide-turns"), all = $("guide-all"), map = $("guide-map");
-  const live = !!g && !!route && route.routeId === g.routeId && !$("guide").hidden && !$("guide-turn").hidden;
-  views.hidden = !live;
-  if (!live) { list.hidden = all.hidden = map.hidden = true; return; }
-  const directions = guideView === "directions";
-  map.hidden = directions;
-  list.hidden = !directions;
-  if (!directions) { all.hidden = true; drawRouteMap(map, route.points, g.position); return; }
+  const shape = !!g && g.active && !!route && route.routeId === g.routeId && !$("guide").hidden;
+  views.hidden = !shape;
+  list.hidden = all.hidden = true;
+  map.toggleAttribute("hidden", !shape || guideView !== "map");
+  if (!shape) return;
+  if (guideView === "map") { drawRouteMap(map, route.points, g.position); return; }
+  if ($("guide-turn").hidden) return;
+  list.hidden = false;
   const turns = turnsAhead(g);
   list.innerHTML = (allTurns ? turns : turns.slice(0, 3)).map((t, i) =>
     "<li" + (i ? "" : " class='next'") + "><svg viewBox='0 0 48 48'>" + glyph(t.type, t.modifier) + "</svg>" +
