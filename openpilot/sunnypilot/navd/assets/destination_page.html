@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>sunnypilot navigation</title>
+<meta name="theme-color" content="#f2f4f1" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121614" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="sunnypilot nav">
+<!-- destinationd serves no files, so the manifest and its icon are data URLs -->
+<link rel="manifest" href='data:application/manifest+json,{"name":"sunnypilot navigation","short_name":"sunnypilot nav","start_url":"/","display":"standalone","background_color":"#f2f4f1","theme_color":"#1f9e56","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 48 48%22%3E%3Crect width=%2248%22 height=%2248%22 rx=%2210%22 fill=%22%231f9e56%22/%3E%3Cpath d=%22M24 38V14M14 24l10-10 10 10%22 fill=%22none%22 stroke=%22%23fff%22 stroke-width=%224%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E","sizes":"any","type":"image/svg+xml"}]}'>
 <style>
   :root {
     --bg: #f2f4f1; --card: #ffffff; --ink: #1b201d; --ink2: #5d665f;
@@ -84,7 +91,12 @@
   .routemap .casing { fill: none; stroke: #003e46; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
   .routemap .line { fill: none; stroke: #00c8c8; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
   .routemap .car { fill: #fff; stroke: var(--ink); stroke-width: 2; }
+  a { color: var(--accent); }
   .banner { border-radius: 10px; padding: 8px 12px; margin: 10px 0; font-size: 0.9rem; display: none; }
+  /* the tour rings the element its tip talks about */
+  .tour-target { box-shadow: 0 0 0 3px var(--accent); border-radius: 10px; }
+  #tour { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px; background: var(--card); border-top: 1px solid var(--line); }
+  #tour .row { margin-top: 8px; }
   .banner.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); display: block; }
   #toast {
     position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
@@ -94,7 +106,10 @@
 </style>
 </head>
 <body>
-<h1>sunnypilot navigation</h1>
+<div class="row" style="margin:4px 0 14px">
+  <h1 class="grow" style="margin:0">sunnypilot navigation</h1>
+  <button id="setup-open" class="small">Set up</button>
+</div>
 
 <div class="tabs">
   <button id="tab-route-btn">Route</button>
@@ -129,7 +144,41 @@
 </div>
 
 <div id="tab-route">
-<div id="setup-banner" class="banner"></div>
+<div id="setup" class="card" hidden>
+  <div id="setup-step" class="muted"></div>
+  <div id="setup-1">
+    <div class="headline">Turn navigation on</div>
+    <div id="setup-rows"></div>
+    <div id="setup-driving" class="muted" style="margin-top:10px" hidden>The car is driving: settings save while parked.</div>
+  </div>
+  <div id="setup-2" hidden>
+    <div class="headline">Mapbox token</div>
+    <div class="muted">
+      Routes and search need the device's own public token. Create one at
+      <a href="https://console.mapbox.com/account/access-tokens" target="_blank" rel="noopener">console.mapbox.com</a>
+      (<a href="https://docs.mapbox.com/help/getting-started/access-tokens" target="_blank" rel="noopener">how tokens work</a>),
+      then paste it here. The device keeps it; it never reaches a browser.
+    </div>
+    <div id="setup-token"></div>
+  </div>
+  <div id="setup-3" hidden>
+    <div class="headline">Keep it handy</div>
+    <div class="muted">
+      This page lives on the car. On this network it is <span id="setup-here"></span>; on the car's
+      hotspot it is 192.168.43.1:5050. Away from the car it still works over Tailscale, at the
+      device's tailnet address.
+    </div>
+    <div id="setup-pin" class="muted" style="margin-top:8px"></div>
+  </div>
+  <div id="setup-hint" class="muted" style="margin-top:10px"></div>
+  <div class="row" style="margin-top:12px; justify-content:flex-end">
+    <button id="setup-back" class="small"></button>
+    <button id="setup-next" class="small primary"></button>
+  </div>
+</div>
+
+<div id="route-main">
+<div id="setup-banner" class="banner tap"></div>
 
 <div class="card">
   <div class="row">
@@ -171,7 +220,7 @@
 
 <h2>Settings</h2>
 <div class="card">
-  <div class="row">
+  <div id="row-allow" class="row">
     <div class="grow">Allow Navigation <span class="muted">(the navigation service that calculates routes on the comma; off, no destination can be set)</span></div>
     <button id="set-allow" class="small"></button>
   </div>
@@ -191,7 +240,7 @@
     <div class="grow">Navigation Audio <span class="muted">(a tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn is close)</span></div>
     <button id="set-audio" class="small"></button>
   </div>
-  <div class="row" style="margin-top:12px">
+  <div id="row-recompute" class="row" style="margin-top:12px">
     <div class="grow">Mapbox Recompute <span class="muted">(recompute the route automatically when you leave it; the device needs a data connection, comma prime/eSIM or mobile hotspot, for this to work, otherwise the route, and navigation, is lost)</span></div>
     <button id="set-recompute" class="small"></button>
   </div>
@@ -199,7 +248,7 @@
     <div class="grow">Quiet Glyph <span class="muted">(keep a dim next-turn arrow in the corner between maneuvers; comma four only)</span></div>
     <button id="set-quiet-glyph" class="small"></button>
   </div>
-  <div style="margin-top:14px">
+  <div id="row-token" style="margin-top:14px">
     <div class="muted">Mapbox token: <span id="token-state"></span></div>
     <form id="token-form" class="row" style="margin-top:6px">
       <input id="token-input" type="password" placeholder="pk. public token" autocomplete="off">
@@ -216,10 +265,18 @@
   Away from the car, destinations travel over the comma prime connection through the
   sunnynav app with a comma account login.
 </div>
+</div>
 
 </div>
 
 <div id="stats" hidden></div>
+<div id="tour" hidden>
+  <div id="tour-text"></div>
+  <div class="row" style="justify-content:flex-end">
+    <span id="tour-step" class="muted grow"></span>
+    <button id="tour-next" class="small primary"></button>
+  </div>
+</div>
 <div id="toast"></div>
 
 <script>
@@ -273,13 +330,17 @@ function applyStatus(s) {
   $("guide-destination").textContent = label;
   $("cancel").hidden = !s.destination;
   $("view").hidden = !s.destination;
-  const setup = $("setup-banner");
-  if (!s.tokenSet) { setup.textContent = "No Mapbox token is set on the device."; setup.className = "banner warn"; }
-  else if (!s.navEnabled) { setup.textContent = "Navigation is off: turn it on under Settings below."; setup.className = "banner warn"; }
-  else setup.className = "banner";
+  const missing = !s.tokenSet ? "No Mapbox token is set on the device." : !s.navEnabled ? "Navigation is off." : "";
+  const banner = $("setup-banner");
+  banner.textContent = missing ? missing + " Tap to set up." : "";
+  banner.className = missing ? "banner warn tap" : "banner";
   renderSaved();
-  if (!tabTouched && !tabSettled) showTab(s.destination ? "directions" : "route");
+  if (!tabSettled) {
+    if (!tabTouched) showTab(s.destination ? "directions" : "route");
+    if (missing && !localStorage.getItem(SETUP_KEY)) showSetup(1);
+  }
   tabSettled = true;
+  renderSetup();
   scheduleGuidance(0);
 }
 
@@ -748,7 +809,111 @@ function renderSettings() {
   onOff($("set-recompute"), settings.recompute, v => saveSettings({ recompute: v }));
   onOff($("set-quiet-glyph"), settings.quietGlyph, v => saveSettings({ quietGlyph: v }));
   $("token-state").textContent = settings.tokenSet ? "set" : "not set";
+  renderSetup();
 }
+
+// --- first run: the app's walk minus the transport, since the device serves this page.
+// The settings rows the walk needs move into it and back, so the copy lives once ---
+const SETUP_KEY = "setupDone";
+const TOUR_KEY = "tourDone";
+const SETUP_STEPS = 3;
+let setupStep = 0;
+let movedRows = [];
+
+function moveInto(id, target) {
+  const el = $(id);
+  movedRows.push({ el, parent: el.parentNode, next: el.nextSibling });
+  $(target).appendChild(el);
+}
+
+function showSetup(step) {
+  if (!setupStep) {
+    moveInto("row-allow", "setup-rows");
+    moveInto("row-recompute", "setup-rows");
+    moveInto("row-token", "setup-token");
+    $("setup-here").textContent = location.host;
+    $("setup-pin").textContent = pinText();
+  }
+  setupStep = step;
+  $("setup").hidden = false;
+  $("route-main").hidden = true;
+  $("setup-open").hidden = true;
+  for (let i = 1; i <= SETUP_STEPS; i++) $("setup-" + i).hidden = i !== step;
+  $("setup-step").textContent = "Step " + step + " of " + SETUP_STEPS;
+  $("setup-back").textContent = step === 1 ? "Later" : "Back";
+  renderSetup();
+  window.scrollTo(0, 0);
+}
+
+function hideSetup(done) {
+  setupStep = 0;
+  for (const m of movedRows) m.parent.insertBefore(m.el, m.next);
+  movedRows = [];
+  $("setup").hidden = true;
+  $("route-main").hidden = false;
+  $("setup-open").hidden = false;
+  if (done) localStorage.setItem(SETUP_KEY, "1");
+  if (done && !localStorage.getItem(TOUR_KEY)) showTour(0);
+}
+
+function renderSetup() {
+  if (!setupStep) return;
+  const tokenSet = settings ? settings.tokenSet : state.tokenSet;
+  $("setup-driving").hidden = state.canSet;
+  $("setup-next").textContent = setupStep === SETUP_STEPS ? "Finish" : setupStep === 2 && !tokenSet ? "Skip" : "Next";
+  $("setup-hint").textContent = setupStep === 1 ? "Switch these on to enable navigation. Everything here can be changed later under Settings."
+    : setupStep === 2 && !tokenSet ? "Without a token nothing routes or searches."
+    : setupStep === SETUP_STEPS && !localStorage.getItem(TOUR_KEY) ? "Next: a short tour of setting a route." : "";
+}
+
+function pinText() {
+  if (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone) return "Pinned to the home screen, so it opens like an app.";
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  return ios ? "In Safari, tap Share, then Add to Home Screen, so it opens like an app." : "In Chrome, open the menu, then Add to Home screen.";
+}
+
+$("setup-open").onclick = () => showSetup(1);
+$("setup-banner").onclick = () => showSetup(1);
+$("setup-back").onclick = () => setupStep === 1 ? hideSetup(false) : showSetup(setupStep - 1);
+$("setup-next").onclick = () => setupStep === SETUP_STEPS ? hideSetup(true) : showSetup(setupStep + 1);
+
+// --- the tour after the first walk: how a route is set, one ringed element per tip ---
+const TOUR = [
+  { target: "search-form", text: "Type an address or place and tap Search, then pick a result." },
+  { target: "routes-panel", text: "Routes to the place list with their times. Tap Send on one; tapping the card first marks it for a favorite bound to that road." },
+  { target: "favorites", text: "Set as Home or Set as Work saves the place here. One tap on a saved row starts a route; the three icons send its fastest, typical or shortest route straight away." },
+  { target: "tab-directions-btn", text: "With a route set, Directions shows the turn ahead, the turns after it and the route on a map, so a phone in a mount is the head unit." },
+];
+let tourStep = -1;
+
+function showTour(step) {
+  if (tourStep >= 0) $(TOUR[tourStep].target).classList.remove("tour-target");
+  tourStep = step;
+  const tip = TOUR[step];
+  const el = $(tip.target);
+  el.hidden = false;
+  if (!picked) $("routes-name").textContent = "a place";
+  el.classList.add("tour-target");
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  $("tour").hidden = false;
+  $("tour-text").textContent = tip.text;
+  $("tour-step").textContent = (step + 1) + " of " + TOUR.length;
+  $("tour-next").textContent = step + 1 === TOUR.length ? "Done" : "Next";
+  document.body.style.paddingBottom = "120px";
+}
+
+function endTour() {
+  $(TOUR[tourStep].target).classList.remove("tour-target");
+  $("routes-panel").hidden = !picked;
+  if (!picked) $("routes-name").textContent = "";
+  tourStep = -1;
+  $("tour").hidden = true;
+  document.body.style.paddingBottom = "";
+  localStorage.setItem(TOUR_KEY, "1");
+  window.scrollTo(0, 0);
+}
+
+$("tour-next").onclick = () => tourStep + 1 === TOUR.length ? endTour() : showTour(tourStep + 1);
 
 async function loadSettings() {
   try { settings = await api("/api/settings"); renderSettings(); }
@@ -758,7 +923,7 @@ async function loadSettings() {
 async function saveSettings(change) {
   try { settings = await api("/api/settings", post(change)); renderSettings(); toast("Saved"); }
   catch (e) { toast(e.message); }
-  if ("allowNavigation" in change) refresh();
+  if ("allowNavigation" in change || "token" in change) refresh();
 }
 
 $("token-form").onsubmit = async ev => {
