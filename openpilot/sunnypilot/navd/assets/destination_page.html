@@ -62,9 +62,10 @@
   .lanes svg.active { stroke: var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--accent); }
   .turns { margin: 8px 0 0; padding: 0; }
   .turns li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
-  .turns svg { width: 30px; height: 30px; flex: none; fill: none; stroke: var(--ink2); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
-  .turns li.next { font-weight: 600; }
-  .turns li.next svg { stroke: var(--ink); }
+  .turns svg { width: 30px; height: 30px; flex: none; fill: none; stroke: var(--ink); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+  .tabs { display: flex; border-bottom: 1px solid var(--line); margin: 0 0 14px; }
+  .tabs button { flex: 1; background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px; color: var(--ink2); font-weight: 600; }
+  .tabs button.active { color: var(--accent); border-bottom-color: var(--accent); }
   /* the route's shape with the car on it, north up; the line wears the head unit's cyan */
   .routemap { display: block; width: 100%; height: auto; margin-top: 8px; border-radius: 10px; background: var(--chip); }
   .routemap .casing { fill: none; stroke: #003e46; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
@@ -82,16 +83,16 @@
 <body>
 <h1>sunnypilot navigation</h1>
 
-<div id="setup-banner" class="banner"></div>
+<div class="tabs">
+  <button id="tab-route-btn">Route</button>
+  <button id="tab-directions-btn">Directions</button>
+</div>
 
+<div id="tab-directions" hidden>
 <div class="card">
-  <div class="row">
-    <div class="grow">
-      <div class="muted">Destination</div>
-      <div id="destination" class="two-lines">None</div>
-    </div>
-    <button id="cancel" class="danger" hidden>Cancel</button>
-  </div>
+  <div class="muted">Destination</div>
+  <div id="guide-destination" class="two-lines">None</div>
+  <div id="guide-none" class="muted" style="margin-top:6px">No route. Send one from Route.</div>
   <div id="guide" class="guide" hidden>
     <div id="guide-turn" class="row">
       <svg id="guide-glyph" class="glyph" viewBox="0 0 48 48"></svg>
@@ -109,6 +110,21 @@
     <ol id="guide-turns" class="turns" hidden></ol>
     <button id="guide-all" class="small" style="margin-top:8px" hidden></button>
     <svg id="guide-map" class="routemap" viewBox="0 0 400 240" hidden></svg>
+  </div>
+</div>
+</div>
+
+<div id="tab-route">
+<div id="setup-banner" class="banner"></div>
+
+<div class="card">
+  <div class="row">
+    <div class="grow">
+      <div class="muted">Destination</div>
+      <div id="destination" class="two-lines">None</div>
+    </div>
+    <button id="view" class="small" hidden>View</button>
+    <button id="cancel" class="danger" hidden>Cancel</button>
   </div>
 </div>
 
@@ -187,6 +203,8 @@
   sunnynav app with a comma account login.
 </div>
 
+</div>
+
 <div id="toast"></div>
 
 <script>
@@ -224,8 +242,11 @@ function destinationLabel(s) {
 
 function applyStatus(s) {
   state = s;
-  $("destination").textContent = s.destination ? destinationLabel(s) : "None";
+  const label = s.destination ? destinationLabel(s) : "None";
+  $("destination").textContent = label;
+  $("guide-destination").textContent = label;
   $("cancel").hidden = !s.destination;
+  $("view").hidden = !s.destination;
   const setup = $("setup-banner");
   if (!s.tokenSet) { setup.textContent = "No Mapbox token is set on the device."; setup.className = "banner warn"; }
   else if (!s.navEnabled) { setup.textContent = "Navigation is off: turn it on under Settings below."; setup.className = "banner warn"; }
@@ -325,8 +346,10 @@ function applyGuidance(g) {
 
 function applyTurn(g) {
   const block = $("guide");
-  if (!state || !state.destination) { block.hidden = true; return; }
-  block.hidden = false;
+  const none = !state || !state.destination;
+  $("guide-none").hidden = !none;
+  block.hidden = none;
+  if (none) return;
   const turn = $("guide-turn"), lanes = $("guide-lanes"), note = $("guide-note");
   guideStage = g.active ? g.audioCueStage : "";
   const message = !g.active ? "Live guidance shows once the car is on."
@@ -397,9 +420,10 @@ function renderRoute() {
   if (guideView === "map") { drawRouteMap(map, route.points, g.position); return; }
   if ($("guide-turn").hidden) return;
   list.hidden = false;
-  const turns = turnsAhead(g);
-  list.innerHTML = (allTurns ? turns : turns.slice(0, 3)).map((t, i) =>
-    "<li" + (i ? "" : " class='next'") + "><svg viewBox='0 0 48 48'>" + glyph(t.type, t.modifier) + "</svg>" +
+  // the card has the turn ahead; the rows are what follows it
+  const turns = turnsAhead(g).filter(t => t.distance > ahead(g.maneuvers).distance + 0.5);
+  list.innerHTML = (allTurns ? turns : turns.slice(0, 3)).map(t =>
+    "<li><svg viewBox='0 0 48 48'>" + glyph(t.type, t.modifier) + "</svg>" +
     "<div class='grow'>" + esc(t.instruction || "Continue") + "</div><div class='muted'>" + feetOrMiles(t.distance) + "</div></li>").join("");
   all.hidden = turns.length <= 3;
   all.textContent = allTurns ? "Fewer turns" : "All " + turns.length + " turns";
@@ -425,10 +449,11 @@ $("view-map").onclick = () => setView("map");
 $("guide-all").onclick = () => { allTurns = !allTurns; renderRoute(); };
 setView(guideView);
 
-// polled only with a destination set and the page in view, at the head unit's cadence
+// polled only with a destination set and the Directions tab in view, at the head unit's cadence
 async function pollGuidance() {
   guideTimer = null;
-  if (!state || !state.destination || document.visibilityState !== "visible") { applyGuidance({ active: false }); return; }
+  if (tab !== "directions" || document.visibilityState !== "visible") return;
+  if (!state || !state.destination) { applyGuidance({ active: false }); return; }
   try { const g = await api("/api/state"); await syncRoute(g); applyGuidance(g); }
   catch (e) { $("guide").hidden = true; }
   scheduleGuidance(FAST_STAGES.includes(guideStage) ? 1000 : guideStage ? 2000 : 4000);
@@ -440,6 +465,22 @@ function scheduleGuidance(ms) {
 }
 
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") scheduleGuidance(0); });
+
+// two tabs, the app's: Route is where a destination is chosen, Directions is how to get there
+let tab = "route";
+function showTab(name) {
+  tab = name;
+  $("tab-route").hidden = name !== "route";
+  $("tab-directions").hidden = name !== "directions";
+  $("tab-route-btn").className = name === "route" ? "active" : "";
+  $("tab-directions-btn").className = name === "directions" ? "active" : "";
+  window.scrollTo(0, 0);
+  if (name === "directions") scheduleGuidance(0);
+}
+$("tab-route-btn").onclick = () => showTab("route");
+$("tab-directions-btn").onclick = () => showTab("directions");
+$("view").onclick = () => showTab("directions");
+showTab("route");
 
 $("cancel").onclick = async () => {
   if (!confirm("Cancel the current route?")) return;
