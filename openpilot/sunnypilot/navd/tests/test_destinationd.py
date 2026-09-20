@@ -68,6 +68,7 @@ class TestDestinationd:
     assert body["navEnabled"] is True
     assert body["tokenSet"] is True
     assert body["canSet"] is True
+    assert body["device"] == self.server.api.device
     assert body["favorites"] == [] and body["recents"] == []
 
   def test_state_inactive_when_navigationd_is_silent(self):
@@ -227,7 +228,7 @@ class TestDestinationd:
 
   def test_settings_round_trip(self):
     body = self.get("/api/settings").json()
-    assert body == {"allowNavigation": True, "navHudMode": 3, "navAudio": False, "navDesiresAllowed": False,
+    assert body == {"device": self.server.api.device, "allowNavigation": True, "navHudMode": 3, "navAudio": False, "navDesiresAllowed": False,
                     "laneGuidance": False, "navLaneChangeTimer": 0, "recompute": False, "quietGlyph": False, "tokenSet": True}
     res = self.post("/api/settings", {"allowNavigation": False, "navHudMode": 1, "navAudio": True, "navDesiresAllowed": True,
                                       "laneGuidance": True, "navLaneChangeTimer": 3, "recompute": True, "quietGlyph": True})

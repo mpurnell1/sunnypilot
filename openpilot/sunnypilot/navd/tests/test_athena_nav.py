@@ -50,7 +50,7 @@ class TestAthenaNavMethods:
 
   def test_status_shape_matches_the_page(self):
     result = rpc_call("getNavStatus")["result"]
-    assert set(result) == {"destination", "navEnabled", "tokenSet", "offroad", "canSet", "favorites", "recents"}
+    assert set(result) == {"destination", "navEnabled", "tokenSet", "offroad", "canSet", "device", "favorites", "recents"}
     assert result["destination"] == "" and result["navEnabled"] is True and result["tokenSet"] is True
 
   def test_set_destination_writes_route_preference_and_recent(self):
