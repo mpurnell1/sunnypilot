@@ -307,8 +307,9 @@
 <div id="stats" hidden></div>
 <div id="tour" hidden>
   <div id="tour-text"></div>
-  <div class="row" style="justify-content:flex-end">
+  <div class="row">
     <span id="tour-step" class="muted grow"></span>
+    <button id="tour-back" class="small">Back</button>
     <button id="tour-next" class="small primary"></button>
   </div>
 </div>
@@ -707,6 +708,7 @@ async function pickPlace(place) {
     updateBindHint();
   }
   $("routes-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  tourRoutesOpened();
 }
 
 function routeCard(route, note) {
@@ -924,35 +926,36 @@ $("setup-banner").onclick = () => showSetup(1);
 $("setup-back").onclick = () => showSetup(setupStep - 1);
 $("setup-next").onclick = () => setupStep === SETUP_STEPS ? hideSetup(true) : showSetup(setupStep + 1);
 
-// --- the tour after the first walk: how a route is set, one ringed element per tip ---
+// --- the tour after the first walk: how a route is set, one ringed element per tip. The
+// route tip waits for a search to open the routes panel; Next on the first tip skips it ---
 const TOUR = [
   { target: "search-form", text: "Type an address or place and tap Search, then pick a result." },
-  { target: "routes-panel", text: "Routes to the place list with their times. Tap Send on one; tapping the card first marks it for a favorite bound to that road." },
+  { target: "routes-list", text: "Routes sort by traffic-inclusive shortest time by default. You can reorder them as desired using the provided filters." },
   { target: "favorites", text: "Set as Home or Set as Work saves the place here. One tap on a saved row starts a route; the three icons send its fastest, typical or shortest route straight away." },
   { target: "tab-directions-btn", text: "With a route set, Directions shows the turn ahead, the turns after it and the route on a map, so a phone in a mount is the head unit." },
 ];
+const ROUTE_TIP = 1;
 let tourStep = -1;
+let tourReturn = -1;
+let tourRoutesShown = false;
 
 function showTour(step) {
   if (tourStep >= 0) $(TOUR[tourStep].target).classList.remove("tour-target");
   tourStep = step;
   const tip = TOUR[step];
   const el = $(tip.target);
-  el.hidden = false;
-  if (!picked) $("routes-name").textContent = "a place";
   el.classList.add("tour-target");
   el.scrollIntoView({ behavior: "smooth", block: "center" });
   $("tour").hidden = false;
   $("tour-text").textContent = tip.text;
   $("tour-step").textContent = (step + 1) + " of " + TOUR.length;
-  $("tour-next").textContent = step + 1 === TOUR.length ? "Done" : "Next";
+  $("tour-back").style.visibility = step === 0 || step === ROUTE_TIP ? "hidden" : "";
+  $("tour-next").textContent = step === ROUTE_TIP ? "Got it" : step + 1 === TOUR.length ? "Done" : "Next";
   document.body.style.paddingBottom = "120px";
 }
 
 function endTour() {
   $(TOUR[tourStep].target).classList.remove("tour-target");
-  $("routes-panel").hidden = !picked;
-  if (!picked) $("routes-name").textContent = "";
   tourStep = -1;
   $("tour").hidden = true;
   document.body.style.paddingBottom = "";
@@ -960,7 +963,25 @@ function endTour() {
   window.scrollTo(0, 0);
 }
 
-$("tour-next").onclick = () => tourStep + 1 === TOUR.length ? endTour() : showTour(tourStep + 1);
+// the tips either side of the route tip, which only a search reaches
+function tourNeighbour(step, dir) {
+  const next = step + dir;
+  return next === ROUTE_TIP ? next + dir : next;
+}
+
+function tourRoutesOpened() {
+  if (tourStep < 0 || tourStep === ROUTE_TIP || tourRoutesShown) return;
+  tourRoutesShown = true;
+  tourReturn = tourStep === 0 ? tourNeighbour(0, 1) : tourStep;
+  showTour(ROUTE_TIP);
+}
+
+$("tour-next").onclick = () => {
+  if (tourStep === ROUTE_TIP) showTour(tourReturn);
+  else if (tourStep + 1 === TOUR.length) endTour();
+  else showTour(tourNeighbour(tourStep, 1));
+};
+$("tour-back").onclick = () => showTour(tourNeighbour(tourStep, -1));
 
 async function loadSettings() {
   try { settings = await api("/api/settings"); renderSettings(); }
