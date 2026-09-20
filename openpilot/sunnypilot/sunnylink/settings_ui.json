@@ -1836,7 +1836,7 @@
               "key": "NavHudMode",
               "widget": "multiple_button",
               "title": "Navigation HUD",
-              "description": "Turns: next-turn card under the set speed. ETA: arrival pill tucked under the nav chip.",
+              "description": "Turns: next-turn card under the set speed. ETA: arrival pill tucked under the nav chip, comma 3X only.",
               "options": [
                 {
                   "value": 0,
@@ -1864,7 +1864,7 @@
             {
               "key": "NavLaneGuidance",
               "widget": "toggle",
-              "title": "Lane Guidance",
+              "title": "Show Lanes",
               "description": "Show which lanes lead to the next maneuver on the turn card.",
               "enablement": [
                 {
@@ -1875,8 +1875,8 @@
             {
               "key": "NavLaneChangeTimer",
               "widget": "option",
-              "title": "Lane Change Timer",
-              "description": "A signaled lane change toward an exit or merge on the route starts without the steering nudge after this delay. Lane changes before turns keep the nudge, and every lane change starts with the blinker.",
+              "title": "Route-Requested Lane Change Delay",
+              "description": "A separate lane change delay for changes the route asks for. A signaled lane change toward an exit or merge on the route starts without the steering nudge after it; lane changes before turns keep the nudge, and every lane change starts with the blinker.",
               "options": [
                 {
                   "value": 0,
