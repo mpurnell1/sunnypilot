@@ -1796,7 +1796,7 @@
               "key": "AllowNavigation",
               "widget": "toggle",
               "title": "Allow Navigation",
-              "description": "Enable the navigation service. While it is off, no destination can be set. Set up from the sunnynav app, which also holds the Mapbox token.",
+              "description": "The navigation service that calculates routes on the comma. While it is off, no destination can be set. For now, the Mapbox token must be set through the sunnynav app (https://play.google.com/store/apps/details?id=com.mpurnell.sunnynav, under Settings > Map) or on the device-hosted webpage (http://192.168.43.1:5050 on the device's hotspot, or its wifi address, under Settings).",
               "enablement": [
                 {
                   "type": "offroad_only"
@@ -1807,7 +1807,7 @@
               "key": "MapboxRecompute",
               "widget": "toggle",
               "title": "Mapbox Recompute",
-              "description": "Recompute the route automatically after leaving it.",
+              "description": "Recompute the route automatically when you leave it. The device needs a data connection (comma prime/eSIM or mobile hotspot) for this to work, otherwise the route, and navigation, is lost.",
               "enablement": [
                 {
                   "type": "offroad_only"
@@ -1818,7 +1818,7 @@
               "key": "NavDesiresAllowed",
               "widget": "toggle",
               "title": "Navigation Desires",
-              "description": "Steer through a turn on the route once you signal for it.",
+              "description": "Send turn desires to follow your selected route when you signal.",
               "enablement": [
                 {
                   "type": "offroad_only"
@@ -1848,11 +1848,31 @@
                 },
                 {
                   "value": 2,
-                  "label": "ETA"
+                  "label": "ETA",
+                  "enablement": [
+                    {
+                      "type": "not",
+                      "condition": {
+                        "type": "capability",
+                        "field": "device_type",
+                        "equals": "mici"
+                      }
+                    }
+                  ]
                 },
                 {
                   "value": 3,
-                  "label": "Both"
+                  "label": "Both",
+                  "enablement": [
+                    {
+                      "type": "not",
+                      "condition": {
+                        "type": "capability",
+                        "field": "device_type",
+                        "equals": "mici"
+                      }
+                    }
+                  ]
                 }
               ],
               "enablement": [
@@ -1876,7 +1896,7 @@
               "key": "NavLaneChangeTimer",
               "widget": "option",
               "title": "Route-Requested Lane Change Delay",
-              "description": "A separate lane change delay for changes the route asks for. A signaled lane change toward an exit or merge on the route starts without the steering nudge after it; lane changes before turns keep the nudge, and every lane change starts with the blinker.",
+              "description": "A separate lane change delay for changes requested by the navigation logic. A signaled lane change toward an exit or merge on the route starts without the steering nudge after it; lane changes before turns keep the nudge, and every lane change starts with the blinker.",
               "options": [
                 {
                   "value": 0,
