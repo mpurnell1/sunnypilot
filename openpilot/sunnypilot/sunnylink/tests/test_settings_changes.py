@@ -224,10 +224,10 @@ class TestNotEngagedReplacement(OpenpilotTestCase):
 
 class TestNavigationPanel(OpenpilotTestCase):
   def test_navigation_rows(self, schema):
-    """The sunnylink navigation page mirrors the phone page's rows; steering consent (NavDesiresAllowed) is set in the car."""
+    """The sunnylink navigation page mirrors the phone page's rows."""
     panel = next(p for p in schema["panels"] if p["id"] == "navigation")
     keys = {item["key"] for section in panel["sections"] for item in section["items"]}
-    assert keys == {"AllowNavigation", "MapboxRecompute", "NavHudMode", "NavLaneGuidance",
+    assert keys == {"AllowNavigation", "MapboxRecompute", "NavDesiresAllowed", "NavHudMode", "NavLaneGuidance",
                     "NavLaneChangeTimer", "NavigationAudio", "NavMiciQuietGlyph"}
 
   def test_navigation_rows_wait_for_offroad(self, schema):

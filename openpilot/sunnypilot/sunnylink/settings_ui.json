@@ -1813,6 +1813,17 @@
                   "type": "offroad_only"
                 }
               ]
+            },
+            {
+              "key": "NavDesiresAllowed",
+              "widget": "toggle",
+              "title": "Navigation Desires",
+              "description": "Steer through a turn on the route once you signal for it.",
+              "enablement": [
+                {
+                  "type": "offroad_only"
+                }
+              ]
             }
           ]
         },
