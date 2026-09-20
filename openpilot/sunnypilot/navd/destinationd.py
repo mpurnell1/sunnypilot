@@ -5,7 +5,7 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
 destinationd: the destination page, served from the device for phones on the same
-LAN or hotspot (http://<device-ip>:5050, hotspot default http://192.168.43.1:5050).
+LAN or Wifi Tethering (http://<device-ip>:5050, tethering default http://192.168.43.1:5050).
 The page is deliberately LAN-only; away from the car the same contract rides comma's
 athena connection (navd/athena_methods.py), where auth is the comma account JWT.
 
