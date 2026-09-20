@@ -1,0 +1,87 @@
+# Page: navigation
+# Edit this file. Run compile_settings_ui.py to emit settings_ui.json.
+id: navigation
+label: Navigation
+icon: navigation
+order: 8
+remote_configurable: true
+description: The navigation service and its guidance on the driving screen
+sections:
+- id: service
+  title: ''
+  description: ''
+  items:
+  - key: AllowNavigation
+    widget: toggle
+    title: Allow Navigation
+    description: Enable the navigation service. While it is off, no destination can be set.
+    enablement:
+    - $ref: '#/macros/offroad'
+  - key: MapboxRecompute
+    widget: toggle
+    title: Mapbox Recompute
+    description: Recompute the route automatically after leaving it.
+    enablement:
+    - $ref: '#/macros/offroad'
+- id: guidance
+  title: Guidance
+  description: The turn card, lanes and sounds while a route is active
+  items:
+  - key: NavHudMode
+    widget: multiple_button
+    title: Navigation HUD
+    description: 'Turns: next-turn card under the set speed. ETA: arrival pill tucked under the nav chip.'
+    options:
+    - value: 0
+      label: 'Off'
+    - value: 1
+      label: Turns
+    - value: 2
+      label: ETA
+    - value: 3
+      label: Both
+    enablement:
+    - $ref: '#/macros/offroad'
+  - key: NavLaneGuidance
+    widget: toggle
+    title: Lane Guidance
+    description: Show which lanes lead to the next maneuver on the turn card.
+    enablement:
+    - $ref: '#/macros/offroad'
+  - key: NavLaneChangeTimer
+    widget: option
+    title: Lane Change Timer
+    description: A signaled lane change toward an exit or merge on the route starts without the steering nudge after this
+      delay. Lane changes before turns keep the nudge, and every lane change starts with the blinker.
+    options:
+    - value: 0
+      label: 'Off'
+    - value: 1
+      label: Nudgeless
+    - value: 2
+      label: 0.5 second
+    - value: 3
+      label: 1 second
+    - value: 4
+      label: 2 seconds
+    - value: 5
+      label: 3 seconds
+    enablement:
+    - $ref: '#/macros/offroad'
+  - key: NavigationAudio
+    widget: toggle
+    title: Navigation Audio
+    description: 'A tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn
+      is close.'
+    enablement:
+    - $ref: '#/macros/offroad'
+  - key: NavMiciQuietGlyph
+    widget: toggle
+    title: Quiet Glyph
+    description: Keep a dim next-turn arrow on screen between maneuvers.
+    visibility:
+    - type: capability
+      field: device_type
+      equals: mici
+    enablement:
+    - $ref: '#/macros/offroad'
