@@ -92,7 +92,8 @@
   .routemap .car { fill: #fff; stroke: var(--ink); stroke-width: 2; }
   .routemap .other { fill: none; stroke: var(--ink2); stroke-width: 3; opacity: 0.6; stroke-linecap: round; stroke-linejoin: round; }
   label.item { display: flex; align-items: center; gap: 10px; cursor: pointer; }
-  .sortchip { display: inline-flex; align-items: center; gap: 6px; }
+  #sort-chips { flex-direction: column; align-items: stretch; }
+  .sortchip { display: flex; align-items: center; gap: 8px; text-align: left; }
   .sortchip svg { width: 18px; height: 18px; fill: currentColor; }
   a { color: var(--accent); }
   .ok { color: var(--accent); }
@@ -172,7 +173,7 @@
     <div class="section">Connection</div>
     <div class="muted">This page is hosted by the comma and only works on its network (shared wifi or Wifi Tethering).</div>
     <div class="group">1. Local network</div>
-    <div class="muted">Home wifi with the car in the driveway: <a id="setup-here" href="/"></a>. With the device's Wifi Tethering on: <a href="http://192.168.43.1:5050/">192.168.43.1:5050</a>.</div>
+    <div class="muted"><span id="setup-net"></span> <a id="setup-here" href="/"></a>.</div>
     <div class="group">2. Tailscale</div>
     <div class="muted">Away from home, with Tailscale on the phone and the device, at the device's Tailscale IP.</div>
   </div>
@@ -342,8 +343,8 @@
   <div id="tour-text"></div>
   <div class="row">
     <button id="tour-back" class="small">Back</button>
-    <span id="tour-step" class="muted grow" style="text-align:center"></span>
     <button id="tour-skip" class="small">Skip</button>
+    <span id="tour-step" class="muted grow" style="text-align:center"></span>
     <button id="tour-next" class="small primary"></button>
   </div>
 </div>
@@ -992,6 +993,7 @@ function showSetup(step) {
     moveInto("rows-device", "setup-device");
     $("setup-here").textContent = location.host;
     $("setup-here").href = location.origin + "/";
+    $("setup-net").textContent = location.hostname === "192.168.43.1" ? "With the device's Wifi Tethering on:" : "Home wifi with the car in the driveway:";
     $("setup-pin").textContent = pinText();
   }
   setupStep = step;
@@ -1039,7 +1041,7 @@ function renderSetup() {
 // both routes, the phone's own first: a reader on one phone may be setting up another
 function pinText() {
   if (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone) return "Pinned to the home screen, so it opens like an app.";
-  const safari = "iPhone: in Safari, tap Share, then Add to Home Screen, so it opens like an app.";
+  const safari = "iPhone: in Safari, tap Share, then View More, then Add to Home Screen, so it opens like an app.";
   const chrome = "Android: in Chrome, open the menu, then Add to Home screen.";
   return /iPhone|iPad|iPod/.test(navigator.userAgent) ? safari + "\n" + chrome : chrome + "\n" + safari;
 }
