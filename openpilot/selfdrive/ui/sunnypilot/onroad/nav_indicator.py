@@ -11,7 +11,7 @@ import pyray as rl
 from openpilot.selfdrive.ui.onroad.hud_renderer import UI_CONFIG
 from openpilot.selfdrive.ui.sunnypilot.nav_status import ROUTE_FAILURE_THRESHOLD, NavStatus
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import (
-  ChipMode, TransientNav, TransientNavState, chip_mode, flag_raised, pick_upcoming_maneuver,
+  ChipMode, TransientNav, TransientNavState, chip_mode, pick_upcoming_maneuver,
 )
 from openpilot.sunnypilot.navd.constants import NAV_CV
 from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES
@@ -88,6 +88,17 @@ def _draw_flag(cx: float, cy: float, color: rl.Color, size: float = ICON_WIDTH, 
   rl.draw_circle_v(rl.Vector2(pole_cx, top + ball_r), ball_r, color)
   rl.draw_rectangle_rec(rl.Rectangle(x, top + 2 * ball_r, pole_w, height - 2 * ball_r - base_h), color)
   rl.draw_rectangle_rec(rl.Rectangle(pole_cx - base_w / 2, top + height - base_h, base_w, base_h), color)
+
+
+def _draw_pin(cx: float, cy: float, modifier: str, color: rl.Color, size: float = ICON_WIDTH) -> None:
+  """The destination: a planted pin; beside the road, on its side, when the maneuver says which."""
+  if modifier not in ('left', 'right'):
+    _draw_flag(cx, cy, color, size, banner=False)
+    return
+  sgn = 1.0 if modifier == 'right' else -1.0
+  half_stroke = size * 0.11
+  rl.draw_rectangle_rec(rl.Rectangle(cx - half_stroke, cy - size * 0.5, 2 * half_stroke, size), ROAD_DIM)
+  _draw_flag(cx + sgn * size * 0.34, cy + size * 0.06, color, size * 0.62, banner=False)
 
 
 def _stroke(x: float, y: float, heading_deg: float, length: float, half_stroke: float, color: rl.Color) -> None:
@@ -244,7 +255,7 @@ def _draw_roundabout(cx: float, cy: float, color: rl.Color, size: float = ICON_W
 def _draw_maneuver_shapes(cx: float, cy: float, maneuver_type: str, modifier: str, color: rl.Color, size: float) -> None:
   angle = ARROW_ANGLES.get(modifier, 0)
   if maneuver_type == 'arrive':
-    _draw_flag(cx, cy, color, size)
+    _draw_pin(cx, cy, modifier, color, size)
   elif any(t in maneuver_type for t in ROUNDABOUT_TYPES):
     _draw_roundabout(cx, cy, color, size)
   elif modifier == 'uturn':
@@ -349,9 +360,9 @@ class NavIndicatorRenderer(Widget):
     super()._handle_mouse_release(mouse_pos)
     self.transient.on_tap()
 
-  def _render_status_chip(self, box: rl.Rectangle, color: rl.Color, banner: bool = True) -> None:
+  def _render_status_chip(self, box: rl.Rectangle, color: rl.Color) -> None:
     rl.draw_rectangle_rounded(box, 0.35, 10, BACKGROUND)
-    _draw_flag(box.x + box.width / 2, box.y + box.height / 2, color, CHIP_ICON_SIZE, banner=banner)
+    _draw_flag(box.x + box.width / 2, box.y + box.height / 2, color, CHIP_ICON_SIZE)
 
   def _render_chip(self, box: rl.Rectangle, maneuver: tuple[str, str, float], dimmed: bool = False) -> None:
     maneuver_type, modifier, distance = maneuver
@@ -382,12 +393,12 @@ class NavIndicatorRenderer(Widget):
     width = UI_CONFIG.set_speed_width_metric if ui_state.is_metric else UI_CONFIG.set_speed_width_imperial
     x = rect.x + LEFT_MARGIN
 
-    if self._mode in (ChipMode.SEARCHING, ChipMode.FAILURE):
+    if self._mode == ChipMode.SEARCHING:
+      # the phone and the head unit report the route search; the rail waits for a route
+      return
+    if self._mode == ChipMode.FAILURE:
       # no touch target: informational only
-      searching = self._mode == ChipMode.SEARCHING
-      self._render_status_chip(rl.Rectangle(x, top, width, BOX_HEIGHT),
-                               CHIP_SEARCHING if searching else BAD,
-                               banner=not searching or flag_raised(self.nav_status.state))
+      self._render_status_chip(rl.Rectangle(x, top, width, BOX_HEIGHT), BAD)
       self.stack_bottom = top + BOX_HEIGHT
       return
 
