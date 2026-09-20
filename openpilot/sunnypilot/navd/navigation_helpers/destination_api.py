@@ -14,6 +14,7 @@ cancel any time.
 """
 from collections.abc import Callable
 
+from openpilot.common.hardware import HARDWARE
 from openpilot.common.params import Params
 from openpilot.sunnypilot.navd.helpers import Coordinate, coordinate_from_param
 from openpilot.sunnypilot.navd.navigation_helpers.destination_store import DestinationStore
@@ -31,13 +32,15 @@ class ApiError(Exception):
 class DestinationAPI:
   def __init__(self, params: Params | None = None, store: DestinationStore | None = None,
                mapbox: MapboxIntegration | None = None, can_set: Callable[[], bool] = lambda: True,
-               offroad: Callable[[], bool] = lambda: True, source: str = "destinationd"):
+               offroad: Callable[[], bool] = lambda: True, source: str = "destinationd",
+               device: str | None = None):
     self.params = params or Params()
     self.store = store or DestinationStore(self.params)
     self.mapbox = mapbox or MapboxIntegration()
     self.can_set = can_set
     self.offroad = offroad
     self.source = source
+    self.device = device or HARDWARE.get_device_type()
 
   def status(self) -> dict:
     return {
@@ -46,6 +49,7 @@ class DestinationAPI:
       "tokenSet": bool(self.mapbox.get_public_token()),
       "offroad": self.offroad(),
       "canSet": self.can_set(),
+      "device": self.device,
       "favorites": self.store.favorites(),
       "recents": self.store.recents(),
     }
@@ -100,6 +104,8 @@ class DestinationAPI:
   def settings_view(self) -> dict:
     p = self.params
     return {
+      # a client greys the rows one device lacks: the arrival pill is the 3X's, the quiet glyph the four's
+      "device": self.device,
       "allowNavigation": p.get_bool("AllowNavigation"),
       "navHudMode": p.get("NavHudMode", return_default=True),
       "navAudio": p.get_bool("NavigationAudio"),
