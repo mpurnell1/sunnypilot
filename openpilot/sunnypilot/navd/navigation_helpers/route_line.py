@@ -4,15 +4,17 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 
-The route line for the head unit surface: a content-derived route id and a decimated
-polyline, both computed from the MapboxSettings param navigationd routes on, so the id
-the poll reports and the shape served here cannot disagree. Served by destinationd
-only; like position, the route shape rides the LAN or the tailnet, never comma's relay.
+The route line for the head unit surface: a content-derived route id, a decimated
+polyline and the steps at their distance along the route, all computed from the
+MapboxSettings param navigationd routes on, so the id the poll reports, the shape served
+here and the turns a client lists cannot disagree. Served by destinationd only; like
+position, the route shape rides the LAN or the tailnet, never comma's relay.
 """
 import math
 import zlib
 
 from openpilot.common.params import Params
+from openpilot.sunnypilot.navd.helpers import Coordinate
 
 # meters of crosstrack a dropped vertex may cost; a lane width cuts an interstate polyline tenfold
 DECIMATION_TOLERANCE_M = 10.0
@@ -81,14 +83,35 @@ def overview_points(coordinates: list, tolerance_m: float = DECIMATION_TOLERANCE
   return points
 
 
+def cumulative_distances(geometry: list[Coordinate]) -> list[float]:
+  """Meters along the route at each vertex."""
+  cumulative = [0.0]
+  cumulative.extend(cumulative[-1] + geometry[i - 1].distance_to(geometry[i]) for i in range(1, len(geometry)))
+  return cumulative
+
+
+def step_along(geometry: list[Coordinate], cumulative: list[float], location: Coordinate) -> float:
+  """A step's distance along the route: that of the vertex nearest its maneuver point."""
+  return cumulative[min(range(len(geometry)), key=lambda i: location.distance_to(geometry[i]))]
+
+
 def route_line_snapshot(params: Params, tolerance_m: float = DECIMATION_TOLERANCE_M) -> dict:
   value = params.get('MapboxSettings')
   route = value['navData']['route'] if value else None
   rid = route_id(route)
   if rid == 0:
-    return {"routeId": 0, "points": []}
+    return {"routeId": 0, "points": [], "totalDistance": 0.0, "steps": []}
   points = [[float(c['latitude']), float(c['longitude'])] for c in route['geometry']]
   if len(points) > 2:
     keep = _decimate(points, tolerance_m)
     points = [p for p, kept in zip(points, keep, strict=True) if kept]
-  return {"routeId": rid, "points": points}
+  # each step where navigationd places it, so a client subtracting the route's distance
+  # remaining lists exactly the turns still ahead, at the distances the state reports
+  geometry = [Coordinate(c['latitude'], c['longitude']) for c in route['geometry']]
+  cumulative = cumulative_distances(geometry)
+  steps = [
+    {"along": step_along(geometry, cumulative, Coordinate(s['location']['latitude'], s['location']['longitude'])),
+     "type": s['maneuver'], "modifier": s['modifier'], "instruction": s['instruction']}
+    for s in route.get('steps') or []
+  ]
+  return {"routeId": rid, "points": points, "totalDistance": float(route.get('totalDistance') or 0.0), "steps": steps}

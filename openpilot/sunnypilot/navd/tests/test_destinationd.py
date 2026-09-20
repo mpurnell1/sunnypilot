@@ -139,7 +139,7 @@ class TestDestinationd:
 
   def test_route_empty_without_a_route(self):
     self.params.remove("MapboxSettings")
-    assert self.get("/api/route").json() == {"routeId": 0, "points": []}
+    assert self.get("/api/route").json() == {"routeId": 0, "points": [], "totalDistance": 0.0, "steps": []}
 
   def test_route_serves_the_stored_polyline(self):
     geometry = [{"latitude": 34.2 + i * 0.001, "longitude": -119.0 + (i % 2) * 0.001} for i in range(5)]

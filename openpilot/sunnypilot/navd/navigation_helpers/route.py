@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from numpy import interp
 
 from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES, Coordinate, bearing_between_two_points, project_onto_geometry, string_to_direction
-from openpilot.sunnypilot.navd.navigation_helpers.route_line import route_id
+from openpilot.sunnypilot.navd.navigation_helpers.route_line import cumulative_distances as cumulative_distances_along, route_id, step_along
 
 UPCOMING_TURN_SPEED_BP = [0.0, 5.0, 10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0]  # m/s
 UPCOMING_TURN_DIST = [20.0, 25.0, 30.0, 45.0, 60.0, 75.0, 90.0, 105.0, 120.0]  # m
@@ -74,8 +74,7 @@ class Route:
       return None
 
     geometry = [Coordinate(coord['latitude'], coord['longitude']) for coord in route['geometry']]
-    cumulative_distances = [0.0]
-    cumulative_distances.extend(cumulative_distances[-1] + geometry[i - 1].distance_to(geometry[i]) for i in range(1, len(geometry)))
+    cumulative_distances = cumulative_distances_along(geometry)
     maxspeed = [(item['speed'], item['unit']) if item else NO_LIMIT for item in route['maxspeed']]
 
     steps = []
@@ -89,7 +88,7 @@ class Route:
         distance=step['distance'],
         duration=step['duration'],
         location=location,
-        cumulative_distance=cumulative_distances[closest_idx],
+        cumulative_distance=step_along(geometry, cumulative_distances, location),
         maxspeed=maxspeed[min(closest_idx, len(maxspeed) - 1)] if maxspeed else NO_LIMIT,
         banner_instructions=step['bannerInstructions'],
       ))
