@@ -168,7 +168,7 @@
   </div>
   <div id="setup-2" hidden>
     <div class="section">Keep it handy</div>
-    <div id="setup-pin" class="muted"></div>
+    <div id="setup-pin" class="muted" style="white-space:pre-line"></div>
   </div>
   <div id="setup-3" hidden>
     <div class="section">Map</div>
@@ -666,10 +666,10 @@ $("cancel").onclick = async () => {
   catch (e) { toast(e.message); }
 };
 
-$("search-form").onsubmit = async ev => {
-  ev.preventDefault();
-  const q = $("search-input").value.trim();
-  if (!q) return;
+$("search-form").onsubmit = ev => { ev.preventDefault(); search($("search-input").value.trim()); };
+
+async function search(q) {
+  if (!q) return [];
   const list = $("search-results");
   list.innerHTML = "<li class='item muted'>Searching...</li>";
   $("routes-panel").hidden = true;
@@ -684,8 +684,16 @@ $("search-form").onsubmit = async ev => {
       li.onclick = () => pickPlace(r);
       list.appendChild(li);
     }
-  } catch (e) { list.replaceChildren(); toast(e.message); }
-};
+    return body.results;
+  } catch (e) { list.replaceChildren(); toast(e.message); return []; }
+}
+
+function clearSearch() {
+  picked = null;
+  $("search-input").value = "";
+  $("search-results").replaceChildren();
+  $("routes-panel").hidden = true;
+}
 
 function destString(place) { return place.longitude.toFixed(6) + "," + place.latitude.toFixed(6); }
 
@@ -708,7 +716,6 @@ async function pickPlace(place) {
     updateBindHint();
   }
   $("routes-panel").scrollIntoView({ behavior: "smooth", block: "start" });
-  tourRoutesOpened();
 }
 
 function routeCard(route, note) {
@@ -915,10 +922,12 @@ function renderSetup() {
     : "";
 }
 
+// both routes, the phone's own first: a reader on one phone may be setting up another
 function pinText() {
   if (window.matchMedia("(display-mode: standalone)").matches || navigator.standalone) return "Pinned to the home screen, so it opens like an app.";
-  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
-  return ios ? "In Safari, tap Share, then Add to Home Screen, so it opens like an app." : "In Chrome, open the menu, then Add to Home screen.";
+  const safari = "iPhone: in Safari, tap Share, then Add to Home Screen, so it opens like an app.";
+  const chrome = "Android: in Chrome, open the menu, then Add to Home screen.";
+  return /iPhone|iPad|iPod/.test(navigator.userAgent) ? safari + "\n" + chrome : chrome + "\n" + safari;
 }
 
 $("setup-open").onclick = () => showSetup(1);
@@ -926,8 +935,8 @@ $("setup-banner").onclick = () => showSetup(1);
 $("setup-back").onclick = () => showSetup(setupStep - 1);
 $("setup-next").onclick = () => setupStep === SETUP_STEPS ? hideSetup(true) : showSetup(setupStep + 1);
 
-// --- the tour after the first walk: how a route is set, one ringed element per tip. The
-// route tip waits for a search to open the routes panel; Next on the first tip skips it ---
+// --- the tour after the first walk: how a route is set, one ringed element per tip. Next on
+// the first tip runs a sample search and opens the pick, so the route tip shows on real routes ---
 const TOUR = [
   { target: "search-form", text: "Type an address or place and tap Search, then pick a result." },
   { target: "routes-list", text: "Routes sort by traffic-inclusive shortest time by default. You can reorder them as desired using the provided filters." },
@@ -935,9 +944,8 @@ const TOUR = [
   { target: "tab-directions-btn", text: "With a route set, Directions shows the turn ahead, the turns after it and the route on a map, so a phone in a mount is the head unit." },
 ];
 const ROUTE_TIP = 1;
+const SAMPLE_SEARCH = "Main Street";
 let tourStep = -1;
-let tourReturn = -1;
-let tourRoutesShown = false;
 
 function showTour(step) {
   if (tourStep >= 0) $(TOUR[tourStep].target).classList.remove("tour-target");
@@ -963,25 +971,25 @@ function endTour() {
   window.scrollTo(0, 0);
 }
 
-// the tips either side of the route tip, which only a search reaches
-function tourNeighbour(step, dir) {
-  const next = step + dir;
-  return next === ROUTE_TIP ? next + dir : next;
-}
-
-function tourRoutesOpened() {
-  if (tourStep < 0 || tourStep === ROUTE_TIP || tourRoutesShown) return;
-  tourRoutesShown = true;
-  tourReturn = tourStep === 0 ? tourNeighbour(0, 1) : tourStep;
+// the user's own pick serves; otherwise the sample's first result opens the pick, and a
+// failed or empty search skips to favorites
+async function tourOpenRoutes() {
+  if ($("routes-panel").hidden) {
+    $("search-input").value = SAMPLE_SEARCH;
+    const results = await search(SAMPLE_SEARCH);
+    if (!results.length) { showTour(ROUTE_TIP + 1); return; }
+    await pickPlace(results[0]);
+  }
   showTour(ROUTE_TIP);
 }
 
 $("tour-next").onclick = () => {
-  if (tourStep === ROUTE_TIP) showTour(tourReturn);
+  if (tourStep === 0) tourOpenRoutes();
+  else if (tourStep === ROUTE_TIP) { clearSearch(); showTour(ROUTE_TIP + 1); }
   else if (tourStep + 1 === TOUR.length) endTour();
-  else showTour(tourNeighbour(tourStep, 1));
+  else showTour(tourStep + 1);
 };
-$("tour-back").onclick = () => showTour(tourNeighbour(tourStep, -1));
+$("tour-back").onclick = () => showTour(tourStep === ROUTE_TIP + 1 ? 0 : tourStep - 1);
 
 async function loadSettings() {
   try { settings = await api("/api/settings"); renderSettings(); }
