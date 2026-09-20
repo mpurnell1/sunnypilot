@@ -1796,7 +1796,7 @@
               "key": "AllowNavigation",
               "widget": "toggle",
               "title": "Allow Navigation",
-              "description": "The navigation service that calculates routes on the comma. Away from home wifi it needs a data connection (comma prime/eSIM or mobile hotspot) to route. While it is off, no destination can be set. For now, the Mapbox token must be set through the sunnynav app (https://play.google.com/store/apps/details?id=com.mpurnell.sunnynav, under Settings > Map) or on the device-hosted webpage (http://192.168.43.1:5050 with the device's Wifi Tethering on, or its wifi address, under Settings).",
+              "description": "The navigation service that calculates routes on the comma. Away from home wifi it needs a data connection (comma prime/eSIM or mobile hotspot) to route. While it is off, no destination can be set. For now, the Mapbox token must be set through the sunnynav app (https://play.google.com/store/apps/details?id=com.mpurnell.sunnynav, under Settings > Map) or on the device-hosted webpage ({device_page}, under Settings).",
               "enablement": [
                 {
                   "type": "offroad_only"
