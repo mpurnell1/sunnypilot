@@ -1785,7 +1785,7 @@
       "icon": "navigation",
       "order": 8,
       "remote_configurable": true,
-      "description": "The navigation service and its guidance on the driving screen",
+      "description": "The navigation service that calculates routes on the comma, and its guidance on the driving screen. Away from home wifi it needs a data connection (comma prime/eSIM or mobile hotspot) to route. For now, the Mapbox token is set in the sunnynav app (Settings > Map) or on the device-hosted page (Settings).",
       "sections": [
         {
           "id": "service",
@@ -1796,7 +1796,7 @@
               "key": "AllowNavigation",
               "widget": "toggle",
               "title": "Allow Navigation",
-              "description": "The navigation service that calculates routes on the comma. Away from home wifi it needs a data connection (comma prime/eSIM or mobile hotspot) to route. While it is off, no destination can be set. For now, the Mapbox token must be set in the sunnynav app (Settings > Map) or on the device-hosted page (Settings), which is at<br>{device_page}",
+              "description": "While it is off, no destination can be set. The device-hosted page is at<br>{device_page}",
               "enablement": [
                 {
                   "type": "offroad_only"
