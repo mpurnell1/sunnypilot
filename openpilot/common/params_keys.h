@@ -279,7 +279,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     // after this delay; AutoLaneChangeTimer's values with Off at 0: 1 nudgeless, 2 = 0.5 s,
     // 3 = 1 s, 4 = 2 s, 5 = 3 s
     {"NavLaneChangeTimer", {PERSISTENT | BACKUP, INT, "0"}},
-    // mici only: faint next-turn glyph in the quiet state between maneuvers; no UI, set over SSH
+    // mici only: faint next-turn glyph in the quiet state between maneuvers
     {"NavMiciQuietGlyph", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"NavigationAudio", {PERSISTENT | BACKUP, BOOL, "0"}},
 

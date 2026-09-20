@@ -220,3 +220,24 @@ class TestNotEngagedReplacement(OpenpilotTestCase):
     rule_types = _flatten_rule_types(item.get("enablement"))
     assert "offroad_only" not in rule_types, f"{key} still uses offroad_only"
     assert "not_engaged" in rule_types, f"{key} missing not_engaged"
+
+
+class TestNavigationPanel(OpenpilotTestCase):
+  def test_navigation_rows(self, schema):
+    """The sunnylink navigation page mirrors the phone page's rows; steering consent (NavDesiresAllowed) is set in the car."""
+    panel = next(p for p in schema["panels"] if p["id"] == "navigation")
+    keys = {item["key"] for section in panel["sections"] for item in section["items"]}
+    assert keys == {"AllowNavigation", "MapboxRecompute", "NavHudMode", "NavLaneGuidance",
+                    "NavLaneChangeTimer", "NavigationAudio", "NavMiciQuietGlyph"}
+
+  def test_navigation_rows_wait_for_offroad(self, schema):
+    """destinationd refuses settings writes while driving, so every row carries the same gate."""
+    panel = next(p for p in schema["panels"] if p["id"] == "navigation")
+    for section in panel["sections"]:
+      for item in section["items"]:
+        assert "offroad_only" in _flatten_rule_types(item.get("enablement")), item["key"]
+
+  def test_quiet_glyph_is_mici_only(self, schema):
+    item = _find_item(schema, "NavMiciQuietGlyph")
+    assert item is not None
+    assert _references_capability_field(item.get("visibility"), "device_type")
