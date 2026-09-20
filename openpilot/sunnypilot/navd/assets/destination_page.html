@@ -94,7 +94,8 @@
   a { color: var(--accent); }
   /* settings rows and the walk, laid out like the app's: a title over its description, the control at the right */
   .setting { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
-  .setting:first-child, #rows-guidance .setting:first-child { border-top: none; }
+  #rows-device .setting:first-child { border-top: none; }
+  .dim { opacity: 0.45; }
   .setting .chips { margin-top: 6px; }
   .section { font-size: 1.05rem; font-weight: 600; margin-top: 8px; }
   .group { font-weight: 600; margin-top: 12px; }
@@ -170,24 +171,21 @@
     <div id="setup-pin" class="muted"></div>
   </div>
   <div id="setup-3" hidden>
-    <div class="section">Device</div>
-    <div class="muted">The device applies these itself; each switch writes as it is flipped.</div>
-    <div id="setup-rows"></div>
-    <div class="muted" style="margin-top:8px">
-      It has to be a public token (it starts with pk.). To create one, follow
-      <a href="https://docs.mapbox.com/help/getting-started/access-tokens" target="_blank" rel="noopener">Mapbox's guide</a>,
-      then copy it from <a href="https://console.mapbox.com/account/access-tokens" target="_blank" rel="noopener">your tokens page</a>
-      and paste it above.
+    <div class="section">Map</div>
+    <div class="muted">
+      Mapbox is the map service that the sunnypilot navigation engine uses to search for routes and fetch the
+      map tiles to render. To do this, a Mapbox public key with only the styles:tiles scope is required. Every
+      request will be billed to this public key, but it supports up to 100,000 route requests or 200,000 map
+      tile requests a month before it begins billing at $2.00 and $0.50 per 1,000, respectively
+      (<a href="https://www.mapbox.com/pricing" target="_blank" rel="noopener">pricing</a>).
     </div>
+    <div class="muted" style="margin-top:8px">Away from home wifi the device needs a data connection (comma prime/eSIM or mobile hotspot) to search for a new route.</div>
+    <div id="setup-map"></div>
   </div>
   <div id="setup-4" hidden>
-    <div class="section">Navigation</div>
-    <div class="muted">
-      Settings applied on the comma device. Only editable in offroad mode. Also available in Sunnylink
-      (besides Mapbox Token), by search or at
-      <a href="https://www.sunnylink.ai/dashboard/settings/navigation" target="_blank" rel="noopener">sunnylink.ai</a>.
-    </div>
-    <div id="setup-guidance"></div>
+    <div class="section">Device</div>
+    <div class="muted">The device applies these itself; each row writes as it is changed.</div>
+    <div id="setup-device"></div>
   </div>
   <div id="setup-driving" class="muted" style="margin-top:10px" hidden>Device is driving. Settings save while parked, like destinations.</div>
   <div id="setup-hint" class="muted" style="margin-top:10px"></div>
@@ -240,46 +238,55 @@
 
 <h2>Settings</h2>
 <div class="card">
-  <div id="row-allow" class="setting">
-    <div class="grow"><div>Allow Navigation</div><div class="muted">The navigation service that calculates routes on the comma.</div></div>
-    <button id="set-allow" class="switch" role="switch"></button>
+  <div id="rows-device">
+    <div class="setting">
+      <div class="grow"><div>Allow Navigation (required)</div><div class="muted">The navigation service that calculates routes on the comma. Away from home wifi it needs a data connection (comma prime/eSIM or mobile hotspot) to route.</div></div>
+      <button id="set-allow" class="switch" role="switch"></button>
+    </div>
+    <div class="setting">
+      <div class="grow"><div>Navigation Desires</div><div class="muted">Send turn desires to follow your selected route when you signal.</div></div>
+      <button id="set-desires" class="switch" role="switch"></button>
+    </div>
+    <div class="setting">
+      <div class="grow"><div>Navigation HUD</div><div id="set-hud-note" class="muted"></div><div class="chips" id="set-hud"></div></div>
+    </div>
+    <div class="setting">
+      <div class="grow"><div>Show Lanes</div><div class="muted">Show which lanes lead to the next maneuver.</div></div>
+      <button id="set-lanes" class="switch" role="switch"></button>
+    </div>
+    <div class="setting">
+      <div class="grow"><div>Route-Requested Lane Change Delay</div><div class="muted">A separate lane change delay for changes requested by the navigation logic.</div><div class="chips" id="set-lane-timer"></div></div>
+    </div>
+    <div class="setting">
+      <div class="grow"><div>Navigation Audio</div><div class="muted">A tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn is close.</div></div>
+      <button id="set-audio" class="switch" role="switch"></button>
+    </div>
+    <div id="row-quiet" class="setting">
+      <div class="grow"><div>Quiet Glyph</div><div class="muted">Keep a dim next-turn arrow in the corner between maneuvers. <span id="quiet-reason"></span></div></div>
+      <button id="set-quiet-glyph" class="switch" role="switch"></button>
+    </div>
   </div>
-  <div id="row-recompute" class="setting">
-    <div class="grow"><div>Mapbox Recompute</div><div class="muted">Recompute the route automatically when you leave it. The device needs a data connection (comma prime/eSIM or mobile hotspot) for this to work, otherwise the route, and navigation, is lost.</div></div>
-    <button id="set-recompute" class="switch" role="switch"></button>
-  </div>
-  <div id="rows-guidance">
-  <div class="setting">
-    <div class="grow"><div>Navigation Desires</div><div class="muted">Send turn desires to follow your selected route when you signal.</div></div>
-    <button id="set-desires" class="switch" role="switch"></button>
-  </div>
-  <div class="setting">
-    <div class="grow"><div>Navigation HUD</div><div id="set-hud-note" class="muted"></div><div class="chips" id="set-hud"></div></div>
-  </div>
-  <div class="setting">
-    <div class="grow"><div>Show Lanes</div><div class="muted">Show which lanes lead to the next maneuver on the turn card.</div></div>
-    <button id="set-lanes" class="switch" role="switch"></button>
-  </div>
-  <div class="setting">
-    <div class="grow"><div>Route-Requested Lane Change Delay</div><div class="muted">A separate lane change delay for changes requested by the navigation logic.</div><div id="set-lane-timer-note" class="muted"></div><div class="chips" id="set-lane-timer"></div></div>
-  </div>
-  <div class="setting">
-    <div class="grow"><div>Navigation Audio</div><div class="muted">A tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn is close.</div></div>
-    <button id="set-audio" class="switch" role="switch"></button>
-  </div>
-  <div class="setting">
-    <div class="grow"><div>Quiet Glyph</div><div class="muted">Keep a dim next-turn arrow in the corner between maneuvers. comma four only.</div></div>
-    <button id="set-quiet-glyph" class="switch" role="switch"></button>
-  </div>
-  </div>
-  <div id="row-token" class="setting">
-    <div class="grow">
-      <div>Mapbox Token <span id="token-state" class="muted"></span></div>
-      <div class="muted">The device's own public token, for its route requests and search. It needs no scopes at all, so a token restricted to nothing more is the safest choice; the phone's token works here too.</div>
-      <form id="token-form" class="row" style="margin-top:6px">
-        <input id="token-input" type="password" placeholder="pk. public token" autocomplete="off">
-        <button type="submit" class="small">Save</button>
-      </form>
+  <div id="rows-map">
+    <div class="setting">
+      <div class="grow">
+        <div>Mapbox Token (required) <span id="token-state" class="muted"></span></div>
+        <div class="muted">
+          The device's own public token, for its route requests and search. It needs no scopes at all, so a token
+          restricted to nothing more is the safest choice; the phone's token works here too. Away from home wifi
+          the device needs a data connection (comma prime/eSIM or mobile hotspot) to use it. Must be a public token (starts with pk.).
+          Follow these <a href="https://docs.mapbox.com/help/getting-started/access-tokens" target="_blank" rel="noopener">instructions to create a token</a>,
+          then copy it from <a href="https://console.mapbox.com/account/access-tokens" target="_blank" rel="noopener">your account dashboard</a>
+          and paste it here. It stays on the device and never reaches a browser.
+        </div>
+        <form id="token-form" class="row" style="margin-top:6px">
+          <input id="token-input" type="password" placeholder="pk. public token" autocomplete="off">
+          <button type="submit" class="small">Save</button>
+        </form>
+      </div>
+    </div>
+    <div class="setting">
+      <div class="grow"><div>Mapbox Recompute (optional)</div><div class="muted">Recompute the route automatically when you leave it. The device needs a data connection (comma prime/eSIM or mobile hotspot) for this to work, otherwise the route, and navigation, is lost.</div></div>
+      <button id="set-recompute" class="switch" role="switch"></button>
     </div>
   </div>
   <div class="muted" style="margin-top:10px">
@@ -807,29 +814,25 @@ let settings = null;
 const HUD_OPTIONS = [
   ["Off", "No navigation HUD elements."],
   ["Turns", "Next-turn card under the set speed."],
-  ["ETA", "Arrival pill tucked under the nav chip. comma 3X only."],
-  ["Both", "Turn card and arrival pill. comma 3X only."],
+  ["ETA", "Arrival pill tucked under the nav chip."],
+  ["Both", "Turn card and arrival pill."],
 ];
-const TIMER_TAIL = " Lane changes before turns keep the nudge, and every lane change starts with the blinker.";
-const LANE_TIMER_OPTIONS = [
-  ["Off", "A lane change the route asks for waits for the steering nudge like any other."],
-  ["Nudgeless", "A signaled lane change toward an exit or merge on the route starts at once, without the steering nudge." + TIMER_TAIL],
-  ["0.5 s", "A signaled lane change toward an exit or merge on the route starts half a second after the signal, without the steering nudge." + TIMER_TAIL],
-  ["1 s", "A signaled lane change toward an exit or merge on the route starts one second after the signal, without the steering nudge." + TIMER_TAIL],
-  ["2 s", "A signaled lane change toward an exit or merge on the route starts two seconds after the signal, without the steering nudge." + TIMER_TAIL],
-  ["3 s", "A signaled lane change toward an exit or merge on the route starts three seconds after the signal, without the steering nudge." + TIMER_TAIL],
-];
+const LANE_TIMER_OPTIONS = ["Off", "Nudgeless", "0.5 s", "1 s", "2 s", "3 s"].map(label => [label, ""]);
+const THREE_X_ONLY = "comma 3X only";
+const FOUR_ONLY = "comma four only";
 
-function choice(el, note, options, value, save) {
+function choice(el, note, options, value, save, disabledFrom = options.length, reason = "") {
   el.replaceChildren();
   options.forEach(([label], i) => {
     const b = document.createElement("button");
     b.className = "small" + (i === value ? " primary" : "");
     b.textContent = label;
+    b.disabled = i >= disabledFrom;
+    if (b.disabled) b.title = reason;
     b.onclick = () => { if (i !== value) save(i); };
     el.appendChild(b);
   });
-  note.textContent = (options[value] || options[0])[1];
+  if (note) note.textContent = (options[value] || options[0])[1];
 }
 
 function onOff(btn, value, save) {
@@ -842,9 +845,13 @@ function renderSettings() {
   if (!settings) return;
   onOff($("set-allow"), settings.allowNavigation, v => saveSettings({ allowNavigation: v }));
   onOff($("set-desires"), settings.navDesiresAllowed, v => saveSettings({ navDesiresAllowed: v }));
-  choice($("set-hud"), $("set-hud-note"), HUD_OPTIONS, settings.navHudMode, v => saveSettings({ navHudMode: v }));
+  const four = settings.device === "mici";
+  choice($("set-hud"), $("set-hud-note"), HUD_OPTIONS, settings.navHudMode, v => saveSettings({ navHudMode: v }), four ? 2 : 4, THREE_X_ONLY);
   onOff($("set-lanes"), settings.laneGuidance, v => saveSettings({ laneGuidance: v }));
-  choice($("set-lane-timer"), $("set-lane-timer-note"), LANE_TIMER_OPTIONS, settings.navLaneChangeTimer, v => saveSettings({ navLaneChangeTimer: v }));
+  choice($("set-lane-timer"), null, LANE_TIMER_OPTIONS, settings.navLaneChangeTimer, v => saveSettings({ navLaneChangeTimer: v }));
+  $("row-quiet").classList.toggle("dim", !four);
+  $("quiet-reason").textContent = four ? "" : FOUR_ONLY + ".";
+  $("set-quiet-glyph").disabled = !four;
   onOff($("set-audio"), settings.navAudio, v => saveSettings({ navAudio: v }));
   onOff($("set-recompute"), settings.recompute, v => saveSettings({ recompute: v }));
   onOff($("set-quiet-glyph"), settings.quietGlyph, v => saveSettings({ quietGlyph: v }));
@@ -868,10 +875,8 @@ function moveInto(id, target) {
 
 function showSetup(step) {
   if (!setupStep) {
-    moveInto("row-allow", "setup-rows");
-    moveInto("row-recompute", "setup-rows");
-    moveInto("row-token", "setup-rows");
-    moveInto("rows-guidance", "setup-guidance");
+    moveInto("rows-map", "setup-map");
+    moveInto("rows-device", "setup-device");
     $("setup-here").textContent = location.host;
     $("setup-here").href = location.origin + "/";
     $("setup-pin").textContent = pinText();
@@ -902,8 +907,9 @@ function renderSetup() {
   if (!setupStep) return;
   $("setup-driving").hidden = state.canSet || setupStep < 3;
   $("setup-next").textContent = setupStep === SETUP_STEPS ? "Finish" : "Next";
-  $("setup-hint").textContent = setupStep === 3 ? "Switch these on to finish enabling navigation, or set the device up later in Settings."
-    : setupStep === SETUP_STEPS && !localStorage.getItem(TOUR_KEY) ? "Next: a short tour of setting a route."
+  $("setup-hint").textContent = setupStep === SETUP_STEPS
+    ? "Only Allow Navigation is required for basic navigation features. The rest are by choice. Tap Finish to adjust these later in Settings."
+      + (localStorage.getItem(TOUR_KEY) ? "" : " Next: a short tour of setting a route.")
     : "";
 }
 
