@@ -11,7 +11,7 @@
 | `settings_ui_src/_macros.yaml` | Named rule fragments referenced via `{$ref: "#/macros/<name>"}`. | Adding a reusable rule (e.g. a new platform gate). |
 | **`settings_ui.json`** | **Generated from src tree by `compile_settings_ui.py`. Do not edit by hand.** | Never. Compiler emits it; frontend reads it. |
 
-Pages today: `steering, cruise, display, visuals, toggles, device, software, developer, models, vehicle` (10).
+Pages today: `steering, cruise, display, visuals, toggles, device, software, developer, navigation, models, vehicle` (11).
 
 Run `python sunnypilot/sunnylink/tools/compile_settings_ui.py` after edits. Add `--check` in CI to fail on out-of-sync `settings_ui.json`.
 
