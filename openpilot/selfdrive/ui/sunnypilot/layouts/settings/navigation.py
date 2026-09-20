@@ -76,10 +76,10 @@ class NavigationLayout(Widget):
 
     self._nav_hud_item = multiple_button_item_sp(tr("Navigation HUD"), self._get_nav_hud_description,
                                                  NAV_HUD_BUTTONS, param="NavHudMode")
-    self._lane_guidance_item = toggle_item_sp(tr("Lane Guidance"), tr("Show which lanes lead to the next maneuver on the turn card."),
+    self._lane_guidance_item = toggle_item_sp(tr("Show Lanes"), tr("Show which lanes lead to the next maneuver on the turn card."),
                                               param="NavLaneGuidance")
-    self._lane_timer_item = option_item_sp(tr("Lane Change Timer"), "NavLaneChangeTimer", 0, len(NAV_LANE_TIMER_LABELS) - 1,
-                                           tr("A signaled lane change toward an exit or merge on the route starts without the steering nudge after this delay. Lane changes before turns keep the nudge, and every lane change starts with the blinker."),  # noqa: E501
+    self._lane_timer_item = option_item_sp(tr("Route-Requested Lane Change Delay"), "NavLaneChangeTimer", 0, len(NAV_LANE_TIMER_LABELS) - 1,
+                                           tr("A separate lane change delay for changes the route asks for: a signaled lane change toward an exit or merge on the route starts without the steering nudge after it. Lane changes before turns keep the nudge, and every lane change starts with the blinker."),  # noqa: E501
                                            label_callback=lambda i: NAV_LANE_TIMER_LABELS[i])
     self._nav_audio_item = toggle_item_sp(tr("Navigation Audio"),
                                           tr("A tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn is close."),  # noqa: E501

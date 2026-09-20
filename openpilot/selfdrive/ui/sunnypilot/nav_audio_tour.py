@@ -56,7 +56,7 @@ class Step(NamedTuple):
   card: tuple[str, str, float | None] | None
 
 
-LANE_CAPTION = tr("The route wants you one lane over. Signal it; with a lane change timer set, an exit or merge approach confirms without the wheel nudge once the timer runs out, before a turn add the usual nudge.")  # noqa: E501
+LANE_CAPTION = tr("The route wants you one lane over. Signal it; with a route-requested lane change delay set, an exit or merge approach confirms without the wheel nudge once the timer runs out, before a turn add the usual nudge.")  # noqa: E501
 
 STEPS = [
   Step('turn', 'approach', 'right', tr("Right Turn Ahead"),

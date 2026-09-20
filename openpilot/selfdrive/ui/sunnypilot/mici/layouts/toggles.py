@@ -21,9 +21,9 @@ class TogglesLayoutMiciSP(TogglesLayoutMici):
     self._nav_toggle.set_value("set up from the sunnynav app, or the device page on port 5050")
     self._desires_toggle = BigParamControl("navigation desires", "NavDesiresAllowed")
     self._desires_toggle.set_value("steer through a route turn once you signal for it")
-    self._lane_toggle = BigParamControl("lane guidance", "NavLaneGuidance")
+    self._lane_toggle = BigParamControl("show lanes", "NavLaneGuidance")
     self._lane_toggle.set_value("lanes for the next maneuver on the turn card")
-    self._lane_timer = BigMultiParamToggle("lane change timer", "NavLaneChangeTimer", ["off", "nudgeless", "0.5 s", "1 s", "2 s", "3 s"])
+    self._lane_timer = BigMultiParamToggle("route lane change delay", "NavLaneChangeTimer", ["off", "nudgeless", "0.5 s", "1 s", "2 s", "3 s"])
     self._scroller.add_widgets([self._nav_toggle, self._desires_toggle, self._lane_toggle, self._lane_timer])
     # external writes (athena, the phone page, SSH) land in the rows like every other toggle
     self._refresh_toggles = (*self._refresh_toggles, ("AllowNavigation", self._nav_toggle),
