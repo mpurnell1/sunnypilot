@@ -177,7 +177,7 @@ class NavAudioTour(Widget):
     # card on the left third, words on the right
     card_cx = rect.x + rect.width * 0.22
     if step.card is not None:
-      self._draw_card(card_cx, rect.y + rect.height * 0.18, step.card)
+      self._draw_card(card_cx, rect.y + rect.height * 0.24, step.card)
 
     text_x = rect.x + rect.width * 0.42
     text_w = rect.width * 0.50
