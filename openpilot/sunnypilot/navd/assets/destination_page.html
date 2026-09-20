@@ -49,12 +49,24 @@
   li.item { padding: 10px 4px; border-top: 1px solid var(--line); }
   li.item:first-child { border-top: none; }
   .tap { cursor: pointer; }
+  /* edit mode: the rows are tinted and inert until Done */
+  li.item.editing { background: var(--chip); border-radius: 8px; padding-inline: 8px; }
+  /* the three sort shortcuts: a tap sends that order's best route without the pick */
+  .shortcuts { display: flex; gap: 4px; flex: none; }
+  .shortcuts button { padding: 5px 6px; line-height: 0; }
+  .shortcuts svg { width: 20px; height: 20px; fill: var(--ink2); }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
   .routecard { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 8px; cursor: pointer; }
   .routecard.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   .guide { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
   .guide .glyph { width: 72px; height: 72px; flex: none; fill: none; stroke: var(--ink); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
   .guide .dist { font-size: 1.5rem; font-weight: 600; line-height: 1.2; }
+  .headline { font-size: 1.25rem; font-weight: 600; margin: 2px 0 6px; }
+  .spin { width: 22px; height: 22px; margin-top: 12px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* the remaining distance, time and ETA stay put under the turns */
+  #stats { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 16px; text-align: center; font-weight: 600;
+    background: var(--card); border-top: 1px solid var(--line); }
   /* a road cross-section: one cell per lane, the ones that lead to the turn filled */
   .lanes { display: flex; gap: 4px; margin: 8px 0 0 82px; }
   .lanes svg { width: 34px; height: 44px; padding: 5px 3px; border: 1px solid var(--line); border-radius: 3px; fill: none; stroke: var(--ink2); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
@@ -62,6 +74,7 @@
   .lanes svg.active { stroke: var(--accent); background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: var(--accent); }
   .turns { margin: 8px 0 0; padding: 0; }
   .turns li { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+  .turns .sub { font-size: 0.85rem; color: var(--ink2); }
   .turns svg { width: 30px; height: 30px; flex: none; fill: none; stroke: var(--ink); stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
   .tabs { display: flex; border-bottom: 1px solid var(--line); margin: 0 0 14px; }
   .tabs button { flex: 1; background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 10px; color: var(--ink2); font-weight: 600; }
@@ -102,13 +115,14 @@
       </div>
     </div>
     <div id="guide-lanes" class="lanes" hidden></div>
+    <div id="guide-headline" class="headline" hidden></div>
     <div id="guide-note" class="muted" style="margin-top:6px"></div>
     <div id="guide-views" class="chips" hidden>
       <button id="view-directions" class="small">Turns</button>
       <button id="view-map" class="small">Map</button>
     </div>
     <ol id="guide-turns" class="turns" hidden></ol>
-    <button id="guide-all" class="small" style="margin-top:8px" hidden></button>
+    <div id="guide-wait" class="spin" hidden></div>
     <svg id="guide-map" class="routemap" viewBox="0 0 400 240" hidden></svg>
   </div>
 </div>
@@ -158,31 +172,31 @@
 <h2>Settings</h2>
 <div class="card">
   <div class="row">
-    <div class="grow">Allow Navigation <span class="muted">(the navigation service; off, no destination can be set)</span></div>
+    <div class="grow">Allow Navigation <span class="muted">(the navigation service that calculates routes on the comma; off, no destination can be set)</span></div>
     <button id="set-allow" class="small"></button>
   </div>
   <div class="row" style="margin-top:12px">
-    <div class="grow">Navigation Desires <span class="muted">(steer through a turn on the route once you signal for it)</span></div>
+    <div class="grow">Navigation Desires <span class="muted">(send turn desires to follow your selected route when you signal)</span></div>
     <button id="set-desires" class="small"></button>
   </div>
   <div class="muted" style="margin-top:12px">Navigation HUD</div>
   <div class="chips" id="set-hud"></div>
   <div class="row" style="margin-top:12px">
-    <div class="grow">Show Lanes <span class="muted">(which lanes lead to the next maneuver, on the turn card)</span></div>
+    <div class="grow">Show Lanes <span class="muted">(show which lanes lead to the next maneuver on the turn card)</span></div>
     <button id="set-lanes" class="small"></button>
   </div>
-  <div class="muted" style="margin-top:12px">Route-Requested Lane Change Delay <span id="set-lane-timer-note"></span></div>
+  <div class="muted" style="margin-top:12px">Route-Requested Lane Change Delay <span class="muted">(a separate lane change delay for changes requested by the navigation logic)</span> <span id="set-lane-timer-note"></span></div>
   <div class="chips" id="set-lane-timer"></div>
   <div class="row" style="margin-top:12px">
-    <div class="grow">Navigation Audio <span class="muted">(a tone pair for each maneuver: rising means right, falling means left)</span></div>
+    <div class="grow">Navigation Audio <span class="muted">(a tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn is close)</span></div>
     <button id="set-audio" class="small"></button>
   </div>
   <div class="row" style="margin-top:12px">
-    <div class="grow">Mapbox Recompute <span class="muted">(recompute the route after leaving it)</span></div>
+    <div class="grow">Mapbox Recompute <span class="muted">(recompute the route automatically when you leave it; the device needs a data connection, comma prime/eSIM or mobile hotspot, for this to work, otherwise the route, and navigation, is lost)</span></div>
     <button id="set-recompute" class="small"></button>
   </div>
   <div class="row" style="margin-top:8px">
-    <div class="grow">Quiet Glyph <span class="muted">(comma four: keep a dim next-turn arrow between maneuvers)</span></div>
+    <div class="grow">Quiet Glyph <span class="muted">(keep a dim next-turn arrow in the corner between maneuvers; comma four only)</span></div>
     <button id="set-quiet-glyph" class="small"></button>
   </div>
   <div style="margin-top:14px">
@@ -205,6 +219,7 @@
 
 </div>
 
+<div id="stats" hidden></div>
 <div id="toast"></div>
 
 <script>
@@ -234,9 +249,20 @@ async function api(path, opts) {
 function miles(m) { return (m / 1609.344).toFixed(m < 16093 ? 1 : 0) + " mi"; }
 function mins(s) { return Math.round(s / 60) + " min"; }
 
+// a "lon,lat" dest matches its favorite whatever its decimals; anything else matches as text
+function sameDest(a, b) {
+  const pa = coordinates(a), pb = coordinates(b);
+  return pa && pb ? pa.longitude === pb.longitude && pa.latitude === pb.latitude : a.trim() === b.trim();
+}
+
+function coordinates(dest) {
+  const m = dest.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
+  return m ? { longitude: parseFloat(m[1]), latitude: parseFloat(m[2]) } : null;
+}
+
 function destinationLabel(s) {
   // a bound or page-set destination is a bare "lon,lat"; favorites and recents know its name
-  const hit = [...(s.favorites || []), ...(s.recents || [])].find(e => e.dest === s.destination);
+  const hit = [...(s.favorites || []), ...(s.recents || [])].find(e => sameDest(e.dest, s.destination));
   return hit ? hit.name + (hit.summary ? " via " + hit.summary : "") : s.destination;
 }
 
@@ -252,18 +278,21 @@ function applyStatus(s) {
   else if (!s.navEnabled) { setup.textContent = "Navigation is off: turn it on under Settings below."; setup.className = "banner warn"; }
   else setup.className = "banner";
   renderSaved();
+  if (!tabTouched && !tabSettled) showTab(s.destination ? "directions" : "route");
+  tabSettled = true;
   scheduleGuidance(0);
 }
 
 function savedItem(entry, kindLabel, removeSpec) {
   const li = document.createElement("li");
-  li.className = "item row";
+  li.className = "item row" + (editingFavs ? " editing" : "");
   const text = document.createElement("div");
-  text.className = "grow tap";
+  text.className = "grow" + (editingFavs ? "" : " tap");
   text.innerHTML = "<div class='clip'>" + esc(entry.name) + "</div>" +
     (kindLabel ? "<div class='muted clip'>" + esc(kindLabel) + "</div>" : "");
-  text.onclick = () => pickSaved(entry);
+  if (!editingFavs) text.onclick = () => pickSaved(entry);
   li.appendChild(text);
+  if (!editingFavs && !entry.summary && coordinates(entry.dest)) li.appendChild(shortcuts(entry));
   if (removeSpec && editingFavs) {
     const rm = document.createElement("button");
     rm.className = "small danger";
@@ -294,6 +323,38 @@ function renderSaved() {
   if (!state.recents.length) recents.innerHTML = "<li class='item muted'>No recent destinations.</li>";
 }
 
+// the sort orders of the route pick, with the app's glyphs: time with traffic, typical time, distance
+const SORTS = [
+  { key: r => r.duration, label: "fastest with traffic", icon: "M20 10h-3V8.86c1.72-.45 3-2 3-3.86h-3V4c0-.55-.45-1-1-1H8C7.45 3 7 3.45 7 4v1H4c0 1.86 1.28 3.41 3 3.86V10H4c0 1.86 1.28 3.41 3 3.86V15H4c0 1.86 1.28 3.41 3 3.86V20c0 .55.45 1 1 1h8c.55 0 1-.45 1-1v-1.14c1.72-.45 3-2 3-3.86h-3v-1.14c1.72-.45 3-2 3-3.86zM12 19c-1.11 0-2-.9-2-2s.89-2 2-2c1.1 0 2 .9 2 2s-.89 2-2 2zm0-5c-1.11 0-2-.9-2-2s.89-2 2-2c1.1 0 2 .9 2 2s-.89 2-2 2zm0-5c-1.11 0-2-.9-2-2 0-1.1.89-2 2-2 1.1 0 2 .9 2 2 0 1.1-.89 2-2 2z" },
+  { key: r => r.durationTypical, label: "typical time", icon: "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z" },
+  { key: r => r.distance, label: "shortest", icon: "M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h2v4h2V8h2v4h2V8h2v4h2V8h2v4h2V8h2v8z" },
+];
+
+function shortcuts(entry) {
+  const box = document.createElement("div");
+  box.className = "shortcuts";
+  for (const sort of SORTS) {
+    const b = document.createElement("button");
+    b.className = "small";
+    b.title = "Send the " + sort.label + " route";
+    b.innerHTML = "<svg viewBox='0 0 24 24'><path d='" + sort.icon + "'/></svg>";
+    b.onclick = () => startSorted(entry, sort);
+    box.appendChild(b);
+  }
+  return box;
+}
+
+// the sort's best route for the place, previewed then sent with its summary so navd holds that road
+async function startSorted(entry, sort) {
+  const c = coordinates(entry.dest);
+  try {
+    const body = await api("/api/routes?lon=" + c.longitude + "&lat=" + c.latitude);
+    const best = body.routes.slice().sort((a, b) => sort.key(a) - sort.key(b))[0];
+    if (!best) throw new Error("no routes previewed");
+    await navigateTo(entry.name, entry.dest, best.summary || "");
+  } catch (e) { toast(e.message); }
+}
+
 function esc(s) { const d = document.createElement("div"); d.textContent = s == null ? "" : s; return d.innerHTML; }
 function post(obj) { return { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(obj) }; }
 
@@ -312,7 +373,13 @@ let guideStage = "";
 let lastGuidance = null;
 
 function glyph(type, modifier) {
-  if (type === "arrive") return "<path d='M14 42 V8 H34 L28 16 L34 24 H14'/>";
+  if (type === "arrive") {
+    if (modifier === "left" || modifier === "right") {
+      const x = modifier === "left" ? 10 : 38;
+      return "<path d='M24 42 V8' opacity='0.4'/><path d='M" + x + " 33 V21'/><circle cx='" + x + "' cy='16.5' r='4.5'/>";
+    }
+    return "<path d='M24 40 V19'/><circle cx='24' cy='13.5' r='4.5'/><path d='M15 40 H33'/>";
+  }
   if (type.includes("roundabout") || type.includes("rotary")) {
     return "<circle cx='24' cy='27' r='10'/><path d='M24 17 V6 M18 12 L24 6 L30 12'/>";
   }
@@ -350,19 +417,24 @@ function applyTurn(g) {
   $("guide-none").hidden = !none;
   block.hidden = none;
   if (none) return;
-  const turn = $("guide-turn"), lanes = $("guide-lanes"), note = $("guide-note");
+  const turn = $("guide-turn"), lanes = $("guide-lanes"), note = $("guide-note"), headline = $("guide-headline");
   guideStage = g.active ? g.audioCueStage : "";
+  const departed = g.active && (g.routeState === "rerouting" || g.routeState === "offRoute");
   const message = !g.active ? "Live guidance shows once the car is on."
-    : g.routeState === "rerouting" ? "Rerouting..."
-    : g.routeState === "offRoute" ? "Off route, waiting for the route to catch up."
+    : g.routeState === "rerouting" ? "Departed route, recalculating..."
+    : g.routeState === "offRoute" ? "Departed route, waiting to rejoin..."
     : g.routeFailures ? "Route requests are failing; the last route is kept."
     : !g.valid || !g.maneuvers.length ? "Searching for a route..."
     : "";
+  headline.hidden = !departed;
+  showStats("");
   if (message) {
     turn.hidden = true; lanes.hidden = true;
-    note.textContent = message;
+    headline.textContent = departed ? message : "";
+    note.textContent = departed ? "" : message;
     return;
   }
+  note.textContent = "";
   const m = ahead(g.maneuvers);
   turn.hidden = false;
   $("guide-glyph").innerHTML = glyph(m.type, m.modifier);
@@ -373,15 +445,22 @@ function applyTurn(g) {
     const dir = lane.active && lane.activeDirection ? lane.activeDirection : (lane.directions[0] || "straight");
     return "<svg viewBox='0 0 48 48' class='" + (lane.active ? "active" : "") + "'>" + glyph("", dir) + "</svg>";
   }).join("");
-  note.textContent = g.timeRemaining > 0
-    ? miles(g.distanceRemaining) + " \u00b7 " + mins(g.timeRemaining) + " \u00b7 arrive " + clockTime(g.timeRemaining)
-    : "";
+  showStats(g.timeRemaining > 0
+    ? miles(g.distanceRemaining) + " \u00b7 " + mins(g.timeRemaining) + " \u00b7 ETA " + clockTime(g.timeRemaining)
+    : "");
+}
+
+// the bar shows on Directions with a live turn; its height is padded off the page's bottom
+function showStats(line) {
+  const bar = $("stats");
+  bar.textContent = line;
+  bar.hidden = !line || tab !== "directions";
+  document.body.style.paddingBottom = bar.hidden ? "" : "72px";
 }
 
 // --- the rest of the route under the card: /api/route's steps (fetched once per routeId)
 // past the car's distance along as a list, or its line with the car on it ---
 let route = null;
-let allTurns = false;
 const VIEW_KEY = "guideView";
 let guideView = localStorage.getItem(VIEW_KEY) === "map" ? "map" : "directions";
 
@@ -411,22 +490,23 @@ function setView(view) {
 // An <svg> has no hidden property (that is HTMLElement's), so the map goes by attribute
 function renderRoute() {
   const g = lastGuidance;
-  const views = $("guide-views"), list = $("guide-turns"), all = $("guide-all"), map = $("guide-map");
+  const views = $("guide-views"), list = $("guide-turns"), wait = $("guide-wait"), map = $("guide-map");
   const shape = !!g && g.active && !!route && route.routeId === g.routeId && !$("guide").hidden;
   views.hidden = !shape;
-  list.hidden = all.hidden = true;
+  list.hidden = wait.hidden = true;
   map.toggleAttribute("hidden", !shape || guideView !== "map");
   if (!shape) return;
   if (guideView === "map") { drawRouteMap(map, route.points, g.position); return; }
-  if ($("guide-turn").hidden) return;
+  if ($("guide-turn").hidden) { wait.hidden = false; return; }
   list.hidden = false;
-  // the card has the turn ahead; the rows are what follows it
+  // the card has the turn ahead; the rows are what follows it, the destination under the last
   const turns = turnsAhead(g).filter(t => t.distance > ahead(g.maneuvers).distance + 0.5);
-  list.innerHTML = (allTurns ? turns : turns.slice(0, 3)).map(t =>
+  const destination = state.destination ? destinationLabel(state) : "";
+  list.innerHTML = turns.map(t =>
     "<li><svg viewBox='0 0 48 48'>" + glyph(t.type, t.modifier) + "</svg>" +
-    "<div class='grow'>" + esc(t.instruction || "Continue") + "</div><div class='muted'>" + feetOrMiles(t.distance) + "</div></li>").join("");
-  all.hidden = turns.length <= 3;
-  all.textContent = allTurns ? "Fewer turns" : "All " + turns.length + " turns";
+    "<div class='grow'><div>" + esc(t.instruction || "Continue") + "</div>" +
+    (t.type === "arrive" && destination ? "<div class='sub'>" + esc(destination) + "</div>" : "") +
+    "</div><div class='muted'>" + feetOrMiles(t.distance) + "</div></li>").join("");
 }
 
 // equirectangular about the route's first vertex: over one route the flat-earth error is
@@ -446,7 +526,6 @@ function drawRouteMap(svg, points, car) {
 
 $("view-directions").onclick = () => setView("directions");
 $("view-map").onclick = () => setView("map");
-$("guide-all").onclick = () => { allTurns = !allTurns; renderRoute(); };
 setView(guideView);
 
 // polled only with a destination set and the Directions tab in view, at the head unit's cadence
@@ -468,6 +547,8 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 
 // two tabs, the app's: Route is where a destination is chosen, Directions is how to get there
 let tab = "route";
+let tabTouched = false;
+let tabSettled = false;
 function showTab(name) {
   tab = name;
   $("tab-route").hidden = name !== "route";
@@ -475,15 +556,15 @@ function showTab(name) {
   $("tab-route-btn").className = name === "route" ? "active" : "";
   $("tab-directions-btn").className = name === "directions" ? "active" : "";
   window.scrollTo(0, 0);
-  if (name === "directions") scheduleGuidance(0);
+  if (name === "directions") scheduleGuidance(0); else showStats("");
 }
-$("tab-route-btn").onclick = () => showTab("route");
-$("tab-directions-btn").onclick = () => showTab("directions");
-$("view").onclick = () => showTab("directions");
+$("tab-route-btn").onclick = () => { tabTouched = true; showTab("route"); };
+$("tab-directions-btn").onclick = () => { tabTouched = true; showTab("directions"); };
+$("view").onclick = () => { tabTouched = true; showTab("directions"); };
 showTab("route");
 
 $("cancel").onclick = async () => {
-  if (!confirm("Cancel the current route?")) return;
+  if (!confirm("End the route to " + destinationLabel(state) + "? OK ends it, Cancel keeps it.")) return;
   try { applyStatus(await api("/api/cancel", post({}))); toast("Route cancelled"); }
   catch (e) { toast(e.message); }
 };
@@ -549,7 +630,7 @@ function routeCard(route, note) {
   }
   const go = document.createElement("button");
   go.className = "primary";
-  go.textContent = "Go";
+  go.textContent = "Send";
   go.onclick = ev => { ev.stopPropagation(); navigateTo(picked.name, destString(picked), route && route.summary ? route.summary : ""); };
   div.appendChild(info);
   div.appendChild(go);
@@ -584,15 +665,17 @@ async function navigateTo(name, dest, summary) {
 }
 
 async function pickSaved(entry) {
-  // a route-bound favorite navigates immediately on its saved route; everything else
-  // opens the route chooser, geocoding free text first so there are routes to choose
-  if (entry.summary) {
-    await navigateTo(entry.name, entry.dest, entry.summary);
+  // a route-bound favorite navigates immediately on its saved route, and so does anything
+  // while the car is driving (the fastest route, when the phone should need the least
+  // attention); parked, the row opens the route chooser, geocoding free text first so
+  // there are routes to choose
+  if (entry.summary || !state.offroad) {
+    await navigateTo(entry.name, entry.dest, entry.summary || "");
     return;
   }
-  const m = entry.dest.match(/^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/);
-  if (m) {
-    pickPlace({ name: entry.name, longitude: parseFloat(m[1]), latitude: parseFloat(m[2]) });
+  const c = coordinates(entry.dest);
+  if (c) {
+    pickPlace({ name: entry.name, longitude: c.longitude, latitude: c.latitude });
     return;
   }
   try {
@@ -602,9 +685,7 @@ async function pickSaved(entry) {
       return;
     }
   } catch (e) { /* fall through to the direct send below */ }
-  if (confirm("Navigate to " + entry.name + "?")) {
-    await navigateTo(entry.name, entry.dest, "");
-  }
+  await navigateTo(entry.name, entry.dest, "");
 }
 
 async function saveFavorite(kind) {

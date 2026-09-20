@@ -79,7 +79,7 @@ class NavigationLayout(Widget):
     self._lane_guidance_item = toggle_item_sp(tr("Show Lanes"), tr("Show which lanes lead to the next maneuver on the turn card."),
                                               param="NavLaneGuidance")
     self._lane_timer_item = option_item_sp(tr("Route-Requested Lane Change Delay"), "NavLaneChangeTimer", 0, len(NAV_LANE_TIMER_LABELS) - 1,
-                                           tr("A separate lane change delay for changes the route asks for: a signaled lane change toward an exit or merge on the route starts without the steering nudge after it. Lane changes before turns keep the nudge, and every lane change starts with the blinker."),  # noqa: E501
+                                           tr("A separate lane change delay for changes requested by the navigation logic: a signaled lane change toward an exit or merge on the route starts without the steering nudge after it. Lane changes before turns keep the nudge, and every lane change starts with the blinker."),  # noqa: E501
                                            label_callback=lambda i: NAV_LANE_TIMER_LABELS[i])
     self._nav_audio_item = toggle_item_sp(tr("Navigation Audio"),
                                           tr("A tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn is close."),  # noqa: E501
@@ -99,8 +99,8 @@ class NavigationLayout(Widget):
       button_item(tr("Add Favorite"), tr("Add"), tr("Add a new favorite."), self._add_fav),
       button_item(tr("Remove Favorite"), tr("Remove"), tr("Remove a favorite."), self._remove_fav),
       text_item(tr("Status"), self._get_nav_status_text),
-      toggle_item_sp(tr("Mapbox Recompute"), tr("Recompute the route automatically after leaving it."), param="MapboxRecompute"),
-      toggle_item_sp(tr("Navigation Desires"), tr("Steer through a turn on the route once you signal for it."), param="NavDesiresAllowed"),
+      toggle_item_sp(tr("Mapbox Recompute"), tr("Recompute the route automatically when you leave it. The device needs a data connection (comma prime/eSIM or mobile hotspot) for this to work, otherwise the route, and navigation, is lost."), param="MapboxRecompute"),  # noqa: E501
+      toggle_item_sp(tr("Navigation Desires"), tr("Send turn desires to follow your selected route when you signal."), param="NavDesiresAllowed"),
       multiple_button_item_sp(tr("Navigation Banners"), self._get_banner_description,
                               NAV_BANNER_BUTTONS, param="NavBannerMode"),
     ]
@@ -114,7 +114,7 @@ class NavigationLayout(Widget):
       button_item(tr("Clear Current Route"), tr("Clear"), "", self._clear_route),
       self._favorites_item,
       *self._vis_items[:4],
-      toggle_item_sp(tr("Allow Navigation"), tr("Enable the navigation service."), callback=self._update_navigation_visibility,
+      toggle_item_sp(tr("Allow Navigation"), tr("The navigation service that calculates routes on the comma."), callback=self._update_navigation_visibility,
                      param="AllowNavigation"),
       *self._vis_items[4:],
       self._nav_hud_item, self._lane_guidance_item, self._lane_timer_item, self._nav_audio_item, self._sound_tour_item,
