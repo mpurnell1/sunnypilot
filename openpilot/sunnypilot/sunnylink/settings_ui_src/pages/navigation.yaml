@@ -14,10 +14,12 @@ sections:
   - key: AllowNavigation
     widget: toggle
     title: Allow Navigation
-    description: The navigation service that calculates routes on the comma. While it is off, no destination can be
-      set. For now, the Mapbox token must be set through the sunnynav app
+    description: The navigation service that calculates routes on the comma. Away from home wifi it needs a data
+      connection (comma prime/eSIM or mobile hotspot) to route. While it is off, no destination can be set. For now, the
+      Mapbox token must be set through the sunnynav app
       (https://play.google.com/store/apps/details?id=com.mpurnell.sunnynav, under Settings > Map) or on the
-      device-hosted webpage (http://192.168.43.1:5050 on the device's hotspot, or its wifi address, under Settings).
+      device-hosted webpage (http://192.168.43.1:5050 with the device's Wifi Tethering on, or its wifi address, under
+      Settings).
     enablement:
     - $ref: '#/macros/offroad'
   - key: MapboxRecompute
@@ -59,15 +61,13 @@ sections:
   - key: NavLaneGuidance
     widget: toggle
     title: Show Lanes
-    description: Show which lanes lead to the next maneuver on the turn card.
+    description: Show which lanes lead to the next maneuver.
     enablement:
     - $ref: '#/macros/offroad'
   - key: NavLaneChangeTimer
     widget: option
     title: Route-Requested Lane Change Delay
-    description: A separate lane change delay for changes requested by the navigation logic. A signaled lane change
-      toward an exit or merge on the route starts without the steering nudge after it; lane changes before turns keep
-      the nudge, and every lane change starts with the blinker.
+    description: A separate lane change delay for changes requested by the navigation logic.
     options:
     - value: 0
       label: 'Off'
