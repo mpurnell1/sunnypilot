@@ -10,7 +10,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="sunnypilot nav">
 <!-- destinationd serves no files, so the manifest and its icon are data URLs -->
-<link rel="manifest" href='data:application/manifest+json,{"name":"sunnypilot navigation","short_name":"sunnypilot nav","start_url":"/","display":"standalone","background_color":"#f2f4f1","theme_color":"#1f9e56","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 48 48%22%3E%3Crect width=%2248%22 height=%2248%22 rx=%2210%22 fill=%22%231f9e56%22/%3E%3Cpath d=%22M24 38V14M14 24l10-10 10 10%22 fill=%22none%22 stroke=%22%23fff%22 stroke-width=%224%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22/%3E%3C/svg%3E","sizes":"any","type":"image/svg+xml"}]}'>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 108 108%22%3E%3Crect width=%22108%22 height=%22108%22 rx=%2224%22 fill=%22%230D1B2A%22/%3E%3Cpath d=%22M54 26L76 76 54 64 32 76Z%22 fill=%22%23fff%22/%3E%3C/svg%3E">
+<link rel="manifest" href='data:application/manifest+json,{"name":"sunnypilot navigation","short_name":"sunnypilot nav","start_url":"/","display":"standalone","background_color":"#f2f4f1","theme_color":"#1f9e56","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 108 108%22%3E%3Crect width=%22108%22 height=%22108%22 rx=%2224%22 fill=%22%230D1B2A%22/%3E%3Cpath d=%22M54 26L76 76 54 64 32 76Z%22 fill=%22%23fff%22/%3E%3C/svg%3E","sizes":"any","type":"image/svg+xml"}]}'>
 <style>
   :root {
     --bg: #f2f4f1; --card: #ffffff; --ink: #1b201d; --ink2: #5d665f;
@@ -108,6 +109,8 @@
   .banner { border-radius: 10px; padding: 8px 12px; margin: 10px 0; font-size: 0.9rem; display: none; }
   /* the tour rings the element its tip talks about */
   .tour-target { box-shadow: 0 0 0 3px var(--accent); border-radius: 10px; }
+  /* the walk rings the one required row while it is off */
+  .setting.needs { box-shadow: 0 0 0 3px var(--warn); border-radius: 10px; padding-left: 8px; padding-right: 8px; margin: 8px 0; border-top-color: transparent; }
   /* one route card flashes once under the route tip, standing in for the tap the tip talks about */
   @keyframes flash { 50% { background: color-mix(in srgb, var(--accent) 25%, transparent); } }
   label.item.flash { animation: flash 0.9s ease 1; }
@@ -166,7 +169,7 @@
   <div id="setup-step" class="muted"></div>
   <div id="setup-1">
     <div class="section">Connection</div>
-    <div class="muted">This page lives on the car and only works on its network (shared wifi or Wifi Tethering).</div>
+    <div class="muted">This page is hosted by the comma and only works on its network (shared wifi or Wifi Tethering).</div>
     <div class="group">1. Local network</div>
     <div class="muted">Home wifi with the car in the driveway: <a id="setup-here" href="/"></a>. With the device's Wifi Tethering on: <a href="http://192.168.43.1:5050/">192.168.43.1:5050</a>.</div>
     <div class="group">2. Tailscale</div>
@@ -202,7 +205,11 @@
   <div id="setup-driving" class="muted" style="margin-top:10px" hidden>Device is driving. Settings save while parked, like destinations.</div>
   <div id="setup-hint" class="muted" style="margin-top:10px"></div>
   <div class="row" style="margin-top:12px; justify-content:space-between">
-    <button id="setup-back">Back</button>
+    <div class="row">
+      <button id="setup-back">Back</button>
+      <button id="setup-cancel" hidden>Cancel</button>
+      <button id="setup-tour" hidden>Start tour</button>
+    </div>
     <button id="setup-next" class="primary"></button>
   </div>
 </div>
@@ -264,7 +271,7 @@
 <h2>Settings</h2>
 <div class="card">
   <div id="rows-device">
-    <div class="setting">
+    <div class="setting" id="row-allow">
       <div class="grow"><div>Allow Navigation (required)</div><div class="muted">The navigation service that calculates routes on the comma. Away from home wifi it needs a data connection (comma prime/eSIM or mobile hotspot) to route.</div></div>
       <button id="set-allow" class="switch" role="switch"></button>
     </div>
@@ -301,7 +308,7 @@
           the device needs a data connection (comma prime/eSIM or mobile hotspot) to use it. Must be a public token (starts with pk.).
           Follow these <a href="https://docs.mapbox.com/help/getting-started/access-tokens" target="_blank" rel="noopener">instructions to create a token</a>,
           then copy it from <a href="https://console.mapbox.com/account/access-tokens" target="_blank" rel="noopener">your account dashboard</a>
-          and paste it here. It stays on the device and never reaches a browser.
+          and paste it here. It stays on the comma and is not saved in your browser.
         </div>
         <form id="token-form" class="row" style="margin-top:6px">
           <input id="token-input" type="password" placeholder="pk. public token" autocomplete="off">
@@ -320,7 +327,7 @@
 </div>
 
 <div class="muted" style="margin-top:16px">
-  This page lives on the car and only works on its network (shared wifi or Wifi Tethering).
+  This page is hosted by the comma and only works on its network (shared wifi or Wifi Tethering).
   Away from the car, destinations travel over the comma prime connection through the
   <a href="https://play.google.com/store/apps/details?id=com.mpurnell.sunnynav" target="_blank" rel="noopener">sunnynav app</a>
   with a comma account login.
@@ -334,6 +341,7 @@
   <div id="tour-text"></div>
   <div class="row">
     <span id="tour-step" class="muted grow"></span>
+    <button id="tour-skip" class="small">Skip</button>
     <button id="tour-back" class="small">Back</button>
     <button id="tour-next" class="small primary"></button>
   </div>
@@ -396,8 +404,12 @@ function applyStatus(s) {
   banner.className = missing ? "banner warn tap" : "banner";
   renderSaved();
   if (!tabSettled) {
-    if (!tabTouched) showTab(s.destination ? "directions" : "route");
+    // the tab last chosen in this browser, else Directions while a route is set
+    if (!tabTouched) showTab(localStorage.getItem(TAB_KEY) || (s.destination ? "directions" : "route"));
+    // a device already set up spares this browser the walk; the tour still shows once
+    if (!missing) localStorage.setItem(SETUP_KEY, "1");
     if (missing && !localStorage.getItem(SETUP_KEY)) showSetup(1);
+    else if (!localStorage.getItem(TOUR_KEY)) showTour(0);
   }
   tabSettled = true;
   renderSetup();
@@ -679,12 +691,14 @@ document.addEventListener("visibilitychange", () => { if (document.visibilitySta
 let tab = "route";
 let tabTouched = false;
 let tabSettled = false;
+const TAB_KEY = "tab";
 function showTab(name) {
   tab = name;
+  if (tabTouched) localStorage.setItem(TAB_KEY, name);
   $("tab-route").hidden = name !== "route";
   $("tab-directions").hidden = name !== "directions";
-  $("tab-route-btn").className = name === "route" ? "active" : "";
-  $("tab-directions-btn").className = name === "directions" ? "active" : "";
+  $("tab-route-btn").classList.toggle("active", name === "route");
+  $("tab-directions-btn").classList.toggle("active", name === "directions");
   window.scrollTo(0, 0);
   if (name === "directions") scheduleGuidance(0); else showStats("");
 }
@@ -717,6 +731,7 @@ async function search(q) {
       li.onclick = () => pickPlace(r);
       list.appendChild(li);
     }
+    if (tourStep === 0 && body.results.length) await pickPlace(body.results[0]);
     return body.results;
   } catch (e) { list.replaceChildren(); toast(e.message); return []; }
 }
@@ -768,6 +783,7 @@ async function pickPlace(place) {
   showRoutes(null);
   renderSaveable();
   $("routes-actions").hidden = false;
+  if (tourStep === 0) showTour(ROUTE_TIP);
 }
 
 function renderSortChips() {
@@ -848,6 +864,7 @@ async function navigateTo(name, dest, summary) {
     applyStatus(await api("/api/navigate", post({ name, dest, summary })));
     toast("Destination set" + (summary ? " via " + summary : ""));
     clearSearch();
+    if (tourStep >= 0 && tourStep <= ROUTE_TIP) showTour(ROUTE_TIP + 1);
   } catch (e) { toast(e.message); }
 }
 
@@ -967,6 +984,7 @@ function moveInto(id, target) {
 }
 
 function showSetup(step) {
+  if (tab !== "route") showTab("route");
   if (!setupStep) {
     moveInto("rows-map", "setup-map");
     moveInto("rows-device", "setup-device");
@@ -980,29 +998,39 @@ function showSetup(step) {
   $("setup-open").hidden = true;
   for (let i = 1; i <= SETUP_STEPS; i++) $("setup-" + i).hidden = i !== step;
   $("setup-step").textContent = "Step " + step + " of " + SETUP_STEPS;
+  // a rerun can be left from its first step, or its last, straight into the tour; the first run
+  // finishes into the tour by itself
+  const rerun = localStorage.getItem(SETUP_KEY);
+  const cancel = step === 1 && rerun;
   $("setup-back").style.visibility = step === 1 ? "hidden" : "";
+  $("setup-back").hidden = !!cancel;
+  $("setup-cancel").hidden = !cancel;
+  $("setup-tour").hidden = !(rerun && (step === 1 || step === SETUP_STEPS));
   renderSetup();
   window.scrollTo(0, 0);
 }
 
 function hideSetup(done) {
+  const first = !localStorage.getItem(SETUP_KEY);
   setupStep = 0;
   for (const m of movedRows) m.parent.insertBefore(m.el, m.next);
   movedRows = [];
   $("setup").hidden = true;
   $("route-main").hidden = false;
   $("setup-open").hidden = false;
+  $("row-allow").classList.remove("needs");
   if (done) localStorage.setItem(SETUP_KEY, "1");
-  if (done && !localStorage.getItem(TOUR_KEY)) showTour(0);
+  if (done && first) showTour(0);
 }
 
 function renderSetup() {
   if (!setupStep) return;
+  $("row-allow").classList.toggle("needs", !!settings && !settings.allowNavigation);
   $("setup-driving").hidden = state.canSet || setupStep < 3;
   $("setup-next").textContent = setupStep === SETUP_STEPS ? "Finish" : "Next";
   $("setup-hint").textContent = setupStep === SETUP_STEPS
     ? "Only Allow Navigation is required for basic navigation features. The rest are by choice. Tap Finish to adjust these later in Settings."
-      + (localStorage.getItem(TOUR_KEY) ? "" : " Next: a short tour of setting a route.")
+      + (localStorage.getItem(SETUP_KEY) ? "" : " Next: a short tour of setting a route.")
     : "";
 }
 
@@ -1017,17 +1045,21 @@ function pinText() {
 $("setup-open").onclick = () => showSetup(1);
 $("setup-banner").onclick = () => showSetup(1);
 $("setup-back").onclick = () => showSetup(setupStep - 1);
+$("setup-cancel").onclick = () => hideSetup(false);
+$("setup-tour").onclick = () => { hideSetup(setupStep === SETUP_STEPS); showTour(0); };
 $("setup-next").onclick = () => setupStep === SETUP_STEPS ? hideSetup(true) : showSetup(setupStep + 1);
 
-// --- the tour after the first walk: how a route is set, one ringed element per tip. Next on
-// the first tip runs a sample search and opens the pick, so the route tip shows on real routes ---
+// --- the tour after the first walk: how a route is set, one ringed element per tip. On the
+// first tip any search opens the pick on its first result, so the route tip shows on real
+// routes; Next runs a sample one. A send moves the tour on to the favorites, as in the app ---
 const TOUR = [
   { target: "search-form", text: "Type an address or place and tap Search, then pick a result." },
   { target: "routes-sort", text: "Routes sort by traffic-inclusive shortest time by default. You can reorder them as desired using the provided filters." },
   { target: "favorites", text: "Set as Home or Set as Work saves the place here. One tap on a saved row starts a route; the three icons send its fastest, typical or shortest route straight away." },
-  { target: "tab-directions-btn", text: "With a route set, Directions shows the turn ahead, the turns after it and the route on a map, so you can glance at your mounted phone instead of the center display." },
+  { target: "tab-directions-btn", text: "With a route set, Directions shows the turn ahead, the turns after it and the route on a map, so you can glance at your mounted phone instead of the center display. For now the map draws the route on its own, with no streets behind it." },
 ];
 const ROUTE_TIP = 1;
+const DIRECTIONS_TIP = 3;
 const SAMPLE_SEARCH = "Main Street";
 let tourStep = -1;
 
@@ -1038,13 +1070,21 @@ function showTour(step) {
   const el = $(tip.target);
   el.classList.add("tour-target");
   const tour = $("tour");
-  if (tip.target === "tab-directions-btn") document.querySelector(".tabs").insertAdjacentElement("beforebegin", tour);
-  else el.insertAdjacentElement("afterend", tour);
+  // the tour's tab is a choice like the user's, so the status poll's own pick stands down
+  tabTouched = true;
+  if (step === DIRECTIONS_TIP) {
+    showTab("directions");
+    document.querySelector(".tabs").insertAdjacentElement("beforebegin", tour);
+  } else {
+    if (tab !== "route") showTab("route");
+    el.insertAdjacentElement("afterend", tour);
+  }
   tour.hidden = false;
   el.scrollIntoView({ behavior: "smooth", block: "center" });
   $("tour-text").textContent = tip.text;
   $("tour-step").textContent = (step + 1) + " of " + TOUR.length;
-  $("tour-back").style.visibility = step === 0 || step === ROUTE_TIP ? "hidden" : "";
+  $("tour-back").style.visibility = step === 0 ? "hidden" : "";
+  $("tour-skip").hidden = step + 1 === TOUR.length;
   $("tour-next").textContent = step + 1 === TOUR.length ? "Done" : "Next";
   const first = $("routes-list").firstElementChild;
   if (step === ROUTE_TIP && first) {
@@ -1058,20 +1098,15 @@ function endTour() {
   tourStep = -1;
   $("tour").hidden = true;
   localStorage.setItem(TOUR_KEY, "1");
-  window.scrollTo(0, 0);
+  showTab("route");
 }
 
-// the user's own pick serves; otherwise the sample's first result opens the pick, and a
-// failed or empty search skips to favorites. Next on the route tip leaves the pick the way
-// sending a route does, landing on the Route tab at the favorites tip
+// a failed or empty sample search skips to favorites. Next on the route tip leaves the pick
+// the way sending a route does, Back there closes it, and Back from the favorites reopens it
 async function tourOpenRoutes() {
-  if ($("routes-panel").hidden) {
-    $("search-input").value = SAMPLE_SEARCH;
-    const results = await search(SAMPLE_SEARCH);
-    if (!results.length) { showTour(ROUTE_TIP + 1); return; }
-    await pickPlace(results[0]);
-  }
-  showTour(ROUTE_TIP);
+  $("search-input").value = SAMPLE_SEARCH;
+  const results = await search(SAMPLE_SEARCH);
+  if (!results.length) showTour(ROUTE_TIP + 1);
 }
 
 $("tour-next").onclick = () => {
@@ -1080,7 +1115,12 @@ $("tour-next").onclick = () => {
   else if (tourStep + 1 === TOUR.length) endTour();
   else showTour(tourStep + 1);
 };
-$("tour-back").onclick = () => showTour(tourStep === ROUTE_TIP + 1 ? 0 : tourStep - 1);
+$("tour-skip").onclick = () => { clearSearch(); endTour(); };
+$("tour-back").onclick = () => {
+  if (tourStep === ROUTE_TIP) { clearSearch(); showTour(0); }
+  else if (tourStep === ROUTE_TIP + 1) { showTour(0); tourOpenRoutes(); }
+  else showTour(tourStep - 1);
+};
 
 async function loadSettings() {
   try { settings = await api("/api/settings"); renderSettings(); }
