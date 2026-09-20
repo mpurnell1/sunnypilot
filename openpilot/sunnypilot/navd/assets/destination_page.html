@@ -149,7 +149,6 @@
   <div id="setup-1">
     <div class="headline">Turn navigation on</div>
     <div id="setup-rows"></div>
-    <div id="setup-driving" class="muted" style="margin-top:10px" hidden>The car is driving: settings save while parked.</div>
   </div>
   <div id="setup-2" hidden>
     <div class="headline">Mapbox token</div>
@@ -170,6 +169,11 @@
     </div>
     <div id="setup-pin" class="muted" style="margin-top:8px"></div>
   </div>
+  <div id="setup-4" hidden>
+    <div class="headline">How it guides you</div>
+    <div id="setup-guidance"></div>
+  </div>
+  <div id="setup-driving" class="muted" style="margin-top:10px" hidden>The car is driving: settings save while parked.</div>
   <div id="setup-hint" class="muted" style="margin-top:10px"></div>
   <div class="row" style="margin-top:12px; justify-content:flex-end">
     <button id="setup-back" class="small"></button>
@@ -224,6 +228,11 @@
     <div class="grow">Allow Navigation <span class="muted">(the navigation service that calculates routes on the comma; off, no destination can be set)</span></div>
     <button id="set-allow" class="small"></button>
   </div>
+  <div id="row-recompute" class="row" style="margin-top:12px">
+    <div class="grow">Mapbox Recompute <span class="muted">(recompute the route automatically when you leave it; the device needs a data connection, comma prime/eSIM or mobile hotspot, for this to work, otherwise the route, and navigation, is lost)</span></div>
+    <button id="set-recompute" class="small"></button>
+  </div>
+  <div id="rows-guidance">
   <div class="row" style="margin-top:12px">
     <div class="grow">Navigation Desires <span class="muted">(send turn desires to follow your selected route when you signal)</span></div>
     <button id="set-desires" class="small"></button>
@@ -240,13 +249,10 @@
     <div class="grow">Navigation Audio <span class="muted">(a tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn is close)</span></div>
     <button id="set-audio" class="small"></button>
   </div>
-  <div id="row-recompute" class="row" style="margin-top:12px">
-    <div class="grow">Mapbox Recompute <span class="muted">(recompute the route automatically when you leave it; the device needs a data connection, comma prime/eSIM or mobile hotspot, for this to work, otherwise the route, and navigation, is lost)</span></div>
-    <button id="set-recompute" class="small"></button>
-  </div>
-  <div class="row" style="margin-top:8px">
+  <div class="row" style="margin-top:12px">
     <div class="grow">Quiet Glyph <span class="muted">(keep a dim next-turn arrow in the corner between maneuvers; comma four only)</span></div>
     <button id="set-quiet-glyph" class="small"></button>
+  </div>
   </div>
   <div id="row-token" style="margin-top:14px">
     <div class="muted">Mapbox token: <span id="token-state"></span></div>
@@ -816,7 +822,7 @@ function renderSettings() {
 // The settings rows the walk needs move into it and back, so the copy lives once ---
 const SETUP_KEY = "setupDone";
 const TOUR_KEY = "tourDone";
-const SETUP_STEPS = 3;
+const SETUP_STEPS = 4;
 let setupStep = 0;
 let movedRows = [];
 
@@ -831,6 +837,7 @@ function showSetup(step) {
     moveInto("row-allow", "setup-rows");
     moveInto("row-recompute", "setup-rows");
     moveInto("row-token", "setup-token");
+    moveInto("rows-guidance", "setup-guidance");
     $("setup-here").textContent = location.host;
     $("setup-pin").textContent = pinText();
   }
@@ -859,11 +866,12 @@ function hideSetup(done) {
 function renderSetup() {
   if (!setupStep) return;
   const tokenSet = settings ? settings.tokenSet : state.tokenSet;
-  $("setup-driving").hidden = state.canSet;
+  $("setup-driving").hidden = state.canSet || !(setupStep === 1 || setupStep === 4);
   $("setup-next").textContent = setupStep === SETUP_STEPS ? "Finish" : setupStep === 2 && !tokenSet ? "Skip" : "Next";
-  $("setup-hint").textContent = setupStep === 1 ? "Switch these on to enable navigation. Everything here can be changed later under Settings."
+  $("setup-hint").textContent = setupStep === 1 ? "Allow Navigation is the switch navigation needs. Mapbox Recompute is optional, for a device with its own data connection. Both can be changed later under Settings."
     : setupStep === 2 && !tokenSet ? "Without a token nothing routes or searches."
-    : setupStep === SETUP_STEPS && !localStorage.getItem(TOUR_KEY) ? "Next: a short tour of setting a route." : "";
+    : setupStep === 4 ? "The defaults are fine to start with; every row is under Settings later." + (localStorage.getItem(TOUR_KEY) ? "" : " Next: a short tour of setting a route.")
+    : "";
 }
 
 function pinText() {
