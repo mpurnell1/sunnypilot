@@ -24,6 +24,12 @@ sections:
     description: Recompute the route automatically after leaving it.
     enablement:
     - $ref: '#/macros/offroad'
+  - key: NavDesiresAllowed
+    widget: toggle
+    title: Navigation Desires
+    description: Steer through a turn on the route once you signal for it.
+    enablement:
+    - $ref: '#/macros/offroad'
 - id: guidance
   title: Guidance
   description: The turn card, lanes and sounds while a route is active
