@@ -60,7 +60,30 @@ class TestRouteLineSnapshot:
     Params().remove('MapboxSettings')
 
   def test_no_route(self):
-    assert route_line_snapshot(Params()) == {"routeId": 0, "points": []}
+    assert route_line_snapshot(Params()) == {"routeId": 0, "points": [], "totalDistance": 0.0, "steps": []}
+
+  def test_steps_sit_where_navigationd_places_them(self):
+    # a client lists the turns ahead as the steps past (totalDistance - distanceRemaining),
+    # which only works if each step's along matches the cumulative distance navigationd
+    # counts the state's maneuver distances from
+    params = Params()
+    geometry = [_point(34.2 + i * 0.001, -119.0) for i in range(11)]
+    route = _route(geometry)
+    route['steps'].append({'maneuver': 'turn', 'instruction': 'Turn right onto Elm St', 'distance': 500.0, 'duration': 40.0,
+                           'modifier': 'right', 'location': geometry[5], 'bannerInstructions': []})
+    route['totalDistance'] = 1113.0
+    params.put('MapboxSettings', {'navData': {'current': geometry[0], 'route': route}}, block=True)
+
+    snap = route_line_snapshot(params)
+    loaded = Route.from_mapbox(route)
+    assert [s["along"] for s in snap["steps"]] == [step.cumulative_distance for step in loaded.steps]
+    assert snap["steps"][1] == {"along": loaded.steps[1].cumulative_distance, "type": "turn", "modifier": "right",
+                                "instruction": "Turn right onto Elm St"}
+    assert snap["totalDistance"] == 1113.0
+    progress = loaded.progress(Coordinate(34.2025, -119.0))
+    along = snap["totalDistance"] - progress.distance_remaining
+    ahead = [s for s in snap["steps"] if s["along"] > along]
+    assert [s["along"] - along for s in ahead] == pytest.approx([progress.all_maneuvers[1].distance])
 
   def test_straight_line_collapses_and_a_corner_survives(self):
     params = Params()
