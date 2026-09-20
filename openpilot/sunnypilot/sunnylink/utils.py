@@ -1,6 +1,9 @@
 import base64
+import fcntl
 import gzip
 import json
+import socket
+import struct
 from openpilot.sunnypilot.sunnylink.api import SunnylinkApi, UNREGISTERED_SUNNYLINK_DONGLE_ID
 from openpilot.common.params import Params, ParamKeyType
 from openpilot.common.version import is_prebuilt
@@ -127,3 +130,47 @@ def _convert_param_to_type(value: bytes, param_type: ParamKeyType) -> bytes | st
     return json.loads(decoded)
 
   return decoded
+
+
+# destinationd's page: served on wlan0, which is 192.168.43.1 itself while the device tethers
+DEVICE_PAGE_PORT = 5050
+TETHERING_IP = "192.168.43.1"
+DEVICE_PAGE_PLACEHOLDER = "{device_page}"
+SIOCGIFADDR = 0x8915
+
+
+def wlan_ipv4(interface: str = "wlan0") -> str:
+  """The interface's IPv4 address, empty while it has none."""
+  with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+    try:
+      packed = fcntl.ioctl(sock.fileno(), SIOCGIFADDR, struct.pack("256s", interface.encode()[:15]))
+    except OSError:
+      return ""
+  return socket.inet_ntoa(packed[20:24])
+
+
+def device_page_hint(ip: str | None = None) -> str:
+  """Where the device page answers right now, in words a settings description can carry."""
+  ip = wlan_ipv4() if ip is None else ip
+  tethering = f"http://{TETHERING_IP}:{DEVICE_PAGE_PORT} with the device's Wifi Tethering on"
+  if not ip or ip == TETHERING_IP:
+    return tethering
+  return f"http://{ip}:{DEVICE_PAGE_PORT} on this wifi, or {tethering}"
+
+
+def fill_device_page(schema: dict, hint: str) -> dict:
+  """Replace the page placeholder in every item description with where the page is now."""
+  def walk(items):
+    for item in items:
+      description = item.get("description")
+      if isinstance(description, str) and DEVICE_PAGE_PLACEHOLDER in description:
+        item["description"] = description.replace(DEVICE_PAGE_PLACEHOLDER, hint)
+      walk(item.get("sub_items", []))
+
+  for panel in schema.get("panels", []):
+    walk(panel.get("items", []))
+    for section in panel.get("sections", []):
+      walk(section.get("items", []))
+      for sub_panel in section.get("sub_panels", []):
+        walk(sub_panel.get("items", []))
+  return schema

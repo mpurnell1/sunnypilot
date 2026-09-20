@@ -18,8 +18,7 @@ sections:
       connection (comma prime/eSIM or mobile hotspot) to route. While it is off, no destination can be set. For now, the
       Mapbox token must be set through the sunnynav app
       (https://play.google.com/store/apps/details?id=com.mpurnell.sunnynav, under Settings > Map) or on the
-      device-hosted webpage (http://192.168.43.1:5050 with the device's Wifi Tethering on, or its wifi address, under
-      Settings).
+      device-hosted webpage ({device_page}, under Settings).
     enablement:
     - $ref: '#/macros/offroad'
   - key: MapboxRecompute
