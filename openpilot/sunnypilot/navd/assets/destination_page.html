@@ -95,6 +95,7 @@
   .sortchip { display: inline-flex; align-items: center; gap: 6px; }
   .sortchip svg { width: 18px; height: 18px; fill: currentColor; }
   a { color: var(--accent); }
+  .ok { color: var(--accent); }
   /* settings rows and the walk, laid out like the app's: a title over its description, the control at the right */
   .setting { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
   #rows-device .setting:first-child { border-top: none; }
@@ -340,9 +341,9 @@
 <div id="tour" class="card" hidden>
   <div id="tour-text"></div>
   <div class="row">
-    <span id="tour-step" class="muted grow"></span>
-    <button id="tour-skip" class="small">Skip</button>
     <button id="tour-back" class="small">Back</button>
+    <span id="tour-step" class="muted grow" style="text-align:center"></span>
+    <button id="tour-skip" class="small">Skip</button>
     <button id="tour-next" class="small primary"></button>
   </div>
 </div>
@@ -965,7 +966,8 @@ function renderSettings() {
   onOff($("set-audio"), settings.navAudio, v => saveSettings({ navAudio: v }));
   onOff($("set-recompute"), settings.recompute, v => saveSettings({ recompute: v }));
   onOff($("set-quiet-glyph"), settings.quietGlyph, v => saveSettings({ quietGlyph: v }));
-  $("token-state").textContent = settings.tokenSet ? "(set)" : "(not set)";
+  $("token-state").textContent = settings.tokenSet ? "(already set)" : "(not set)";
+  $("token-state").className = settings.tokenSet ? "ok" : "muted";
   renderSetup();
 }
 
@@ -1077,7 +1079,8 @@ function showTour(step) {
     document.querySelector(".tabs").insertAdjacentElement("beforebegin", tour);
   } else {
     if (tab !== "route") showTab("route");
-    el.insertAdjacentElement("afterend", tour);
+    // the favorites tip sits above its list, clear of the toasts at the foot of the screen
+    el.insertAdjacentElement(tip.target === "favorites" ? "beforebegin" : "afterend", tour);
   }
   tour.hidden = false;
   el.scrollIntoView({ behavior: "smooth", block: "center" });
