@@ -63,8 +63,6 @@
   .shortcuts button { padding: 5px 6px; line-height: 0; }
   .shortcuts svg { width: 20px; height: 20px; fill: var(--ink2); }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-  .routecard { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; margin-top: 8px; cursor: pointer; }
-  .routecard.selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   .guide { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
   .guide .glyph { width: 72px; height: 72px; flex: none; fill: none; stroke: var(--ink); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
   .guide .dist { font-size: 1.5rem; font-weight: 600; line-height: 1.2; }
@@ -91,6 +89,10 @@
   .routemap .casing { fill: none; stroke: #003e46; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
   .routemap .line { fill: none; stroke: #00c8c8; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
   .routemap .car { fill: #fff; stroke: var(--ink); stroke-width: 2; }
+  .routemap .other { fill: none; stroke: var(--ink2); stroke-width: 3; opacity: 0.6; stroke-linecap: round; stroke-linejoin: round; }
+  label.item { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+  .sortchip { display: inline-flex; align-items: center; gap: 6px; }
+  .sortchip svg { width: 18px; height: 18px; fill: currentColor; }
   a { color: var(--accent); }
   /* settings rows and the walk, laid out like the app's: a title over its description, the control at the right */
   .setting { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
@@ -108,7 +110,7 @@
   .tour-target { box-shadow: 0 0 0 3px var(--accent); border-radius: 10px; }
   /* one route card flashes once under the route tip, standing in for the tap the tip talks about */
   @keyframes flash { 50% { background: color-mix(in srgb, var(--accent) 25%, transparent); } }
-  .routecard.flash { animation: flash 0.9s ease 1; }
+  label.item.flash { animation: flash 0.9s ease 1; }
   #tour { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px; background: var(--card); border-top: 1px solid var(--line); }
   #tour .row { margin-top: 8px; }
   .banner.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); display: block; }
@@ -227,13 +229,26 @@
 
 <div id="routes-panel" hidden>
   <h2>Routes to <span id="routes-name"></span></h2>
-  <div id="routes-list"></div>
-  <div class="chips">
-    <button id="save-home" class="small">Set as Home</button>
-    <button id="save-work" class="small">Set as Work</button>
-    <button id="save-fav" class="small">Save favorite</button>
+  <svg id="routes-map" class="routemap" viewBox="0 0 400 240" hidden></svg>
+  <div id="routes-map-note" class="muted" hidden>Route preview only, this map is not interactive.</div>
+  <div id="routes-note" class="muted"></div>
+  <div id="routes-sort" class="row" style="margin-top:8px" hidden>
+    <span class="muted">Sort by</span>
+    <div id="sort-chips" class="chips" style="margin-top:0"></div>
   </div>
-  <div id="bind-hint" class="muted" style="margin-top:6px"></div>
+  <div id="routes-list" role="radiogroup"></div>
+  <div id="routes-actions" hidden>
+    <button id="routes-send" class="primary" style="margin-top:8px">Send</button>
+    <div id="save-block">
+      <h2>Save</h2>
+      <div class="chips" style="margin-top:0">
+        <button id="save-home" class="small">Home</button>
+        <button id="save-work" class="small">Work</button>
+        <button id="save-fav" class="small">Favorite</button>
+      </div>
+      <label class="row" style="margin-top:10px"><input type="checkbox" id="bind-route"> Always take the selected route</label>
+    </div>
+  </div>
 </div>
 
 <div class="row" style="margin-top:20px">
@@ -329,7 +344,6 @@
 const $ = id => document.getElementById(id);
 let state = { canSet: false, favorites: [], recents: [] };
 let picked = null;   // {name, longitude, latitude} from search, or {name, dest} from a saved entry
-let pickedRoute = null;  // the tapped (not yet navigated) route card; saving a favorite binds to it
 let lastRoutes = [];
 let editingFavs = false;
 
@@ -431,9 +445,9 @@ function renderSaved() {
 
 // the sort orders of the route pick, with the app's glyphs: time with traffic, typical time, distance
 const SORTS = [
-  { key: r => r.duration, label: "fastest with traffic", icon: "M20 10h-3V8.86c1.72-.45 3-2 3-3.86h-3V4c0-.55-.45-1-1-1H8C7.45 3 7 3.45 7 4v1H4c0 1.86 1.28 3.41 3 3.86V10H4c0 1.86 1.28 3.41 3 3.86V15H4c0 1.86 1.28 3.41 3 3.86V20c0 .55.45 1 1 1h8c.55 0 1-.45 1-1v-1.14c1.72-.45 3-2 3-3.86h-3v-1.14c1.72-.45 3-2 3-3.86zM12 19c-1.11 0-2-.9-2-2s.89-2 2-2c1.1 0 2 .9 2 2s-.89 2-2 2zm0-5c-1.11 0-2-.9-2-2s.89-2 2-2c1.1 0 2 .9 2 2s-.89 2-2 2zm0-5c-1.11 0-2-.9-2-2 0-1.1.89-2 2-2 1.1 0 2 .9 2 2 0 1.1-.89 2-2 2z" },
-  { key: r => r.durationTypical, label: "typical time", icon: "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z" },
-  { key: r => r.distance, label: "shortest", icon: "M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h2v4h2V8h2v4h2V8h2v4h2V8h2v4h2V8h2v8z" },
+  { key: r => r.duration, label: "Time with traffic", icon: "M20 10h-3V8.86c1.72-.45 3-2 3-3.86h-3V4c0-.55-.45-1-1-1H8C7.45 3 7 3.45 7 4v1H4c0 1.86 1.28 3.41 3 3.86V10H4c0 1.86 1.28 3.41 3 3.86V15H4c0 1.86 1.28 3.41 3 3.86V20c0 .55.45 1 1 1h8c.55 0 1-.45 1-1v-1.14c1.72-.45 3-2 3-3.86h-3v-1.14c1.72-.45 3-2 3-3.86zM12 19c-1.11 0-2-.9-2-2s.89-2 2-2c1.1 0 2 .9 2 2s-.89 2-2 2zm0-5c-1.11 0-2-.9-2-2s.89-2 2-2c1.1 0 2 .9 2 2s-.89 2-2 2zm0-5c-1.11 0-2-.9-2-2 0-1.1.89-2 2-2 1.1 0 2 .9 2 2 0 1.1-.89 2-2 2z" },
+  { key: r => r.durationTypical, label: "Typical time", icon: "M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z" },
+  { key: r => r.distance, label: "Distance", icon: "M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 10H3V8h2v4h2V8h2v4h2V8h2v4h2V8h2v4h2V8h2v8z" },
 ];
 
 function shortcuts(entry) {
@@ -442,7 +456,7 @@ function shortcuts(entry) {
   for (const sort of SORTS) {
     const b = document.createElement("button");
     b.className = "small";
-    b.title = "Send the " + sort.label + " route";
+    b.title = "Send the best route by " + sort.label.toLowerCase();
     b.innerHTML = "<svg viewBox='0 0 24 24'><path d='" + sort.icon + "'/></svg>";
     b.onclick = () => startSorted(entry, sort);
     box.appendChild(b);
@@ -615,9 +629,9 @@ function renderRoute() {
     "</div><div class='muted'>" + feetOrMiles(t.distance) + "</div></li>").join("");
 }
 
-// equirectangular about the route's first vertex: over one route the flat-earth error is
-// below a line width, and longitude scales by cos(lat) or east-west stretches
-function drawRouteMap(svg, points, car) {
+// equirectangular about the first vertex: over one route the flat-earth error is below a
+// line width, and longitude scales by cos(lat) or east-west stretches
+function projector(points) {
   const W = 400, H = 240, PAD = 16;
   const k = Math.cos(points[0][0] * Math.PI / 180);
   const xs = points.map(p => p[1] * k), ys = points.map(p => -p[0]);
@@ -625,9 +639,18 @@ function drawRouteMap(svg, points, car) {
   const scale = Math.min((W - 2 * PAD) / ((maxX - minX) || 1e-9), (H - 2 * PAD) / ((maxY - minY) || 1e-9));
   const sx = x => (W / 2 + (x - (minX + maxX) / 2) * scale).toFixed(1);
   const sy = y => (H / 2 + (y - (minY + maxY) / 2) * scale).toFixed(1);
-  const d = points.map((p, i) => (i ? "L" : "M") + sx(p[1] * k) + " " + sy(-p[0])).join("");
+  return {
+    path: pts => pts.map((p, i) => (i ? "L" : "M") + sx(p[1] * k) + " " + sy(-p[0])).join(""),
+    at: (lat, lon) => ({ cx: sx(lon * k), cy: sy(-lat) }),
+  };
+}
+
+function drawRouteMap(svg, points, car) {
+  const project = projector(points);
+  const d = project.path(points);
+  const dot = car ? project.at(car.latitude, car.longitude) : null;
   svg.innerHTML = "<path class='casing' d='" + d + "'/><path class='line' d='" + d + "'/>" +
-    (car ? "<circle class='car' cx='" + sx(car.longitude * k) + "' cy='" + sy(-car.latitude) + "' r='6'/>" : "");
+    (dot ? "<circle class='car' cx='" + dot.cx + "' cy='" + dot.cy + "' r='6'/>" : "");
 }
 
 $("view-directions").onclick = () => setView("directions");
@@ -706,75 +729,124 @@ function clearSearch() {
 
 function destString(place) { return place.longitude.toFixed(6) + "," + place.latitude.toFixed(6); }
 
+// --- the route pick, the app's: the alternates previewed as lines, sorted by the time with
+// traffic until another order is chosen, one picked at a time, one Send. Saving binds the
+// favorite to the picked route only with the checkbox on ---
+const TRAFFIC_NOTE_MIN = 2;
+let shownRoutes = [];
+let sortIndex = 0;
+let selectedRoute = null;
+
 async function pickPlace(place) {
   picked = place;
-  pickedRoute = null;
   lastRoutes = [];
+  shownRoutes = [];
+  selectedRoute = null;
+  sortIndex = 0;
   $("routes-name").textContent = place.name;
   $("routes-panel").hidden = false;
-  const list = $("routes-list");
-  list.innerHTML = "<div class='muted'>Loading routes...</div>";
+  $("routes-note").textContent = "Loading routes...";
+  $("routes-sort").hidden = $("routes-actions").hidden = true;
+  $("routes-map").toggleAttribute("hidden", true);
+  $("routes-map-note").hidden = true;
+  $("routes-list").replaceChildren();
+  $("routes-panel").scrollIntoView({ behavior: "smooth", block: "start" });
   try {
     const body = await api("/api/routes?lon=" + place.longitude + "&lat=" + place.latitude);
+    if (!body.routes.length) throw new Error("no routes previewed");
     lastRoutes = body.routes;
-    renderRoutes();
   } catch (e) {
-    // no device position or preview failure still allows the fastest-route send
-    list.replaceChildren();
-    list.appendChild(routeCard(null, e.message + ". Navigate anyway with the fastest route."));
-    updateBindHint();
+    // no device position or a preview failure sends the fastest route, as the app does
+    $("routes-note").textContent = "No route preview (" + e.message + "), sending the fastest route";
+    await navigateTo(place.name, destString(place), "");
+    return;
   }
-  $("routes-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+  $("routes-note").textContent = "";
+  $("routes-sort").hidden = false;
+  renderSortChips();
+  showRoutes(null);
+  renderSaveable();
+  $("routes-actions").hidden = false;
 }
 
-function routeCard(route, note) {
-  const div = document.createElement("div");
-  div.className = "routecard row" + (route && route === pickedRoute ? " selected" : "");
-  const info = document.createElement("div");
-  info.className = "grow";
-  if (route) {
-    const delay = Math.round((route.duration - route.durationTypical) / 60);
-    info.innerHTML = "<div class='clip'>" + esc(route.summary || "Route") + "</div>" +
-      "<div class='muted'>" + mins(route.duration) + " (" + miles(route.distance) + ")" +
-      (delay >= 2 ? ", +" + delay + " min traffic" : "") + "</div>";
-    // tapping the card (not Go) marks the route a favorite save should bind to
-    div.onclick = () => { pickedRoute = pickedRoute === route ? null : route; renderRoutes(); };
-  } else {
-    info.innerHTML = "<div class='muted'>" + esc(note) + "</div>";
-  }
-  const go = document.createElement("button");
-  go.className = "primary";
-  go.textContent = "Send";
-  go.onclick = ev => { ev.stopPropagation(); navigateTo(picked.name, destString(picked), route && route.summary ? route.summary : ""); };
-  div.appendChild(info);
-  div.appendChild(go);
-  return div;
+function renderSortChips() {
+  const box = $("sort-chips");
+  box.replaceChildren();
+  SORTS.forEach((sort, i) => {
+    const b = document.createElement("button");
+    b.className = "small sortchip" + (i === sortIndex ? " primary" : "");
+    b.innerHTML = "<svg viewBox='0 0 24 24'><path d='" + sort.icon + "'/></svg>" + esc(sort.label);
+    b.onclick = () => { if (i !== sortIndex) { sortIndex = i; renderSortChips(); showRoutes(selectedRoute); } };
+    box.appendChild(b);
+  });
 }
 
-function renderRoutes() {
+// "22 min, 14.3 mi, via I-210 W" over "+4 min traffic", the app's row copy
+function routeTitle(r) {
+  const mi = r.distance / 1609.344;
+  const base = Math.round(r.duration / 60) + " min, " + (mi < 10 ? mi.toFixed(1) : Math.round(mi)) + " mi";
+  return r.summary ? base + ", via " + r.summary : base;
+}
+function trafficNote(r) {
+  const delay = Math.round((r.duration - r.durationTypical) / 60);
+  return delay >= TRAFFIC_NOTE_MIN ? "+" + delay + " min traffic" : "";
+}
+
+// a new order keeps the picked route picked, wherever it lands; the first is picked by default
+function showRoutes(keep) {
+  shownRoutes = lastRoutes.slice().sort((a, b) => SORTS[sortIndex].key(a) - SORTS[sortIndex].key(b));
+  selectedRoute = shownRoutes.includes(keep) ? keep : shownRoutes[0];
   const list = $("routes-list");
   list.replaceChildren();
-  for (const r of lastRoutes) list.appendChild(routeCard(r));
-  updateBindHint();
+  shownRoutes.forEach((r, i) => {
+    const label = document.createElement("label");
+    label.className = "item";
+    const radio = document.createElement("input");
+    radio.type = "radio";
+    radio.name = "route";
+    radio.checked = r === selectedRoute;
+    radio.onchange = () => { selectedRoute = r; drawRoutesMap(); };
+    label.appendChild(radio);
+    const text = document.createElement("div");
+    text.className = "grow";
+    text.innerHTML = "<div>" + esc(routeTitle(r)) + "</div>" + (trafficNote(r) ? "<div class='muted'>" + esc(trafficNote(r)) + "</div>" : "");
+    label.appendChild(text);
+    list.appendChild(label);
+  });
+  drawRoutesMap();
 }
 
-function updateBindHint() {
-  const hint = $("bind-hint");
-  if (pickedRoute && pickedRoute.summary) {
-    hint.textContent = "Saving now binds the favorite to " + pickedRoute.summary + "; it will navigate on that route immediately.";
-  } else if (lastRoutes.length > 1) {
-    hint.textContent = "Tap a route first to save a favorite bound to it.";
-  } else {
-    hint.textContent = "";
-  }
+function drawRoutesMap() {
+  const svg = $("routes-map");
+  const withShape = shownRoutes.filter(r => r.points && r.points.length);
+  svg.toggleAttribute("hidden", !withShape.length);
+  $("routes-map-note").hidden = !withShape.length;
+  if (!withShape.length) return;
+  const project = projector(withShape.flatMap(r => r.points));
+  const others = withShape.filter(r => r !== selectedRoute).map(r => "<path class='other' d='" + project.path(r.points) + "'/>").join("");
+  const pickedPath = selectedRoute && selectedRoute.points && selectedRoute.points.length ? project.path(selectedRoute.points) : "";
+  svg.innerHTML = others + (pickedPath ? "<path class='casing' d='" + pickedPath + "'/><path class='line' d='" + pickedPath + "'/>" : "");
+}
+
+// the Save row offers only what is still unset for this place; nothing to save hides it
+function renderSaveable() {
+  const favs = state.favorites || [];
+  const dest = destString(picked);
+  const home = !favs.some(f => f.kind === "home");
+  const work = !favs.some(f => f.kind === "work");
+  const favorite = !favs.some(f => f.kind === "favorite" && sameDest(f.dest, dest));
+  $("save-home").hidden = !home;
+  $("save-work").hidden = !work;
+  $("save-fav").hidden = !favorite;
+  $("save-block").hidden = !(home || work || favorite);
+  $("bind-route").checked = false;
 }
 
 async function navigateTo(name, dest, summary) {
   try {
     applyStatus(await api("/api/navigate", post({ name, dest, summary })));
     toast("Destination set" + (summary ? " via " + summary : ""));
-    $("routes-panel").hidden = true;
-    $("search-results").replaceChildren();
+    clearSearch();
   } catch (e) { toast(e.message); }
 }
 
@@ -809,15 +881,17 @@ async function saveFavorite(kind) {
     name = prompt("Favorite name", picked.name);
     if (!name) return;
   }
-  const summary = pickedRoute && pickedRoute.summary ? pickedRoute.summary : "";
+  const summary = $("bind-route").checked && selectedRoute && selectedRoute.summary ? selectedRoute.summary : "";
   try {
     const body = await api("/api/favorites", post({ action: "set", kind, name, dest: destString(picked), summary }));
     state.favorites = body.favorites;
     renderSaved();
-    toast(summary ? "Saved, bound to " + summary : "Saved");
+    renderSaveable();
+    toast(summary ? "Saved " + name + ", bound to " + summary : "Saved " + name);
   } catch (e) { toast(e.message); }
 }
 
+$("routes-send").onclick = () => navigateTo(picked.name, destString(picked), selectedRoute && selectedRoute.summary ? selectedRoute.summary : "");
 $("save-home").onclick = () => saveFavorite("home");
 $("save-work").onclick = () => saveFavorite("work");
 $("save-fav").onclick = () => saveFavorite(null);
@@ -948,7 +1022,7 @@ $("setup-next").onclick = () => setupStep === SETUP_STEPS ? hideSetup(true) : sh
 // the first tip runs a sample search and opens the pick, so the route tip shows on real routes ---
 const TOUR = [
   { target: "search-form", text: "Type an address or place and tap Search, then pick a result." },
-  { target: "routes-list", text: "Routes sort by traffic-inclusive shortest time by default. You can reorder them as desired using the provided filters." },
+  { target: "routes-sort", text: "Routes sort by traffic-inclusive shortest time by default. You can reorder them as desired using the provided filters." },
   { target: "favorites", text: "Set as Home or Set as Work saves the place here. One tap on a saved row starts a route; the three icons send its fastest, typical or shortest route straight away." },
   { target: "tab-directions-btn", text: "With a route set, Directions shows the turn ahead, the turns after it and the route on a map, so a phone in a mount is the head unit." },
 ];
