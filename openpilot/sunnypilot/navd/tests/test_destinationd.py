@@ -228,7 +228,7 @@ class TestDestinationd:
 
   def test_settings_round_trip(self):
     body = self.get("/api/settings").json()
-    assert body == {"device": self.server.api.device, "allowNavigation": True, "navHudMode": 3, "navAudio": False, "navDesiresAllowed": False,
+    assert body == {"device": self.server.api.device, "version": self.server.api.version, "allowNavigation": True, "navHudMode": 3, "navAudio": False, "navDesiresAllowed": False,
                     "laneGuidance": False, "navLaneChangeTimer": 0, "recompute": False, "quietGlyph": False, "tokenSet": True}
     res = self.post("/api/settings", {"allowNavigation": False, "navHudMode": 1, "navAudio": True, "navDesiresAllowed": True,
                                       "laneGuidance": True, "navLaneChangeTimer": 3, "recompute": True, "quietGlyph": True})

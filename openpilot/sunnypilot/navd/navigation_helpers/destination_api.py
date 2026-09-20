@@ -14,6 +14,7 @@ cancel any time.
 """
 from collections.abc import Callable
 
+from openpilot.common.git import get_commit, get_short_branch
 from openpilot.common.hardware import HARDWARE
 from openpilot.common.params import Params
 from openpilot.sunnypilot.navd.helpers import Coordinate, coordinate_from_param
@@ -33,7 +34,7 @@ class DestinationAPI:
   def __init__(self, params: Params | None = None, store: DestinationStore | None = None,
                mapbox: MapboxIntegration | None = None, can_set: Callable[[], bool] = lambda: True,
                offroad: Callable[[], bool] = lambda: True, source: str = "destinationd",
-               device: str | None = None):
+               device: str | None = None, version: str | None = None):
     self.params = params or Params()
     self.store = store or DestinationStore(self.params)
     self.mapbox = mapbox or MapboxIntegration()
@@ -41,6 +42,7 @@ class DestinationAPI:
     self.offroad = offroad
     self.source = source
     self.device = device or HARDWARE.get_device_type()
+    self.version = version or " ".join(filter(None, [get_short_branch(), get_commit()[:8]]))
 
   def status(self) -> dict:
     return {
@@ -106,6 +108,8 @@ class DestinationAPI:
     return {
       # a client greys the rows one device lacks: the arrival pill is the 3X's, the quiet glyph the four's
       "device": self.device,
+      # the branch and commit the device runs, for bug reports
+      "version": self.version,
       "allowNavigation": p.get_bool("AllowNavigation"),
       "navHudMode": p.get("NavHudMode", return_default=True),
       "navAudio": p.get_bool("NavigationAudio"),
