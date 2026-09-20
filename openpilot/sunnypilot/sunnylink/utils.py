@@ -150,27 +150,35 @@ def wlan_ipv4(interface: str = "wlan0") -> str:
 
 
 def device_page_hint(ip: str | None = None) -> str:
-  """Where the device page answers right now, in words a settings description can carry."""
+  """Where the device page answers right now: its wifi address, the tethering one while tethering."""
   ip = wlan_ipv4() if ip is None else ip
-  tethering = f"http://{TETHERING_IP}:{DEVICE_PAGE_PORT} with the device's Wifi Tethering on"
-  if not ip or ip == TETHERING_IP:
-    return tethering
-  return f"http://{ip}:{DEVICE_PAGE_PORT} on this wifi, or {tethering}"
+  tethering = f"http://{TETHERING_IP}:{DEVICE_PAGE_PORT}"
+  if ip == TETHERING_IP:
+    return f"{tethering} (Wifi Tethering)"
+  if ip:
+    return f"http://{ip}:{DEVICE_PAGE_PORT}"
+  return f"the device's wifi address once it joins a network, or {tethering} once you enable Wifi Tethering"
 
 
 def fill_device_page(schema: dict, hint: str) -> dict:
-  """Replace the page placeholder in every item description with where the page is now."""
+  """Replace the page placeholder in every panel, section and item description with where the page is now."""
+  def fill(node):
+    description = node.get("description")
+    if isinstance(description, str) and DEVICE_PAGE_PLACEHOLDER in description:
+      node["description"] = description.replace(DEVICE_PAGE_PLACEHOLDER, hint)
+
   def walk(items):
     for item in items:
-      description = item.get("description")
-      if isinstance(description, str) and DEVICE_PAGE_PLACEHOLDER in description:
-        item["description"] = description.replace(DEVICE_PAGE_PLACEHOLDER, hint)
+      fill(item)
       walk(item.get("sub_items", []))
 
   for panel in schema.get("panels", []):
+    fill(panel)
     walk(panel.get("items", []))
     for section in panel.get("sections", []):
+      fill(section)
       walk(section.get("items", []))
       for sub_panel in section.get("sub_panels", []):
+        fill(sub_panel)
         walk(sub_panel.get("items", []))
   return schema
