@@ -14,7 +14,8 @@ sections:
   - key: AllowNavigation
     widget: toggle
     title: Allow Navigation
-    description: Enable the navigation service. While it is off, no destination can be set.
+    description: Enable the navigation service. While it is off, no destination can be set. Set up from the sunnynav
+      app, which also holds the Mapbox token.
     enablement:
     - $ref: '#/macros/offroad'
   - key: MapboxRecompute

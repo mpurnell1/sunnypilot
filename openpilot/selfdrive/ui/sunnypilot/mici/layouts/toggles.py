@@ -18,7 +18,7 @@ class TogglesLayoutMiciSP(TogglesLayoutMici):
   def __init__(self):
     super().__init__()
     self._nav_toggle = BigParamControl("navigation", "AllowNavigation")
-    self._nav_toggle.set_value("set up on the phone page, port 5050")
+    self._nav_toggle.set_value("set up from the sunnynav app, or the device page on port 5050")
     self._desires_toggle = BigParamControl("navigation desires", "NavDesiresAllowed")
     self._desires_toggle.set_value("steer through a route turn once you signal for it")
     self._lane_toggle = BigParamControl("lane guidance", "NavLaneGuidance")
