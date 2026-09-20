@@ -497,11 +497,11 @@ struct Navigationd @0xcb9fd56c7057593a {
   # kind: 'turn' | 'slightTurn' | 'sharpTurn' | 'uturn' | 'keep' | 'exit' | 'merge' |
   #       'roundabout' | 'laneChange' | 'reroute' | 'arrive'
   audioCueKind @12 :Text;
-  audioCueStage @13 :Text;  # 'approach' | 'imminent' | 'lane' | 'reroute' | 'arrive' | 'digest'
+  audioCueStage @13 :Text;  # 'approach' | 'imminent' | 'lane' | 'reroute' | 'arrive'
   audioCueId @14 :UInt32;
   # 'left' | 'right' | 'none': the maneuver's side (a roundabout's exit heading)
   audioCueDirection @15 :Text;
-  # a roundabout's exit number, or the mile figure on a digest cue; 0 when meaningless
+  # a roundabout's exit number; 0 when meaningless
   audioCueCount @16 :UInt8;
 
   # where the car stands relative to the loaded route, from signals navigationd already

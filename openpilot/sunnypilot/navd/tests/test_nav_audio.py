@@ -142,17 +142,10 @@ class TestEventCues:
     cues.update(route, _progress(20.0, mtype='arrive', modifier='none'), Guidance(arrived=True), 0.5, False)
     assert cues.cue_id == 1
 
-  def test_long_gap_earns_a_mileage_digest(self):
+  def test_a_far_maneuver_earns_no_cue(self):
     cues, route = NavAudioCues(), {}
     cues.update(route, _progress(5000.0), QUIET, V_CRUISE, False)
-    assert (cues.kind, cues.stage, cues.count, cues.cue_id) == ('turn', 'digest', 3, 1)
-    cues.update(route, _progress(4900.0), QUIET, V_CRUISE, False)
-    assert cues.cue_id == 1
-
-  def test_a_roundabout_digest_carries_miles_not_exits(self):
-    cues, route = NavAudioCues(), {}
-    cues.update(route, _progress(5000.0, mtype='roundabout', instruction='Take the 2nd exit'), QUIET, V_CRUISE, False)
-    assert (cues.kind, cues.stage, cues.count) == ('roundabout', 'digest', 3)
+    assert cues.cue_id == 0
 
 
 ALL_KINDS = [('turn', 'left'), ('turn', 'right'), ('slightTurn', 'left'), ('slightTurn', 'right'),
@@ -234,12 +227,6 @@ class TestPlayer:
     # the next cue this build does understand still plays
     player.update(_FakeSM(4, kind='turn'))
     assert player.active
-
-  def test_the_digest_is_skipped(self, monkeypatch):
-    player = self._player(monkeypatch)
-    player.update(_FakeSM(1))
-    player.update(_FakeSM(2, stage='digest', count=3))
-    assert not player.active
 
   def test_alert_cancel_drops_the_transmission(self, monkeypatch):
     player = self._player(monkeypatch)

@@ -114,8 +114,7 @@ class NavAudioPlayer:
     self._last_cue_id = cue_id
     kind = str(nav.audioCueKind)
     stage = str(nav.audioCueStage)
-    # a digest carries a mile count, which a tone pair cannot say; the approach cue covers the turn
-    if not self.enabled or not kind or stage == 'digest':
+    if not self.enabled or not kind:
       return
     try:
       buf = earcon_wave(kind, stage, str(nav.audioCueDirection), sr=self.sr)

@@ -12,7 +12,6 @@ import re
 
 from numpy import interp
 
-from openpilot.sunnypilot.navd.constants import NAV_CV
 from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES
 
 # metres to the maneuver at which each stage fires, against m/s; imminent is about the braking point
@@ -24,8 +23,6 @@ CRAWL_SPEED = 4.5  # m/s, ~10 mph
 
 # steps shorter than the approach point plus this margin get only the imminent stage
 CHAIN_MARGIN = 150.0  # m
-
-DIGEST_MILE = NAV_CV.METERS_PER_MILE  # gaps longer than this earn a digest cue carrying the mile count
 
 TYPE_KINDS = {'off ramp': 'exit', 'merge': 'merge', 'fork': 'keep'}
 
@@ -155,9 +152,3 @@ class NavAudioCues:
     hint = guidance.lane_change_direction
     if hint in ('left', 'right') and (nt_idx, 'lane', hint) not in self._fired and not crawling:
       self._fire('laneChange', 'lane', hint, 0, (nt_idx, 'lane', hint))
-      return
-
-    # the digest's count is the mile figure; a roundabout's exit number waits for approach and imminent
-    if event is not None and not crawling and distance > DIGEST_MILE and (nt_idx, 'digest') not in self._fired:
-      miles = int(min(9, max(1, round(distance / DIGEST_MILE))))
-      self._fire(event[0], 'digest', event[1], miles, (nt_idx, 'digest'))
