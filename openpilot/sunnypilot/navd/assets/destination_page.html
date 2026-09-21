@@ -200,7 +200,7 @@
       <a href="https://docs.mapbox.com/accounts/guides/tokens/" target="_blank" rel="noopener">token management best practices page</a>
       recommends one key per use case, restricted to only the features it needs, so you can optionally set a
       second, more restricted token for the comma below. This page keeps its phone token in this phone's
-      browser; the <a href="https://play.google.com/store/apps/details?id=com.mpurnell.sunnynav" target="_blank" rel="noopener">sunnynav app</a>
+      browser. The <a href="https://play.google.com/store/apps/details?id=com.mpurnell.sunnynav" target="_blank" rel="noopener">sunnynav app</a>
       keeps its own.
     </div>
     <div id="setup-map"></div>
@@ -314,7 +314,7 @@
           Draws the map behind the route line. Must be a public token (starts with pk.).
           Follow these <a href="https://docs.mapbox.com/help/getting-started/access-tokens" target="_blank" rel="noopener">instructions to create a token</a>,
           then copy it from <a href="https://console.mapbox.com/account/access-tokens" target="_blank" rel="noopener">your account dashboard</a>
-          and paste it here. This doesn't leave your phone: it is kept in this browser.
+          and paste it here. It is kept in this browser and never leaves your phone.
         </div>
         <form id="maptoken-form" class="row" style="margin-top:6px">
           <input id="maptoken-input" type="password" placeholder="pk. public token" autocomplete="off">
@@ -730,7 +730,7 @@ function tileLayer(svg, project) {
     img.setAttribute("y", t.top.toFixed(1));
     img.setAttribute("width", t.size.toFixed(1));
     img.setAttribute("height", t.size.toFixed(1));
-    img.addEventListener("error", () => { mapTokenVerdict = "Mapbox is not serving tiles for this token; Test says why."; renderMapToken(); });
+    img.addEventListener("error", () => { mapTokenVerdict = "Mapbox is not serving tiles for this token. Tap Test to see why."; renderMapToken(); });
     img.addEventListener("load", () => { if (mapTokenVerdict.startsWith("Mapbox is not")) { mapTokenVerdict = ""; renderMapToken(); } });
     layer.appendChild(img);
   }
@@ -779,7 +779,7 @@ async function testMapToken() {
     const res = await fetch(tileUrl({ z: 0, x: 0, y: 0 }, mapToken()), { cache: "no-store" });
     mapTokenVerdict = "Mapbox: " + tileVerdict(res.status);
   } catch (e) {
-    mapTokenVerdict = "Mapbox: no answer, is this phone online?";
+    mapTokenVerdict = "No answer from Mapbox. Is this phone online?";
   }
   $("maptoken-test").disabled = false;
   renderMapToken();
