@@ -207,7 +207,7 @@
   </div>
   <div id="setup-4" hidden>
     <div class="section">Device</div>
-    <div class="muted">The device applies these itself; each row writes as it is changed.</div>
+    <div class="muted">The device applies these itself. Values update on the device as they are changed here.</div>
     <div id="setup-device"></div>
   </div>
   <div id="setup-driving" class="muted" style="margin-top:10px" hidden>Device is driving. Settings save while parked, like destinations.</div>
@@ -332,7 +332,7 @@
         <div>Device Token (required) <span id="token-state" class="muted"></span></div>
         <div class="muted">
           The device's own public token, for its route requests and search. It needs no scopes at all, so a token
-          restricted to nothing more is the safest choice; the phone's token works here too. Away from home wifi
+          restricted to nothing more is the safest choice. The phone's token works here too. Away from home wifi
           the device needs a data connection (comma prime/eSIM or mobile hotspot) to use it. It stays on the comma
           and is not saved in your browser.
         </div>
@@ -582,7 +582,7 @@ function applyTurn(g) {
   const message = !g.active ? "Live guidance shows once the car is on."
     : g.routeState === "rerouting" ? "Departed route, recalculating..."
     : g.routeState === "offRoute" ? "Departed route, waiting to rejoin..."
-    : g.routeFailures ? "Route requests are failing; the last route is kept."
+    : g.routeFailures ? "Route requests are failing. The last route is kept."
     : !g.valid || !g.maneuvers.length ? "Searching for a route..."
     : "";
   headline.hidden = !departed;
@@ -1202,7 +1202,7 @@ $("setup-next").onclick = () => setupStep === SETUP_STEPS ? hideSetup(true) : sh
 const TOUR = [
   { target: "search-form", text: "Type an address or place and tap Search, then pick a result." },
   { target: "routes-sort", text: "Routes sort by traffic-inclusive shortest time by default. You can reorder them as desired using the provided filters." },
-  { target: "favorites", text: "Set as Home or Set as Work saves the place here. One tap on a saved row starts a route; the three icons send its fastest, typical or shortest route straight away." },
+  { target: "favorites", text: "Set as Home or Set as Work saves the place here. One tap on a saved row starts a route. The three icons send its fastest, typical or shortest route straight away." },
   { target: "tab-directions-btn", text: "With a route set, Directions shows the turn ahead, the turns after it and the route on a map, so you can glance at your mounted phone instead of the center display. The map draws the route on its own until a Mapbox Token is saved in Settings, which puts the streets behind it." },
 ];
 const ROUTE_TIP = 1;
