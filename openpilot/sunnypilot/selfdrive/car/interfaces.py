@@ -116,6 +116,8 @@ def initialize_params(params) -> list[dict[str, Any]]:
     "SubaruStopAndGo",
     "SubaruStopAndGoManualParkingBrake",
     "SubaruHideCruiseButtons",
+    "SubaruCruiseButtonProbe",
+    "SubaruCameraBrakeEcho",
   ])
 
   # tesla
