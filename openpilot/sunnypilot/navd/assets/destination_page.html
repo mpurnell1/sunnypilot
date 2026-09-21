@@ -195,11 +195,13 @@
     </div>
     <div class="muted" style="margin-top:8px">Away from home wifi the device needs a data connection (comma prime/eSIM or mobile hotspot) to search for a new route.</div>
     <div class="muted" style="margin-top:8px">
-      A token is needed in two places: your phone and your comma. The
-      <a href="https://play.google.com/store/apps/details?id=com.mpurnell.sunnynav" target="_blank" rel="noopener">sunnynav phone app</a>
-      keeps a token of its own, for its map and for searching away from the car, and that one is set in the
-      app. This page sets the token the device itself routes and searches with (Device Mapbox Token), and
-      can keep one of its own in this browser for the maps it draws (Browser Mapbox Token).
+      A token is needed in two places: your phone and your comma. The simple setup is to use a token that can
+      request map tiles for both, even though the comma does not need this permission. Mapbox's
+      <a href="https://docs.mapbox.com/accounts/guides/tokens/" target="_blank" rel="noopener">token management best practices page</a>
+      recommends one key per use case, restricted to only the features it needs, so you can optionally set a
+      second, more restricted token for the comma below. This page keeps its phone token in this phone's
+      browser; the <a href="https://play.google.com/store/apps/details?id=com.mpurnell.sunnynav" target="_blank" rel="noopener">sunnynav app</a>
+      keeps its own.
     </div>
     <div id="setup-map"></div>
   </div>
@@ -307,30 +309,12 @@
   <div id="rows-map">
     <div class="setting">
       <div class="grow">
-        <div>Device Mapbox Token (required) <span id="token-state" class="muted"></span></div>
+        <div>Mapbox Token (optional) <span id="maptoken-state" class="muted"></span></div>
         <div class="muted">
-          The device's own public token, for its route requests and search. It needs no scopes at all, so a token
-          restricted to nothing more is the safest choice; the phone's token works here too. Away from home wifi
-          the device needs a data connection (comma prime/eSIM or mobile hotspot) to use it. Must be a public token (starts with pk.).
+          Draws the map behind the route line. Must be a public token (starts with pk.).
           Follow these <a href="https://docs.mapbox.com/help/getting-started/access-tokens" target="_blank" rel="noopener">instructions to create a token</a>,
           then copy it from <a href="https://console.mapbox.com/account/access-tokens" target="_blank" rel="noopener">your account dashboard</a>
-          and paste it here. It stays on the comma and is not saved in your browser.
-        </div>
-        <form id="token-form" class="row" style="margin-top:6px">
-          <input id="token-input" type="password" placeholder="pk. public token" autocomplete="off">
-          <button type="submit" class="small">Save</button>
-        </form>
-      </div>
-    </div>
-    <div class="setting">
-      <div class="grow">
-        <div>Browser Mapbox Token (optional) <span id="maptoken-state" class="muted"></span></div>
-        <div class="muted">
-          Not the device's token: this one is for the page itself. A public token with the styles:tiles scope
-          draws Mapbox streets under the route preview and the Directions map; without one they show the route
-          line alone. It is saved in this browser only, never on the comma, and the map tiles ride this phone's
-          data, never the comma's. Must be a public token (starts with pk.); the sunnynav app's phone token
-          works here too.
+          and paste it here. This doesn't leave your phone: it is kept in this browser.
         </div>
         <form id="maptoken-form" class="row" style="margin-top:6px">
           <input id="maptoken-input" type="password" placeholder="pk. public token" autocomplete="off">
@@ -341,6 +325,21 @@
           <button id="maptoken-clear" class="small danger">Clear</button>
           <span id="maptoken-verdict" class="muted"></span>
         </div>
+      </div>
+    </div>
+    <div class="setting">
+      <div class="grow">
+        <div>Device Token (required) <span id="token-state" class="muted"></span></div>
+        <div class="muted">
+          The device's own public token, for its route requests and search. It needs no scopes at all, so a token
+          restricted to nothing more is the safest choice; the phone's token works here too. Away from home wifi
+          the device needs a data connection (comma prime/eSIM or mobile hotspot) to use it. It stays on the comma
+          and is not saved in your browser.
+        </div>
+        <form id="token-form" class="row" style="margin-top:6px">
+          <input id="token-input" type="password" placeholder="pk. public token" autocomplete="off">
+          <button type="submit" class="small">Save</button>
+        </form>
       </div>
     </div>
     <div class="setting">
@@ -1204,7 +1203,7 @@ const TOUR = [
   { target: "search-form", text: "Type an address or place and tap Search, then pick a result." },
   { target: "routes-sort", text: "Routes sort by traffic-inclusive shortest time by default. You can reorder them as desired using the provided filters." },
   { target: "favorites", text: "Set as Home or Set as Work saves the place here. One tap on a saved row starts a route; the three icons send its fastest, typical or shortest route straight away." },
-  { target: "tab-directions-btn", text: "With a route set, Directions shows the turn ahead, the turns after it and the route on a map, so you can glance at your mounted phone instead of the center display. The map draws the route on its own until a map token is saved under Settings, which puts the streets behind it." },
+  { target: "tab-directions-btn", text: "With a route set, Directions shows the turn ahead, the turns after it and the route on a map, so you can glance at your mounted phone instead of the center display. The map draws the route on its own until a Mapbox Token is saved in Settings, which puts the streets behind it." },
 ];
 const ROUTE_TIP = 1;
 const DIRECTIONS_TIP = 3;
