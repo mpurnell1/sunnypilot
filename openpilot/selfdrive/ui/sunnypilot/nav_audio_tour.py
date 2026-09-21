@@ -56,15 +56,15 @@ class Step(NamedTuple):
   card: tuple[str, str, float | None] | None
 
 
-LANE_CAPTION = tr("The route wants you one lane over. Signal it; with a route-requested lane change delay set, an exit or merge approach confirms without the wheel nudge once the timer runs out, before a turn add the usual nudge.")  # noqa: E501
+LANE_CAPTION = tr("The route wants you one lane over. Signal it. With a route-requested lane change delay set, an exit or merge approach confirms without the wheel nudge once the timer runs out. Before a turn, add the usual nudge.")  # noqa: E501
 
 STEPS = [
   Step('turn', 'approach', 'right', tr("Right Turn Ahead"),
        tr("Rising means right. Plays about a quarter mile out, when this card appears."), ('turn', 'right', APPROACH_M)),
   Step('turn', 'imminent', 'right', tr("Right Turn Now"),
-       tr("The same sound, faster and doubled: about 300 feet to go."), ('turn', 'right', IMMINENT_M)),
+       tr("The same sound, faster and doubled, means about 300 feet to go."), ('turn', 'right', IMMINENT_M)),
   Step('turn', 'approach', 'left', tr("Left Turn"),
-       tr("Falling means left. One sound covers every kind of turn; the card shows which."), ('turn', 'left', APPROACH_M)),
+       tr("Falling means left. One sound covers every kind of turn. The card shows which."), ('turn', 'left', APPROACH_M)),
   Step('laneChange', 'lane', 'left', tr("Lane Change Left"), LANE_CAPTION, ('lane', 'slightLeft', None)),
   Step('laneChange', 'lane', 'right', tr("Lane Change Right"), LANE_CAPTION, ('lane', 'slightRight', None)),
   Step('reroute', 'reroute', 'none', tr("Rerouting"),

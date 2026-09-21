@@ -85,7 +85,7 @@ class NavigationLayout(Widget):
                                           tr("A tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn is close."),  # noqa: E501
                                           param="NavigationAudio")
     self._sound_tour_item = button_item(tr("Sound Tour"), tr("Play"),
-                                        tr("Learn the navigation sounds: each cue plays while the screen shows the card it will accompany."),
+                                        tr("Learn the navigation sounds. Each cue plays while the screen shows the card it will accompany."),
                                         self._play_sound_tour, enabled=lambda: ui_state.is_offroad)
 
     self._mapbox_route_item = button_item(tr("Mapbox Route"), tr("Edit"), "",
