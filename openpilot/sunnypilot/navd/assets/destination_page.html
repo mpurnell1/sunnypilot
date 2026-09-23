@@ -284,25 +284,25 @@
       <button id="set-allow" class="switch" role="switch"></button>
     </div>
     <div class="setting">
-      <div class="grow"><div>Navigation Desires</div><div class="muted">Send turn desires to follow your selected route when you signal.</div></div>
+      <div class="grow"><div>Use Route Turn Desires</div><div class="muted">When you signal for a turn on your route, the car plans that turn at the intersection instead of guessing from the road ahead.</div></div>
       <button id="set-desires" class="switch" role="switch"></button>
     </div>
     <div class="setting">
-      <div class="grow"><div>Navigation HUD</div><div id="set-hud-note" class="muted"></div><div class="chips" id="set-hud"></div></div>
+      <div class="grow"><div>Guidance on Screen</div><div id="set-hud-note" class="muted"></div><div class="chips" id="set-hud"></div></div>
     </div>
     <div class="setting">
       <div class="grow"><div>Show Lanes</div><div class="muted">Show which lanes lead to the next maneuver.</div></div>
       <button id="set-lanes" class="switch" role="switch"></button>
     </div>
     <div class="setting">
-      <div class="grow"><div>Route-Requested Lane Change Delay</div><div class="muted">A separate lane change delay for changes requested by the navigation logic.</div><div class="chips" id="set-lane-timer"></div></div>
+      <div class="grow"><div>Route Lane Change Delay</div><div class="muted">A separate lane change delay for changes requested by the navigation logic.</div><div class="chips" id="set-lane-timer"></div></div>
     </div>
     <div class="setting">
-      <div class="grow"><div>Navigation Audio</div><div class="muted">A tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn is close.</div></div>
+      <div class="grow"><div>Turn Sounds</div><div class="muted">A tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn is close.</div></div>
       <button id="set-audio" class="switch" role="switch"></button>
     </div>
     <div id="row-quiet" class="setting">
-      <div class="grow"><div>Quiet Glyph</div><div class="muted">Keep a dim next-turn arrow in the corner between maneuvers. <span id="quiet-reason"></span></div></div>
+      <div class="grow"><div>Always Show Next Turn</div><div class="muted">Off, the arrow for the next turn appears as the turn approaches and clears after it. On, a dim arrow for the next turn stays in the corner the whole route. <span id="quiet-reason"></span></div></div>
       <button id="set-quiet-glyph" class="switch" role="switch"></button>
     </div>
   </div>
@@ -343,7 +343,7 @@
       </div>
     </div>
     <div class="setting">
-      <div class="grow"><div>Mapbox Recompute (optional)</div><div class="muted">Recompute the route automatically when you leave it. The device needs a data connection (comma prime/eSIM or mobile hotspot) for this to work, otherwise the route, and navigation, is lost.</div></div>
+      <div class="grow"><div>Reroute Automatically (optional)</div><div class="muted">Recompute the route automatically when you leave it. The device needs a data connection (comma prime/eSIM or mobile hotspot) for this to work, otherwise the route, and navigation, is lost.</div></div>
       <button id="set-recompute" class="switch" role="switch"></button>
     </div>
   </div>

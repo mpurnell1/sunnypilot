@@ -22,15 +22,15 @@ sections:
     - $ref: '#/macros/offroad'
   - key: MapboxRecompute
     widget: toggle
-    title: Mapbox Recompute
+    title: Reroute Automatically
     description: Recompute the route automatically when you leave it. The device needs a data connection (comma
       prime/eSIM or mobile hotspot) for this to work, otherwise the route, and navigation, is lost.
     enablement:
     - $ref: '#/macros/offroad'
   - key: NavDesiresAllowed
     widget: toggle
-    title: Navigation Desires
-    description: Send turn desires to follow your selected route when you signal.
+    title: Use Route Turn Desires
+    description: When you signal for a turn on your route, the car plans that turn at the intersection instead of guessing from the road ahead.
     enablement:
     - $ref: '#/macros/offroad'
 - id: guidance
@@ -39,7 +39,7 @@ sections:
   items:
   - key: NavHudMode
     widget: multiple_button
-    title: Navigation HUD
+    title: Guidance on Screen
     description: 'Turns: next-turn card under the set speed. ETA: arrival pill tucked under the nav chip, comma 3X only.'
     options:
     - value: 0
@@ -64,7 +64,7 @@ sections:
     - $ref: '#/macros/offroad'
   - key: NavLaneChangeTimer
     widget: option
-    title: Route-Requested Lane Change Delay
+    title: Route Lane Change Delay
     description: A separate lane change delay for changes requested by the navigation logic.
     options:
     - value: 0
@@ -83,15 +83,15 @@ sections:
     - $ref: '#/macros/offroad'
   - key: NavigationAudio
     widget: toggle
-    title: Navigation Audio
+    title: Turn Sounds
     description: 'A tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn
       is close.'
     enablement:
     - $ref: '#/macros/offroad'
   - key: NavMiciQuietGlyph
     widget: toggle
-    title: Quiet Glyph
-    description: Keep a dim next-turn arrow on screen between maneuvers.
+    title: Always Show Next Turn
+    description: Off, the arrow for the next turn appears as the turn approaches and clears after it. On, a dim arrow for the next turn stays in the corner the whole route.
     visibility:
     - type: capability
       field: device_type
