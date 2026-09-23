@@ -9,8 +9,6 @@ row in the set-speed circle's slot, driven by the same TransientNav machine as t
 rail. No card and no street text on a 536x240 screen; audio carries the street names.
 Alerts and the set-speed circle take the slot with priority.
 """
-import math
-import time
 from dataclasses import dataclass, field
 
 import pyray as rl
@@ -18,7 +16,7 @@ import pyray as rl
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.selfdrive.ui.sunnypilot.nav_status import ROUTE_FAILURE_THRESHOLD, NavStatus
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import (
-  _draw_flag, _draw_maneuver_icon, draw_lane_glyph, format_distance, lane_direction,
+  _draw_flag, _draw_maneuver_icon, draw_lane_glyph, format_distance, lane_direction, slowdown_pulse, slowing_for_turn,
 )
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import (
   ChipMode, TransientNav, TransientNavState, chip_mode, flag_raised, pick_upcoming_maneuver,
@@ -52,10 +50,6 @@ FAILURE_ALPHA = 0.7
 
 FAILURE_COLOR = (0xf2, 0x4b, 0x4b)
 LANE_INACTIVE_ALPHA = 0.35
-
-# the glyph breathes while the route-turn slowdown holds a target for it
-PULSE_PERIOD = 2.0  # s
-PULSE_DEPTH = 0.35
 
 
 @dataclass(frozen=True)
@@ -139,10 +133,9 @@ class MiciNavRenderer(Widget):
     msg = ui_state.sm['navigationd']
     self.transient.update(self._mode == ChipMode.LIVE, msg.allManeuvers, msg.audioCueId, msg.audioCueStage,
                           off_route=msg.routeState != 'onRoute')
-    slowing = ui_state.sm['longitudinalPlanSP'].smartCruiseControl.navTurn.active
     self._content = corner_content(self.transient.state, self._mode, msg,
                                    self.nav_status.lane_guidance, self.nav_status.mici_quiet_glyph,
-                                   flag_raised(self.nav_status.state), slowing)
+                                   flag_raised(self.nav_status.state), slowing_for_turn())
 
   def _update_state(self) -> None:
     self.update_state()
@@ -163,7 +156,7 @@ class MiciNavRenderer(Widget):
     drawn = self._drawn
     a = min(alpha, 1.0)
     if drawn.pulse:
-      a *= 1.0 - PULSE_DEPTH * (0.5 - 0.5 * math.cos(2 * math.pi * time.monotonic() / PULSE_PERIOD))
+      a *= slowdown_pulse()
     cx = rect.x + CENTER_X
 
     # the set-speed circle's drop shadow
