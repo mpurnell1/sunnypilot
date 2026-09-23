@@ -6,6 +6,9 @@ See the LICENSE.md file in the root directory for more details.
 """
 from math import cos, radians, sin
 
+import math
+import time
+
 import pyray as rl
 
 from openpilot.selfdrive.ui.onroad.hud_renderer import UI_CONFIG
@@ -31,6 +34,10 @@ CHIP_ICON_SIZE = 40
 CHIP_FONT_SIZE = 32
 CHIP_GAP = 14
 CHIP_DIM = rl.Color(255, 255, 255, 170)
+
+# the glyph of the turn the route slowdown brakes for breathes while the target is held
+PULSE_PERIOD = 2.0  # s
+PULSE_DEPTH = 0.35
 CHIP_SEARCHING = rl.Color(255, 255, 255, 110)
 
 LANE_INACTIVE = rl.Color(255, 255, 255, 80)
@@ -46,6 +53,16 @@ ARROW_ANGLES = {
   'slightRight': 45, 'right': 90, 'sharpRight': 135,
   'slightLeft': -45, 'left': -90, 'sharpLeft': -135,
 }
+
+
+def slowdown_pulse(now: float | None = None) -> float:
+  """Alpha scale for a glyph the route slowdown is braking for: a slow breathe over a third of it."""
+  t = time.monotonic() if now is None else now
+  return 1.0 - PULSE_DEPTH * (0.5 - 0.5 * math.cos(2 * math.pi * t / PULSE_PERIOD))
+
+
+def slowing_for_turn() -> bool:
+  return bool(ui_state.sm['longitudinalPlanSP'].smartCruiseControl.navTurn.active)
 
 
 def lane_direction(lane) -> str:
@@ -335,6 +352,7 @@ class NavIndicatorRenderer(Widget):
     self._font = gui_app.font(FontWeight.SEMI_BOLD)
     self._mode = ChipMode.HIDDEN
     self._update_frame = -1
+    self._slowing = False
     # the route summary lays out below this
     self.stack_bottom: float = 0.0
 
@@ -352,6 +370,7 @@ class NavIndicatorRenderer(Widget):
     msg = ui_state.sm['navigationd']
     self.transient.update(self._mode == ChipMode.LIVE, msg.allManeuvers, msg.audioCueId, msg.audioCueStage,
                           off_route=msg.routeState != 'onRoute')
+    self._slowing = slowing_for_turn()
 
   def _update_state(self) -> None:
     self.update_state()
@@ -364,7 +383,7 @@ class NavIndicatorRenderer(Widget):
     rl.draw_rectangle_rounded(box, 0.35, 10, BACKGROUND)
     _draw_flag(box.x + box.width / 2, box.y + box.height / 2, color, CHIP_ICON_SIZE)
 
-  def _render_chip(self, box: rl.Rectangle, maneuver: tuple[str, str, float], dimmed: bool = False) -> None:
+  def _render_chip(self, box: rl.Rectangle, maneuver: tuple[str, str, float], dimmed: bool = False, pulse: bool = False) -> None:
     maneuver_type, modifier, distance = maneuver
     rl.draw_rectangle_rounded(box, 0.35, 10, BACKGROUND)
 
@@ -379,7 +398,8 @@ class NavIndicatorRenderer(Widget):
     span = CHIP_ICON_SIZE + CHIP_GAP + text_size.x
     x = box.x + (box.width - span) / 2
     cy = box.y + box.height / 2
-    _draw_maneuver_icon(x + CHIP_ICON_SIZE / 2, cy, maneuver_type, modifier, CHIP_DIM, CHIP_ICON_SIZE)
+    icon_color = rl.Color(255, 255, 255, int(CHIP_DIM.a * slowdown_pulse())) if pulse else CHIP_DIM
+    _draw_maneuver_icon(x + CHIP_ICON_SIZE / 2, cy, maneuver_type, modifier, icon_color, CHIP_ICON_SIZE)
     rl.draw_text_ex(self._font, text, rl.Vector2(x + CHIP_ICON_SIZE + CHIP_GAP, cy - text_size.y / 2),
                     CHIP_FONT_SIZE, 0, CHIP_DIM)
 
@@ -418,6 +438,6 @@ class NavIndicatorRenderer(Widget):
       return
 
     box = rl.Rectangle(x, top, width, BOX_HEIGHT)
-    self._render_chip(box, maneuver, dimmed=msg.routeState == 'offRoute')
+    self._render_chip(box, maneuver, dimmed=msg.routeState == 'offRoute', pulse=self._slowing)
     self.stack_bottom = top + box.height
     self.set_rect(box)
