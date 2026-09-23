@@ -18,6 +18,9 @@ UPCOMING_TURN_DIST = [20.0, 25.0, 30.0, 45.0, 60.0, 75.0, 90.0, 105.0, 120.0]  #
 MISALIGN_MIN_SPEED = 5.0  # m/s
 MISALIGN_DEG = 110.0
 ARRIVAL_MAX_SPEED = 1.0  # m/s
+# trips parked short of the arrive step ended 2 to 68 m from the end; the nearest stops at lights
+# beside a destination sit 200 m out (arrival scan, roadmap phase 34)
+ARRIVAL_RADIUS = 75.0  # m along the route
 MAX_MANEUVERS = 3
 
 NO_LIMIT = (0, 'kmh')
@@ -155,5 +158,8 @@ def upcoming_turn(progress: RouteProgress, position: Coordinate, v_ego: float) -
 
 
 def arrived(progress: RouteProgress, v_ego: float) -> bool:
+  if v_ego >= ARRIVAL_MAX_SPEED:
+    return False
   current = progress.all_maneuvers[0]
-  return v_ego < ARRIVAL_MAX_SPEED and (current.type == 'arrive' or current.instruction.startswith('Your destination'))
+  on_arrive_step = current.type == 'arrive' or current.instruction.startswith('Your destination')
+  return on_arrive_step or progress.distance_remaining < ARRIVAL_RADIUS
