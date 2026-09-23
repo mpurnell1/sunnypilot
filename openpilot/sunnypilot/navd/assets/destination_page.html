@@ -293,6 +293,10 @@
       <div class="grow"><div>Use Route Turn Desires</div><div class="muted">When you signal for a turn on your route, the car plans that turn at the intersection instead of guessing from the road ahead.</div></div>
       <button id="set-desires" class="switch" role="switch"></button>
     </div>
+    <div id="row-turn-slowdown" class="setting">
+      <div class="grow"><div>Slow for Route Turns</div><div class="muted">Slow down ahead of each turn on your route to the speed drivers take a corner of that angle. Applies to turns of 55 degrees or more. <span id="turn-slowdown-reason"></span></div></div>
+      <button id="set-turn-slowdown" class="switch" role="switch"></button>
+    </div>
     <div class="setting">
       <div class="grow"><div>Guidance on Screen</div><div id="set-hud-note" class="muted"></div><div class="chips" id="set-hud"></div></div>
     </div>
@@ -1121,6 +1125,7 @@ function renderSettings() {
   if (!settings) return;
   onOff($("set-allow"), settings.allowNavigation, v => saveSettings({ allowNavigation: v }));
   onOff($("set-desires"), settings.navDesiresAllowed, v => saveSettings({ navDesiresAllowed: v }));
+  onOff($("set-turn-slowdown"), settings.navTurnSlowdown, v => saveSettings({ navTurnSlowdown: v }));
   const four = settings.device === "mici";
   choice($("set-hud"), $("set-hud-note"), HUD_OPTIONS, settings.navHudMode, v => saveSettings({ navHudMode: v }), four ? 2 : 4, THREE_X_ONLY);
   onOff($("set-lanes"), settings.laneGuidance, v => saveSettings({ laneGuidance: v }));

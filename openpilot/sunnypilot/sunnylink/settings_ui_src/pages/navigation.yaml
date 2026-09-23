@@ -33,6 +33,13 @@ sections:
     description: When you signal for a turn on your route, the car plans that turn at the intersection instead of guessing from the road ahead.
     enablement:
     - $ref: '#/macros/offroad'
+  - key: NavTurnSlowdown
+    widget: toggle
+    title: Slow for Route Turns
+    description: Slow down ahead of each turn on your route to the speed drivers take a corner of that angle. Applies to turns of 55 degrees or more.
+    enablement:
+    - $ref: '#/macros/offroad'
+    - $ref: '#/macros/longitudinal'
 - id: guidance
   title: Guidance
   description: The turn card, lanes and sounds while a route is active

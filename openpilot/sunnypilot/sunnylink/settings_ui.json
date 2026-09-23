@@ -1825,6 +1825,22 @@
                   "type": "offroad_only"
                 }
               ]
+            },
+            {
+              "key": "NavTurnSlowdown",
+              "widget": "toggle",
+              "title": "Slow for Route Turns",
+              "description": "Slow down ahead of each turn on your route to the speed drivers take a corner of that angle. Applies to turns of 55 degrees or more.",
+              "enablement": [
+                {
+                  "type": "offroad_only"
+                },
+                {
+                  "type": "capability",
+                  "field": "has_longitudinal_control",
+                  "equals": true
+                }
+              ]
             }
           ]
         },

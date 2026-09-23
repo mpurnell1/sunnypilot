@@ -64,14 +64,16 @@ class NavigationLayoutMici(NavScroller):
     self._end_route_btn = BigButton("end route")
     self._end_route_btn.set_click_callback(self._end_route)
     self._desires_toggle = BigParamControl("use route turn desires", "NavDesiresAllowed")
+    self._turn_toggle = BigParamControl("slow for route turns", "NavTurnSlowdown")
     self._lane_toggle = BigParamControl("show lanes", "NavLaneGuidance")
     self._lane_timer = BigMultiParamToggle("route lane change delay", "NavLaneChangeTimer", ["off", "nudgeless", "0.5 s", "1 s", "2 s", "3 s"])
     self._quiet_toggle = BigParamControl("always show next turn", "NavMiciQuietGlyph")
 
-    self._scroller.add_widgets([self._info, self._nav_toggle, self._end_route_btn, self._desires_toggle, self._lane_toggle,
-                                self._lane_timer, self._quiet_toggle])
+    self._scroller.add_widgets([self._info, self._nav_toggle, self._end_route_btn, self._desires_toggle, self._turn_toggle,
+                                self._lane_toggle, self._lane_timer, self._quiet_toggle])
     self._refresh_toggles = (("AllowNavigation", self._nav_toggle), ("NavDesiresAllowed", self._desires_toggle),
-                             ("NavLaneGuidance", self._lane_toggle), ("NavMiciQuietGlyph", self._quiet_toggle))
+                             ("NavTurnSlowdown", self._turn_toggle), ("NavLaneGuidance", self._lane_toggle),
+                             ("NavMiciQuietGlyph", self._quiet_toggle))
 
   def _refresh(self) -> None:
     ui_state.update_params()
@@ -79,6 +81,8 @@ class NavigationLayoutMici(NavScroller):
       item.set_checked(ui_state.params.get_bool(key))
     self._lane_timer._load_value()
     self._end_route_btn.set_visible(bool(ui_state.params.get("MapboxRoute")))
+    if ui_state.CP is not None:
+      self._turn_toggle.set_visible(ui_state.has_longitudinal_control)
 
   def _update_state(self):
     super()._update_state()
