@@ -74,22 +74,22 @@ class NavigationLayout(Widget):
     self._tour: NavAudioTour | None = None
     self._nav_status = NavStatus()
 
-    self._nav_hud_item = multiple_button_item_sp(tr("Navigation HUD"), self._get_nav_hud_description,
+    self._nav_hud_item = multiple_button_item_sp(tr("Guidance on Screen"), self._get_nav_hud_description,
                                                  NAV_HUD_BUTTONS, param="NavHudMode")
     self._lane_guidance_item = toggle_item_sp(tr("Show Lanes"), tr("Show which lanes lead to the next maneuver."),
                                               param="NavLaneGuidance")
-    self._lane_timer_item = option_item_sp(tr("Route-Requested Lane Change Delay"), "NavLaneChangeTimer", 0, len(NAV_LANE_TIMER_LABELS) - 1,
+    self._lane_timer_item = option_item_sp(tr("Route Lane Change Delay"), "NavLaneChangeTimer", 0, len(NAV_LANE_TIMER_LABELS) - 1,
                                            tr("A separate lane change delay for changes requested by the navigation logic."),
                                            label_callback=lambda i: NAV_LANE_TIMER_LABELS[i])
-    self._nav_audio_item = toggle_item_sp(tr("Navigation Audio"),
+    self._nav_audio_item = toggle_item_sp(tr("Turn Sounds"),
                                           tr("A tone pair for each maneuver: rising means right, falling means left, faster and doubled when the turn is close."),  # noqa: E501
                                           param="NavigationAudio")
     self._sound_tour_item = button_item(tr("Sound Tour"), tr("Play"),
                                         tr("Learn the navigation sounds. Each cue plays while the screen shows the card it will accompany."),
                                         self._play_sound_tour, enabled=lambda: ui_state.is_offroad)
 
-    self._mapbox_route_item = button_item(tr("Mapbox Route"), tr("Edit"), "",
-                                          partial(self._show_param_input, "MapboxRoute", tr("Enter Mapbox Route")))
+    self._mapbox_route_item = button_item(tr("Destination"), tr("Edit"), "",
+                                          partial(self._show_param_input, "MapboxRoute", tr("Enter Destination")))
 
     # only shown while navigation is enabled; the first four ride above the master toggle
     # in the final layout and the rest below it, so additions belong after index 3
@@ -99,9 +99,10 @@ class NavigationLayout(Widget):
       button_item(tr("Add Favorite"), tr("Add"), tr("Add a new favorite."), self._add_fav),
       button_item(tr("Remove Favorite"), tr("Remove"), tr("Remove a favorite."), self._remove_fav),
       text_item(tr("Status"), self._get_nav_status_text),
-      toggle_item_sp(tr("Mapbox Recompute"), tr("Recompute the route automatically when you leave it. The device needs a data connection (comma prime/eSIM or mobile hotspot) for this to work, otherwise the route, and navigation, is lost."), param="MapboxRecompute"),  # noqa: E501
-      toggle_item_sp(tr("Navigation Desires"), tr("Send turn desires to follow your selected route when you signal."), param="NavDesiresAllowed"),
-      multiple_button_item_sp(tr("Navigation Banners"), self._get_banner_description,
+      toggle_item_sp(tr("Reroute Automatically"), tr("Recompute the route automatically when you leave it. The device needs a data connection (comma prime/eSIM or mobile hotspot) for this to work, otherwise the route, and navigation, is lost."), param="MapboxRecompute"),  # noqa: E501
+      toggle_item_sp(tr("Use Route Turn Desires"), tr("When you signal for a turn on your route, the car plans that turn at the intersection instead of guessing from the road ahead."),  # noqa: E501
+                     param="NavDesiresAllowed"),
+      multiple_button_item_sp(tr("Turn Alerts"), self._get_banner_description,
                               NAV_BANNER_BUTTONS, param="NavBannerMode"),
     ]
 
@@ -111,7 +112,7 @@ class NavigationLayout(Widget):
 
     items = [
       self._mapbox_route_item,
-      button_item(tr("Clear Current Route"), tr("Clear"), "", self._clear_route),
+      button_item(tr("End Route"), tr("End"), "", self._clear_route),
       self._favorites_item,
       *self._vis_items[:4],
       toggle_item_sp(tr("Allow Navigation"), tr("The navigation service that calculates routes on the comma. Away from home wifi it needs a data connection (comma prime/eSIM or mobile hotspot) to route."),  # noqa: E501
