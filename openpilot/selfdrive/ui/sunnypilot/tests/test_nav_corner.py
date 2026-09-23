@@ -140,3 +140,29 @@ class TestCornerCanDraw:
 
   def test_clear_corner_draws(self):
     assert HudRendererSP.corner_can_draw(True, True, 0.0)
+
+
+class TestSlowdownPulse:
+  """The route-turn slowdown breathes the glyph of the turn it brakes for."""
+
+  def test_quiet_corner_raises_the_glyph_and_pulses(self):
+    content = corner_content(TransientNavState.QUIET, ChipMode.LIVE, _msg(TWO_STEPS), True, False, slowing=True)
+    assert content is not None
+    assert (content.kind, content.alpha, content.modifier, content.pulse) == ('maneuver', QUIET_ALPHA, 'right', True)
+    assert content.distance is None
+
+  def test_approach_keeps_its_card_and_pulses(self):
+    content = corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(TWO_STEPS, lane_count=2), True, False, slowing=True)
+    assert content is not None
+    assert (content.alpha, content.distance, len(content.lanes), content.pulse) == (FULL_ALPHA, 400.0, 2, True)
+
+  def test_off_route_never_pulses(self):
+    content = corner_content(TransientNavState.QUIET, ChipMode.LIVE, _msg(TWO_STEPS, route_state='offRoute'), True, False, slowing=True)
+    assert content is not None
+    assert not content.pulse
+
+  def test_without_slowing_nothing_changes(self):
+    assert corner_content(TransientNavState.QUIET, ChipMode.LIVE, _msg(TWO_STEPS), True, False) is None
+    content = corner_content(TransientNavState.QUIET, ChipMode.LIVE, _msg(TWO_STEPS), True, True)
+    assert content is not None
+    assert not content.pulse
