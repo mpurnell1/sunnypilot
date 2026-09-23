@@ -225,6 +225,7 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
   struct SmartCruiseControl {
     vision @0 :Vision;
     map @1 :Map;
+    navTurn @2 :Map;
 
     struct Vision {
       state @0 :VisionState;
@@ -307,6 +308,7 @@ struct LongitudinalPlanSP @0xf35cc4560bbf6ec2 {
     sccVision @1;
     sccMap @2;
     speedLimitAssist @3;
+    navTurn @4;
   }
 
   struct E2eAlerts {
