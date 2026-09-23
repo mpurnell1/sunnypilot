@@ -241,6 +241,7 @@ class UIStateSP:
       self.params.remove("CustomAccIncrementsEnabled")
       self.params.remove("SmartCruiseControlVision")
       self.params.remove("SmartCruiseControlMap")
+      self.params.remove("NavTurnSlowdown")
 
 
 class DeviceSP:
