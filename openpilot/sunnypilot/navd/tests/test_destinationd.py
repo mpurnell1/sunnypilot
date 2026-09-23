@@ -228,7 +228,7 @@ class TestDestinationd:
 
   def test_settings_round_trip(self):
     body = self.get("/api/settings").json()
-    assert body == {"device": self.server.api.device, "version": self.server.api.version, "allowNavigation": True, "navHudMode": 3,
+    assert body == {"device": self.server.api.device, "version": self.server.api.version, "hasLongitudinalControl": None, "allowNavigation": True, "navHudMode": 3,  # noqa: E501
                     "navAudio": False, "navDesiresAllowed": False, "navTurnSlowdown": False, "laneGuidance": False, "navLaneChangeTimer": 0,
                     "recompute": False, "quietGlyph": False, "speedLimitSign": False, "metric": False, "tokenSet": True}
     res = self.post("/api/settings", {"allowNavigation": False, "navHudMode": 1, "navAudio": True, "navDesiresAllowed": True,
@@ -254,6 +254,14 @@ class TestDestinationd:
     self.post("/api/settings", {"allowNavigation": True, "navHudMode": 3, "navAudio": False, "navDesiresAllowed": False,
                                 "navTurnSlowdown": False, "laneGuidance": False, "navLaneChangeTimer": 0, "recompute": False,
                                 "quietGlyph": False, "speedLimitSign": False})
+
+  def test_settings_report_longitudinal_control(self):
+    from opendbc.car.structs import car
+    self.params.put("CarParamsPersistent", car.CarParams.new_message(openpilotLongitudinalControl=True).to_bytes(), block=True)
+    assert self.get("/api/settings").json()["hasLongitudinalControl"] is True
+    self.params.put("CarParamsPersistent", car.CarParams.new_message(alphaLongitudinalAvailable=True).to_bytes(), block=True)
+    assert self.get("/api/settings").json()["hasLongitudinalControl"] is False
+    self.params.remove("CarParamsPersistent")
 
   def test_settings_reject_bad_values(self):
     assert self.post("/api/settings", {"navHudMode": 7}).status_code == 400
