@@ -9,6 +9,8 @@ row in the set-speed circle's slot, driven by the same TransientNav machine as t
 rail. No card and no street text on a 536x240 screen; audio carries the street names.
 Alerts and the set-speed circle take the slot with priority.
 """
+import math
+import time
 from dataclasses import dataclass, field
 
 import pyray as rl
@@ -51,6 +53,10 @@ FAILURE_ALPHA = 0.7
 FAILURE_COLOR = (0xf2, 0x4b, 0x4b)
 LANE_INACTIVE_ALPHA = 0.35
 
+# the glyph breathes while the route-turn slowdown holds a target for it
+PULSE_PERIOD = 2.0  # s
+PULSE_DEPTH = 0.35
+
 
 @dataclass(frozen=True)
 class CornerContent:
@@ -63,10 +69,11 @@ class CornerContent:
   distance: float | None = None
   lanes: tuple = field(default_factory=tuple)
   raised: bool = True
+  pulse: bool = False
 
 
 def corner_content(state: TransientNavState, mode: ChipMode, msg,
-                   lane_guidance: bool, quiet_glyph: bool, raised: bool = True) -> CornerContent | None:
+                   lane_guidance: bool, quiet_glyph: bool, raised: bool = True, slowing: bool = False) -> CornerContent | None:
   if mode == ChipMode.SEARCHING:
     return CornerContent('searching', SEARCH_ALPHA, raised=raised)
   if mode == ChipMode.FAILURE:
@@ -88,9 +95,10 @@ def corner_content(state: TransientNavState, mode: ChipMode, msg,
     return CornerContent('maneuver', QUIET_ALPHA, maneuver_type, modifier)
   if state in (TransientNavState.APPROACH, TransientNavState.PINNED):
     lanes = tuple(msg.lanes) if lane_guidance else ()
-    return CornerContent('maneuver', FULL_ALPHA, maneuver_type, modifier, distance, lanes)
-  if state == TransientNavState.QUIET and quiet_glyph:
-    return CornerContent('maneuver', QUIET_ALPHA, maneuver_type, modifier)
+    return CornerContent('maneuver', FULL_ALPHA, maneuver_type, modifier, distance, lanes, pulse=slowing)
+  # the slowdown starts before the corner's own approach window, so the brake shows its reason
+  if state == TransientNavState.QUIET and (quiet_glyph or slowing):
+    return CornerContent('maneuver', QUIET_ALPHA, maneuver_type, modifier, pulse=slowing)
   return None
 
 
@@ -131,9 +139,10 @@ class MiciNavRenderer(Widget):
     msg = ui_state.sm['navigationd']
     self.transient.update(self._mode == ChipMode.LIVE, msg.allManeuvers, msg.audioCueId, msg.audioCueStage,
                           off_route=msg.routeState != 'onRoute')
+    slowing = ui_state.sm['longitudinalPlanSP'].smartCruiseControl.navTurn.active
     self._content = corner_content(self.transient.state, self._mode, msg,
                                    self.nav_status.lane_guidance, self.nav_status.mici_quiet_glyph,
-                                   flag_raised(self.nav_status.state))
+                                   flag_raised(self.nav_status.state), slowing)
 
   def _update_state(self) -> None:
     self.update_state()
@@ -153,6 +162,8 @@ class MiciNavRenderer(Widget):
 
     drawn = self._drawn
     a = min(alpha, 1.0)
+    if drawn.pulse:
+      a *= 1.0 - PULSE_DEPTH * (0.5 - 0.5 * math.cos(2 * math.pi * time.monotonic() / PULSE_PERIOD))
     cx = rect.x + CENTER_X
 
     # the set-speed circle's drop shadow
