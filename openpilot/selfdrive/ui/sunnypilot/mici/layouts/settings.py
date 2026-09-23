@@ -11,7 +11,7 @@ from openpilot.selfdrive.ui.mici.widgets.button import BigCircleButton
 from openpilot.selfdrive.ui.mici.widgets.dialog import BigConfirmationDialog, BigDialog
 from openpilot.selfdrive.ui.sunnypilot.mici.layouts.sunnylink import SunnylinkLayoutMici
 from openpilot.selfdrive.ui.sunnypilot.mici.layouts.models import ModelsLayoutMici
-from openpilot.selfdrive.ui.sunnypilot.mici.layouts.toggles import TogglesLayoutMiciSP
+from openpilot.selfdrive.ui.sunnypilot.mici.layouts.navigation import NavigationLayoutMici
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.multilang import tr
@@ -37,11 +37,6 @@ class SettingsLayoutSP(OP.SettingsLayout):
     device_panel = DeviceLayoutMici()
     self._scroller._items[2].set_click_callback(lambda: gui_app.push_widget(device_panel))
 
-    # the toggles panel gains the navigation master switch; same replace-the-panel
-    # pattern as the device panel above
-    toggles_panel = TogglesLayoutMiciSP()
-    self._scroller._items[0].set_click_callback(lambda: gui_app.push_widget(toggles_panel))
-
     self.icon_offroad_enable = gui_app.texture("../../sunnypilot/selfdrive/assets/icons_mici/always_offroad.png", BIG_ICON_SIZE,
                                                BIG_ICON_SIZE)
     self.icon_offroad_disable = gui_app.texture("../../sunnypilot/selfdrive/assets/icons_mici/disable_offroad.png", BIG_ICON_SIZE,
@@ -55,6 +50,11 @@ class SettingsLayoutSP(OP.SettingsLayout):
     models_panel = ModelsLayoutMici()
     models_btn = SettingsBigButton(tr("models"), "", gui_app.texture("../../sunnypilot/selfdrive/assets/offroad/icon_models.png", ICON_SIZE, ICON_SIZE))
     models_btn.set_click_callback(lambda: gui_app.push_widget(models_panel))
+
+    navigation_panel = NavigationLayoutMici()
+    navigation_btn = SettingsBigButton(tr("navigation"), "",
+                                       gui_app.texture("../../sunnypilot/selfdrive/assets/navigation/direction_flag.png", ICON_SIZE, ICON_SIZE))
+    navigation_btn.set_click_callback(lambda: gui_app.push_widget(navigation_panel))
 
     # onroad: enable button sits at the front (left of toggles)
     self._enable_offroad_btn_onroad = BigCircleButton(self.icon_offroad_enable, red=True)
@@ -72,8 +72,11 @@ class SettingsLayoutSP(OP.SettingsLayout):
 
     items = self._scroller._items.copy()
 
+    # toggles, models, navigation, network, device, software, sunnylink, pair, firehose, developer:
+    # driving choices first, connectivity next, housekeeping last
     items.insert(1, models_btn)
-    items.insert(5, sunnylink_btn)
+    items.insert(2, navigation_btn)
+    items.insert(6, sunnylink_btn)
 
     # front slots (only one ever visible at a time): exit-always-offroad, then enable-onroad
     items.insert(0, self._enable_offroad_btn_onroad)
