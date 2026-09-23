@@ -4,6 +4,7 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
+import json
 import platform
 from types import SimpleNamespace
 
@@ -160,3 +161,50 @@ class TestNavigationd:
 
       assert received_msg.bannerInstructions == msg.navigationd.bannerInstructions
       assert received_msg.valid == msg.navigationd.valid
+
+
+class TestTurnTargetPublish:
+  """The route's turns ahead reach the memory params for the longitudinal planner, and leave it
+  with the route, off the route, while rerouting, and once passed."""
+
+  def setup_method(self):
+    from openpilot.sunnypilot.navd.tests.test_turn_targets import ORIGIN, corner_route, offset
+    self.nav = Navigationd()
+    self.nav.allow_navigation = True
+    self.nav.route = corner_route(0.0)
+    self.start = ORIGIN
+    self.past_corner = offset(ORIGIN, 30.0, 200.0)
+
+  def publish(self, position: Coordinate) -> list | None:
+    self.nav.last_position = position
+    _, progress, _ = self.nav._update_navigation()
+    self.nav._publish_turn_targets(progress)
+    encoded = self.nav.mem_params.get("NavTargetVelocities")
+    return json.loads(encoded) if encoded else None
+
+  def test_turn_ahead_is_published(self):
+    corner = self.nav.route.steps[1].location
+    assert self.publish(self.start) == [{'latitude': corner.latitude, 'longitude': corner.longitude, 'velocity': 6.5}]
+
+  def test_passed_turn_leaves_the_list(self):
+    assert self.publish(self.start) is not None
+    assert self.publish(self.past_corner) is None
+
+  def test_off_route_and_rerouting_clear(self):
+    assert self.publish(self.start) is not None
+    self.nav.off_route = True
+    self.nav._publish_turn_targets(self.nav.route.progress(self.start))
+    assert self.nav.mem_params.get("NavTargetVelocities") is None
+    self.nav.off_route = False
+    self.nav.rerouting = True
+    self.nav._publish_turn_targets(self.nav.route.progress(self.start))
+    assert self.nav.mem_params.get("NavTargetVelocities") is None
+
+  def test_route_loss_clears(self):
+    assert self.publish(self.start) is not None
+    self.nav.route = None
+    assert self.publish(self.start) is None
+
+  def test_car_scale(self):
+    self.nav.turn_speed_scale = 1.25
+    assert self.publish(self.start)[0]['velocity'] == pytest.approx(6.5 * 1.25)
