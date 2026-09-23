@@ -4,6 +4,8 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
+import json
+import platform
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from math import degrees
@@ -11,6 +13,7 @@ from numpy import interp
 from time import monotonic
 
 import openpilot.cereal.messaging as messaging
+from opendbc.car.structs import car
 from openpilot.cereal import custom
 from openpilot.common.constants import CV
 from openpilot.common.params import Params
@@ -23,10 +26,12 @@ from openpilot.sunnypilot.navd.nav_audio import NavAudioCues
 from openpilot.sunnypilot.navd.navigation_helpers.destination_store import DestinationStore
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
 from openpilot.sunnypilot.navd.navigation_helpers.route import Route, RouteProgress, arrived, upcoming_turn
+from openpilot.sunnypilot.navd.navigation_helpers.turn_targets import TurnTarget, car_scale, turn_targets
 
 PARAM_POLL_FRAMES = 15  # 5 s at 3 Hz
 REROUTE_TICKS = 10  # lost this many 3 Hz cycles before a recompute is requested
 ARRIVAL_TICKS = 30  # arrived this many cycles before the trip concludes
+TURN_CLEAR_DIST = 10.0  # m past a maneuver point before its speed target is dropped; the apex is the point itself
 
 # hints flap left/right within a second, and a flap that reaches the assist gate flips
 # which blinker can start a lane change
@@ -104,6 +109,7 @@ class HintDebounce:
 class Navigationd:
   def __init__(self):
     self.params = Params()
+    self.mem_params = Params("/dev/shm/params") if platform.system() != "Darwin" else self.params
     self.mapbox = MapboxIntegration()
     self.destination_store = DestinationStore(self.params)
     self.nav_audio = NavAudioCues()
@@ -138,6 +144,11 @@ class Navigationd:
     self.last_bearing: float | None = None
     self.valid: bool = False
 
+    self.turn_speed_scale: float | None = None  # unknown until CarParams lands
+    self.turn_targets: list[TurnTarget] = []
+    self.turn_targets_key: tuple | None = None
+    self.turn_targets_written: str = ''
+
   # MapboxSettings outlives the in-memory route, so a route left there can be reloaded later
   def _drop_route(self) -> None:
     self.params.remove("MapboxSettings")
@@ -160,6 +171,8 @@ class Navigationd:
     self.lane_assist = self.params.get('NavLaneChangeTimer', return_default=True) != NAV_LANE_CHANGE_OFF
     self.new_destination = self.params.get('MapboxRoute')
     self.recompute_allowed = self.params.get('MapboxRecompute', return_default=True)
+    if self.turn_speed_scale is None and (car_params := self.params.get("CarParams")):
+      self.turn_speed_scale = car_scale(messaging.log_from_bytes(car_params, car.CarParams).brand)
 
     # a single empty read can be a glitch; log every change so a clear is attributable
     if self.new_destination != self.observed_destination:
@@ -277,6 +290,27 @@ class Navigationd:
     self.final_step = progress.current_step_idx == len(self.route.steps) - 1
     return banner, progress, guidance
 
+  def _turn_targets_ahead(self, progress: RouteProgress) -> list[TurnTarget]:
+    key = (self.route.route_id, self.turn_speed_scale)
+    if key != self.turn_targets_key:
+      self.turn_targets = turn_targets(self.route, self.turn_speed_scale or 1.0)
+      self.turn_targets_key = key
+    along = progress.current_step.cumulative_distance + progress.current_step.distance - progress.distance_to_end_of_step
+    return [target for target in self.turn_targets if target.along > along - TURN_CLEAR_DIST]
+
+  # the longitudinal planner's route-turn controller takes the nearest listed point as the car's
+  # position, so a passed turn must leave the list; off the route the targets are the wrong road's
+  def _publish_turn_targets(self, progress: RouteProgress | None) -> None:
+    ahead = [] if progress is None or self.off_route or self.rerouting else self._turn_targets_ahead(progress)
+    encoded = json.dumps([target.as_dict() for target in ahead]) if ahead else ''
+    if encoded == self.turn_targets_written and self.frame % PARAM_POLL_FRAMES != 0:
+      return
+    if encoded:
+      self.mem_params.put("NavTargetVelocities", encoded, block=True)
+    else:
+      self.mem_params.remove("NavTargetVelocities")
+    self.turn_targets_written = encoded
+
   # being lost never cancels the route: it only asks for a recompute, and with no network the
   # route is held so guidance returns on its own. The counter doubles as routeState's
   # off-route debounce, so it counts with recompute off too; the arrival hold stays onRoute
@@ -350,6 +384,7 @@ class Navigationd:
 
       self._update_params()
       banner, progress, guidance = self._update_navigation()
+      self._publish_turn_targets(progress)
       self.nav_audio.update(self.route, progress, guidance, float(max(self.sm['carState'].vEgo, 0.0)), self.rerouting)
 
       msg = self._build_navigation_message(banner, progress, guidance, valid=localizer_valid)
