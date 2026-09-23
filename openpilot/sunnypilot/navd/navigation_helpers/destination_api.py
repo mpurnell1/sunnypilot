@@ -14,6 +14,8 @@ cancel any time.
 """
 from collections.abc import Callable
 
+from opendbc.car.structs import car
+import openpilot.cereal.messaging as messaging
 from openpilot.common.git import get_commit, get_short_branch
 from openpilot.common.hardware import HARDWARE
 from openpilot.common.params import Params
@@ -103,13 +105,26 @@ class DestinationAPI:
       raise ApiError("action must be set (with dest), remove, or reorder (with names)")
     return {"favorites": self.store.favorites()}
 
+  # the UI's own reading of longitudinal control, from the CarParams that outlive the drive;
+  # None before a car has ever been seen, so a client leaves the row alone
+  def _has_longitudinal_control(self) -> bool | None:
+    cp_bytes = self.params.get("CarParamsPersistent")
+    if cp_bytes is None:
+      return None
+    CP = messaging.log_from_bytes(cp_bytes, car.CarParams)
+    if CP.alphaLongitudinalAvailable:
+      return self.params.get_bool("AlphaLongitudinalEnabled")
+    return bool(CP.openpilotLongitudinalControl)
+
   def settings_view(self) -> dict:
     p = self.params
     return {
-      # a client greys the rows one device lacks: the arrival pill is the 3X's, the quiet glyph the four's
+      # a client greys the rows one device lacks: the arrival pill is the 3X's, the quiet glyph the four's,
+      # Slow for Route Turns a car's with openpilot longitudinal
       "device": self.device,
       # the branch and commit the device runs, for bug reports
       "version": self.version,
+      "hasLongitudinalControl": self._has_longitudinal_control(),
       "allowNavigation": p.get_bool("AllowNavigation"),
       "navHudMode": p.get("NavHudMode", return_default=True),
       "navAudio": p.get_bool("NavigationAudio"),

@@ -1100,6 +1100,7 @@ const HUD_OPTIONS = [
 const LANE_TIMER_OPTIONS = ["Off", "Nudgeless", "0.5 s", "1 s", "2 s", "3 s"].map(label => [label, ""]);
 const THREE_X_ONLY = "comma 3X only";
 const FOUR_ONLY = "comma four only";
+const NEEDS_LONG = "needs openpilot longitudinal control on this car";
 
 function choice(el, note, options, value, save, disabledFrom = options.length, reason = "") {
   el.replaceChildren();
@@ -1126,6 +1127,10 @@ function renderSettings() {
   onOff($("set-allow"), settings.allowNavigation, v => saveSettings({ allowNavigation: v }));
   onOff($("set-desires"), settings.navDesiresAllowed, v => saveSettings({ navDesiresAllowed: v }));
   onOff($("set-turn-slowdown"), settings.navTurnSlowdown, v => saveSettings({ navTurnSlowdown: v }));
+  const longOk = settings.hasLongitudinalControl !== false;
+  $("row-turn-slowdown").classList.toggle("dim", !longOk);
+  $("turn-slowdown-reason").textContent = longOk ? "" : NEEDS_LONG + ".";
+  $("set-turn-slowdown").disabled = !longOk;
   const four = settings.device === "mici";
   choice($("set-hud"), $("set-hud-note"), HUD_OPTIONS, settings.navHudMode, v => saveSettings({ navHudMode: v }), four ? 2 : 4, THREE_X_ONLY);
   onOff($("set-lanes"), settings.laneGuidance, v => saveSettings({ laneGuidance: v }));
