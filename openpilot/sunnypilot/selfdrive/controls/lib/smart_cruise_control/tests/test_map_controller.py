@@ -117,3 +117,13 @@ class TestNavTurnInstance(OpenpilotTestCase):
     self.nav_turn.update(True, False, 10.0, 0.0, 15.0)
     assert self.nav_turn.state == MapState.enabled
     assert self.nav_turn.output_v_target == V_CRUISE_UNSET
+
+
+class TestNavTurnFloorFollowsMinSteerSpeed(OpenpilotTestCase):
+  def test_floor(self):
+    from opendbc.car import structs
+    from openpilot.sunnypilot.selfdrive.controls.lib.smart_cruise_control.smart_cruise_control import SmartCruiseControl
+    CP = structs.CarParams()
+    assert SmartCruiseControl(CP).nav_turn.min_v == NAV_TURN_MIN_V
+    CP.minSteerSpeed = 7.0
+    assert SmartCruiseControl(CP).nav_turn.min_v == 7.0

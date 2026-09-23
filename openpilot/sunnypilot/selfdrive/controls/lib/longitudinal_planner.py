@@ -24,7 +24,7 @@ class LongitudinalPlannerSP:
   def __init__(self, CP: structs.CarParams, CP_SP: structs.CarParamsSP, mpc):
     self.events_sp = EventsSP()
     self.resolver = SpeedLimitResolver()
-    self.scc = SmartCruiseControl()
+    self.scc = SmartCruiseControl(CP)
     self.resolver = SpeedLimitResolver()
     self.sla = SpeedLimitAssist(CP, CP_SP)
     self.generation = int(model_bundle.generation) if (model_bundle := get_active_bundle()) else None
