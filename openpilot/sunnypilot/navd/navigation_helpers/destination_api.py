@@ -114,6 +114,7 @@ class DestinationAPI:
       "navHudMode": p.get("NavHudMode", return_default=True),
       "navAudio": p.get_bool("NavigationAudio"),
       "navDesiresAllowed": p.get_bool("NavDesiresAllowed"),
+      "navTurnSlowdown": p.get_bool("NavTurnSlowdown"),
       "laneGuidance": p.get_bool("NavLaneGuidance"),
       "navLaneChangeTimer": p.get("NavLaneChangeTimer", return_default=True),
       "recompute": p.get_bool("MapboxRecompute"),
@@ -145,6 +146,8 @@ class DestinationAPI:
       p.put_bool("NavigationAudio", bool(body["navAudio"]), block=True)
     if "navDesiresAllowed" in body:
       p.put_bool("NavDesiresAllowed", bool(body["navDesiresAllowed"]), block=True)
+    if "navTurnSlowdown" in body:
+      p.put_bool("NavTurnSlowdown", bool(body["navTurnSlowdown"]), block=True)
     if "laneGuidance" in body:
       p.put_bool("NavLaneGuidance", bool(body["laneGuidance"]), block=True)
     if "navLaneChangeTimer" in body:

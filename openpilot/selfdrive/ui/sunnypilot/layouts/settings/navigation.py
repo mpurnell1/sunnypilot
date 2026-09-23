@@ -88,6 +88,10 @@ class NavigationLayout(Widget):
                                         tr("Learn the navigation sounds. Each cue plays while the screen shows the card it will accompany."),
                                         self._play_sound_tour, enabled=lambda: ui_state.is_offroad)
 
+    self._turn_slowdown_item = toggle_item_sp(tr("Slow for Route Turns"),
+                                              tr("Slow down ahead of each turn on your route to the speed drivers take a corner of that angle. Applies to turns of 55 degrees or more."),  # noqa: E501
+                                              param="NavTurnSlowdown")
+
     self._mapbox_route_item = button_item(tr("Destination"), tr("Edit"), "",
                                           partial(self._show_param_input, "MapboxRoute", tr("Enter Destination")))
 
@@ -102,6 +106,7 @@ class NavigationLayout(Widget):
       toggle_item_sp(tr("Reroute Automatically"), tr("Recompute the route automatically when you leave it. The device needs a data connection (comma prime/eSIM or mobile hotspot) for this to work, otherwise the route, and navigation, is lost."), param="MapboxRecompute"),  # noqa: E501
       toggle_item_sp(tr("Use Route Turn Desires"), tr("When you signal for a turn on your route, the car plans that turn at the intersection instead of guessing from the road ahead."),  # noqa: E501
                      param="NavDesiresAllowed"),
+      self._turn_slowdown_item,
       multiple_button_item_sp(tr("Turn Alerts"), self._get_banner_description,
                               NAV_BANNER_BUTTONS, param="NavBannerMode"),
     ]
@@ -212,6 +217,8 @@ class NavigationLayout(Widget):
     self._nav_status.update()
     self._mapbox_route_item.action_item.set_value(self._params.get("MapboxRoute") or tr("Destination not set"))
     self._update_navigation_visibility(self._params.get_bool("AllowNavigation"))
+    if ui_state.CP is not None:
+      self._turn_slowdown_item.action_item.set_enabled(ui_state.has_longitudinal_control)
 
     # the highlight mirrors the actual destination rather than the last tap, so a tap that
     # saved nothing, or a destination set/cleared elsewhere, can't leave it stale
