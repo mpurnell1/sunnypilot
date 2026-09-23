@@ -6,6 +6,7 @@ See the LICENSE.md file in the root directory for more details.
 """
 import openpilot.cereal.messaging as messaging
 from opendbc.car import structs
+from openpilot.sunnypilot.navd.helpers import Coordinate
 from openpilot.sunnypilot.selfdrive.controls.lib.smart_cruise_control.vision_controller import SmartCruiseControlVision
 from openpilot.sunnypilot.selfdrive.controls.lib.smart_cruise_control import NAV_TURN_MIN_V
 from openpilot.sunnypilot.selfdrive.controls.lib.smart_cruise_control.map_controller import SmartCruiseControlMap
@@ -21,5 +22,8 @@ class SmartCruiseControl:
 
   def update(self, sm: messaging.SubMaster, long_enabled: bool, long_override: bool, v_ego: float, a_ego: float, v_cruise: float) -> None:
     self.map.update(long_enabled, long_override, v_ego, a_ego, v_cruise)
-    self.nav_turn.update(long_enabled, long_override, v_ego, a_ego, v_cruise)
+    # the route's own fix, so the route targets do not depend on mapd's OSM process writing the memory param
+    nav = sm['navigationd']
+    position = Coordinate(nav.positionLatitude, nav.positionLongitude) if nav.hasPosition else None
+    self.nav_turn.update(long_enabled, long_override, v_ego, a_ego, v_cruise, position)
     self.vision.update(sm, long_enabled, long_override, v_ego, a_ego, v_cruise)

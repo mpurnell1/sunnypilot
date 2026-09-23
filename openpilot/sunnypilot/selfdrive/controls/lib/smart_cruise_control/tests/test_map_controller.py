@@ -114,3 +114,19 @@ class TestNavTurnFloorFollowsMinSteerSpeed(OpenpilotTestCase):
     assert SmartCruiseControl(CP).nav_turn.min_v == NAV_TURN_MIN_V
     CP.minSteerSpeed = 7.0
     assert SmartCruiseControl(CP).nav_turn.min_v == 7.0
+
+
+class TestNavTurnPositionFromTheRoute(OpenpilotTestCase):
+  def test_callers_fix_outranks_the_memory_param(self):
+    from openpilot.sunnypilot.navd.helpers import Coordinate
+    params = Params()
+    mem_params = Params("/dev/shm/params") if platform.system() != "Darwin" else params
+    params.put_bool("NavTurnSlowdown", True, block=True)
+    mem_params.remove("LastGPSPosition")
+    waypoint_lon_deg = (20.0 / R) * (180.0 / math.pi)
+    mem_params.put("NavTargetVelocities", json.dumps([{"latitude": 0.0, "longitude": waypoint_lon_deg, "velocity": 6.5}]), block=True)
+    nav_turn = SmartCruiseControlMap("NavTurnSlowdown", "NavTargetVelocities", NAV_TURN_MIN_V)
+    for _ in range(2):
+      nav_turn.update(True, False, 10.0, 0.0, 15.0, Coordinate(0.0, 0.0))
+    assert nav_turn.state == MapState.turning
+    assert nav_turn.output_v_target == 6.5

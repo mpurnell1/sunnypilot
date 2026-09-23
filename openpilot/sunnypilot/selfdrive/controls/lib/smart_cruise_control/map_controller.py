@@ -86,6 +86,7 @@ class SmartCruiseControlMap:
     self.target_lat = 0.0
     self.target_lon = 0.0
     self.frame = -1
+    self.position: Coordinate | None = None  # a caller's fix outranks the memory param
 
     self.last_position = coordinate_from_param("LastGPSPosition", self.mem_params) or Coordinate(0.0, 0.0)
     self.target_velocities = velocities_from_param(self.velocities_param, self.mem_params) or []
@@ -104,7 +105,7 @@ class SmartCruiseControlMap:
       self.enabled = self.params.get_bool(self.toggle)
 
   def update_calculations(self) -> None:
-    self.last_position = coordinate_from_param("LastGPSPosition", self.mem_params) or Coordinate(0.0, 0.0)
+    self.last_position = self.position or coordinate_from_param("LastGPSPosition", self.mem_params) or Coordinate(0.0, 0.0)
     lat = self.last_position.latitude
     lon = self.last_position.longitude
 
@@ -246,12 +247,13 @@ class SmartCruiseControlMap:
 
     return enabled, active
 
-  def update(self, long_enabled: bool, long_override: bool, v_ego, a_ego, v_cruise) -> None:
+  def update(self, long_enabled: bool, long_override: bool, v_ego, a_ego, v_cruise, position: Coordinate | None = None) -> None:
     self.long_enabled = long_enabled
     self.long_override = long_override
     self.v_ego = v_ego
     self.a_ego = a_ego
     self.v_cruise = v_cruise
+    self.position = position
 
     self.update_params()
     self.update_calculations()
