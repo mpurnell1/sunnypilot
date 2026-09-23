@@ -14,6 +14,7 @@ from openpilot.cereal import custom
 from openpilot.common.params import Params
 from openpilot.common.realtime import DT_MDL
 from openpilot.selfdrive.car.cruise import V_CRUISE_UNSET
+from openpilot.sunnypilot.selfdrive.controls.lib.smart_cruise_control import NAV_TURN_MIN_V
 from openpilot.sunnypilot.selfdrive.controls.lib.smart_cruise_control.map_controller import R, SmartCruiseControlMap
 from openpilot.common.test import OpenpilotTestCase
 
@@ -86,3 +87,33 @@ class TestSmartCruiseControlMap(OpenpilotTestCase):
     self.assertAlmostEqual(self.scc_m.v_target, 24.0, delta=24.0 * 1e-6)
 
   # TODO-SP: mock data from modelV2 to test other states
+
+
+class TestNavTurnInstance(OpenpilotTestCase):
+  """The route-turn controller is the map controller on its own toggle, param and floor."""
+
+  def setup_method(self):
+    self.params = Params()
+    self.mem_params = Params("/dev/shm/params") if platform.system() != "Darwin" else self.params
+    self.params.put_bool("NavTurnSlowdown", True, block=True)
+    self.params.put_bool("SmartCruiseControlMap", False, block=True)
+    self.nav_turn = SmartCruiseControlMap("NavTurnSlowdown", "NavTargetVelocities", NAV_TURN_MIN_V)
+
+  def test_floor_is_its_own(self):
+    waypoint_lon_deg = (20.0 / R) * (180.0 / math.pi)
+    self.mem_params.put("LastGPSPosition", json.dumps({"latitude": 0.0, "longitude": 0.0}), block=True)
+    self.mem_params.put("NavTargetVelocities",
+                        json.dumps([{"latitude": 0.0, "longitude": waypoint_lon_deg, "velocity": 2.0}]), block=True)
+
+    for _ in range(2):
+      self.nav_turn.update(True, False, 10.0, 0.0, 15.0)
+
+    assert self.nav_turn.state == MapState.turning
+    assert self.nav_turn.output_v_target == NAV_TURN_MIN_V
+
+  def test_cleared_param_releases(self):
+    self.test_floor_is_its_own()
+    self.mem_params.remove("NavTargetVelocities")
+    self.nav_turn.update(True, False, 10.0, 0.0, 15.0)
+    assert self.nav_turn.state == MapState.enabled
+    assert self.nav_turn.output_v_target == V_CRUISE_UNSET

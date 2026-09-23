@@ -273,6 +273,9 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"MapboxRecents", {PERSISTENT | BACKUP, JSON}},
     {"MapboxRecompute", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"NavDesiresAllowed", {PERSISTENT | BACKUP, BOOL, "0"}},
+    // memory params: [{latitude, longitude, velocity m/s}] for the route's turns ahead, navigationd's
+    {"NavTargetVelocities", {CLEAR_ON_ONROAD_TRANSITION, STRING}},
+    {"NavTurnSlowdown", {PERSISTENT | BACKUP, BOOL, "0"}},
     // the navigationBanner onroad event, instruction text in the alerts line (the visual
     // turn card is NavHudMode's business): 0 = off, 1 = raised at distance increments
     // approaching the turn, 2 = raised continuously while a route is active

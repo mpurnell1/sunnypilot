@@ -73,10 +73,15 @@ class SmartCruiseControlMap:
   output_v_target: float = V_CRUISE_UNSET
   output_a_target: float = 0.
 
-  def __init__(self):
+  def __init__(self, toggle: str = "SmartCruiseControlMap", velocities_param: str = "MapTargetVelocities", min_v: float = MIN_V,
+               needs_mapd: bool = True):
+    self.toggle = toggle
+    self.velocities_param = velocities_param
+    self.min_v = min_v
+    self.available = MAPD_AVAILABLE or not needs_mapd
     self.params = Params()
     self.mem_params = Params("/dev/shm/params") if platform.system() != "Darwin" else self.params
-    self.enabled = MAPD_AVAILABLE and self.params.get_bool("SmartCruiseControlMap")
+    self.enabled = self.available and self.params.get_bool(self.toggle)
     self.long_enabled = False
     self.long_override = False
     self.is_enabled = False
@@ -89,11 +94,11 @@ class SmartCruiseControlMap:
 
     self.gps_location_service = get_gps_location_service(self.params)
     self.last_position = Coordinate(0.0, 0.0)
-    self.target_velocities = velocities_from_param("MapTargetVelocities", self.mem_params) or []
+    self.target_velocities = velocities_from_param(self.velocities_param, self.mem_params) or []
 
   def get_v_target_from_control(self) -> float:
     if self.is_active:
-      return max(self.v_target, MIN_V)
+      return max(self.v_target, self.min_v)
 
     return V_CRUISE_UNSET
 
@@ -102,7 +107,7 @@ class SmartCruiseControlMap:
 
   def update_params(self):
     if self.frame % int(PARAMS_UPDATE_PERIOD / DT_MDL) == 0:
-      self.enabled = MAPD_AVAILABLE and self.params.get_bool("SmartCruiseControlMap")
+      self.enabled = self.available and self.params.get_bool(self.toggle)
 
   def update_calculations(self, sm: messaging.SubMaster) -> None:
     gps = sm[self.gps_location_service]
@@ -110,7 +115,7 @@ class SmartCruiseControlMap:
     lat = self.last_position.latitude
     lon = self.last_position.longitude
 
-    self.target_velocities = velocities_from_param("MapTargetVelocities", self.mem_params) or []
+    self.target_velocities = velocities_from_param(self.velocities_param, self.mem_params) or []
 
     if self.last_position is None or self.target_velocities is None:
       return
