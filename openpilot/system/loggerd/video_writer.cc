@@ -99,6 +99,7 @@ void VideoWriter::write(uint8_t *data, int len, long long timestamp, bool codecc
     if (written != len) {
       LOGE("failed to write file.errno=%d", errno);
     }
+    bypass.wrote(of, written);
   }
 
   if (remuxing) {
@@ -234,7 +235,7 @@ VideoWriter::~VideoWriter() {
     if (err != 0) LOGE("avio_closep failed %d", err);
     avformat_free_context(this->ofmt_ctx);
   } else {
-    util::safe_fflush(this->of);
+    bypass.close(this->of);
     fclose(this->of);
     this->of = nullptr;
   }

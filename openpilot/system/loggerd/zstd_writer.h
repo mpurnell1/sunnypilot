@@ -6,6 +6,8 @@
 #include <vector>
 #include <capnp/common.h>
 
+#include "common/util.h"
+
 class ZstdFileWriter {
 public:
   ZstdFileWriter(const std::string &filename, int compression_level);
@@ -21,4 +23,5 @@ private:
   std::vector<char> output_buffer_;
   ZSTD_CStream *cstream_;
   FILE* file_ = nullptr;
+  util::PageCacheBypass bypass_;
 };
