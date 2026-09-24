@@ -9,6 +9,7 @@ extern "C" {
 }
 
 #include "openpilot/cereal/messaging/messaging.h"
+#include "common/util.h"
 
 class VideoWriter {
 public:
@@ -26,6 +27,7 @@ private:
 
   std::string vid_path, lock_path;
   FILE *of = nullptr;
+  util::PageCacheBypass bypass;
 
   AVCodecContext *codec_ctx;
   AVFormatContext *ofmt_ctx;

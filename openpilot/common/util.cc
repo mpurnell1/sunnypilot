@@ -152,6 +152,27 @@ int safe_fflush(FILE *stream) {
   return ret;
 }
 
+void PageCacheBypass::wrote(FILE *f, size_t n) {
+  written_ += n;
+  if (written_ - queued_ < (1 << 20)) return;
+#ifdef __linux__
+  safe_fflush(f);
+  int fd = fileno(f);
+  sync_file_range(fd, queued_, written_ - queued_, SYNC_FILE_RANGE_WRITE);
+  posix_fadvise(fd, 0, queued_, POSIX_FADV_DONTNEED);
+#endif
+  queued_ = written_;
+}
+
+void PageCacheBypass::close(FILE *f) {
+#ifdef __linux__
+  safe_fflush(f);
+  int fd = fileno(f);
+  sync_file_range(fd, 0, written_, SYNC_FILE_RANGE_WAIT_BEFORE | SYNC_FILE_RANGE_WRITE | SYNC_FILE_RANGE_WAIT_AFTER);
+  posix_fadvise(fd, 0, written_, POSIX_FADV_DONTNEED);
+#endif
+}
+
 int safe_ioctl(int fd, unsigned long request, void *argp, const char* exception_msg) {
   int ret;
   do {
