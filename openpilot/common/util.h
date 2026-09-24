@@ -89,6 +89,19 @@ int write_file(const char* path, const void* data, size_t size, int flags = O_WR
 FILE* safe_fopen(const char* filename, const char* mode);
 size_t safe_fwrite(const void * ptr, size_t size, size_t count, FILE * stream);
 int safe_fflush(FILE *stream);
+
+// Streams written once and read back rarely bypass the page cache: on kernel 4.9 the cache
+// they fill is reclaimed a whole file at a time from inside the allocating process's page
+// fault (the inode shrinker, gone in mainline 51b8c1fe250d), a 100 to 400 ms stall.
+class PageCacheBypass {
+public:
+  void wrote(FILE *f, size_t n);
+  void close(FILE *f);
+
+private:
+  size_t written_ = 0, queued_ = 0;
+};
+
 int safe_ioctl(int fd, unsigned long request, void *argp, const char* exception_msg = nullptr);
 
 std::string readlink(const std::string& path);
