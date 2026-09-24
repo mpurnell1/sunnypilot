@@ -25,7 +25,7 @@ ZstdFileWriter::ZstdFileWriter(const std::string& filename, int compression_leve
 // Destructor: Finalizes compression and closes file
 ZstdFileWriter::~ZstdFileWriter() {
   flushCache(true);
-  util::safe_fflush(file_);
+  bypass_.close(file_);
 
   int err = fclose(file_);
   assert(err == 0);
@@ -57,6 +57,7 @@ void ZstdFileWriter::flushCache(bool last_chunk) {
 
     size_t written = util::safe_fwrite(output_buffer_.data(), 1, output.pos, file_);
     assert(written == output.pos);
+    bypass_.wrote(file_, written);
 
     finished = last_chunk ? (remaining == 0) : (input.pos == input.size);
   } while (!finished);
