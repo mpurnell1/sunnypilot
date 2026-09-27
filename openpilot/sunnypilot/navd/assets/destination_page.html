@@ -397,7 +397,11 @@ async function api(path, opts) {
   return body;
 }
 
-function miles(m) { return (m / 1609.344).toFixed(m < 16093 ? 1 : 0) + " mi"; }
+// distances read by the device's units toggle: metres in fifties then kilometres, or feet in fifties then miles
+function metric() { return !!(settings && settings.metric); }
+function farDistance(m) {
+  return metric() ? (m / 1000).toFixed(m < 10000 ? 1 : 0) + " km" : (m / 1609.344).toFixed(m < 16093 ? 1 : 0) + " mi";
+}
 function mins(s) { return Math.round(s / 60) + " min"; }
 
 // a "lon,lat" dest matches its favorite whatever its decimals; anything else matches as text
@@ -547,9 +551,10 @@ function glyph(type, modifier) {
   return "<g transform='rotate(" + angle + " 24 26)'>" + ARROW + "</g>";
 }
 
-function feetOrMiles(m) {
+function nearDistance(m) {
+  if (metric()) return m < 1000 ? Math.max(50, Math.round(m / 50) * 50) + " m" : farDistance(m);
   if (m < 160) return Math.max(50, Math.round(m * 3.28084 / 50) * 50) + " ft";
-  return miles(m);
+  return farDistance(m);
 }
 
 function clockTime(seconds) {
@@ -597,7 +602,7 @@ function applyTurn(g) {
   const m = ahead(g.maneuvers);
   turn.hidden = false;
   $("guide-glyph").innerHTML = glyph(m.type, m.modifier);
-  $("guide-dist").textContent = feetOrMiles(m.distance);
+  $("guide-dist").textContent = nearDistance(m.distance);
   $("guide-text").textContent = g.bannerInstructions || m.instruction || "Continue";
   lanes.hidden = !g.lanes.length;
   lanes.innerHTML = g.lanes.map(lane => {
@@ -605,7 +610,7 @@ function applyTurn(g) {
     return "<svg viewBox='0 0 48 48' class='" + (lane.active ? "active" : "") + "'>" + glyph("", dir) + "</svg>";
   }).join("");
   showStats(g.timeRemaining > 0
-    ? miles(g.distanceRemaining) + " \u00b7 " + mins(g.timeRemaining) + " \u00b7 ETA " + clockTime(g.timeRemaining)
+    ? farDistance(g.distanceRemaining) + " \u00b7 " + mins(g.timeRemaining) + " \u00b7 ETA " + clockTime(g.timeRemaining)
     : "");
 }
 
@@ -665,7 +670,7 @@ function renderRoute() {
     "<li><svg viewBox='0 0 48 48'>" + glyph(t.type, t.modifier) + "</svg>" +
     "<div class='grow'><div>" + esc(t.instruction || "Continue") + "</div>" +
     (t.type === "arrive" && destination ? "<div class='sub'>" + esc(destination) + "</div>" : "") +
-    "</div><div class='muted'>" + feetOrMiles(t.distance) + "</div></li>").join("");
+    "</div><div class='muted'>" + nearDistance(t.distance) + "</div></li>").join("");
 }
 
 // Web Mercator on a 256 px world, scaled to fit the view: the tiles are drawn in the same plane,
@@ -945,8 +950,7 @@ function renderSortChips() {
 
 // "22 min, 14.3 mi, via I-210 W" over "+4 min traffic", the app's row copy
 function routeTitle(r) {
-  const mi = r.distance / 1609.344;
-  const base = Math.round(r.duration / 60) + " min, " + (mi < 10 ? mi.toFixed(1) : Math.round(mi)) + " mi";
+  const base = Math.round(r.duration / 60) + " min, " + farDistance(r.distance);
   return r.summary ? base + ", via " + r.summary : base;
 }
 function trafficNote(r) {

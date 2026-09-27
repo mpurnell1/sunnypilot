@@ -118,6 +118,8 @@ class DestinationAPI:
       "navLaneChangeTimer": p.get("NavLaneChangeTimer", return_default=True),
       "recompute": p.get_bool("MapboxRecompute"),
       "quietGlyph": p.get_bool("NavMiciQuietGlyph"),
+      # stock openpilot's units toggle; every distance a client shows reads by it
+      "metric": p.get_bool("IsMetric"),
       # write-only: set or not set is all a client learns of the token
       "tokenSet": bool(self.mapbox.get_public_token()),
     }
