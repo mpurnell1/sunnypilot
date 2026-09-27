@@ -67,6 +67,11 @@
   .guide { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
   .guide .glyph { width: 72px; height: 72px; flex: none; fill: none; stroke: var(--ink); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
   .guide .dist { font-size: 1.5rem; font-weight: 600; line-height: 1.2; }
+  /* the posted limit as the road signs it: MUTCD's white rectangle for miles, the Vienna convention's red ring for kilometres */
+  .sign { flex: none; align-self: center; background: #fff; color: #000; font-weight: 700; text-align: center; line-height: 1; }
+  .sign.us { width: 46px; padding: 4px 0 5px; border: 2px solid #000; border-radius: 4px; font-size: 1.35rem; }
+  .sign.us small { display: block; font-size: 0.55rem; font-weight: 600; margin-bottom: 3px; }
+  .sign.metric { width: 52px; height: 52px; border: 6px solid #d0021b; border-radius: 50%; font-size: 1.25rem; display: flex; align-items: center; justify-content: center; }
   .headline { font-size: 1.25rem; font-weight: 600; margin: 2px 0 6px; }
   .spin { width: 22px; height: 22px; margin-top: 12px; border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.9s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
@@ -153,6 +158,7 @@
         <div id="guide-dist" class="dist"></div>
         <div id="guide-text"></div>
       </div>
+      <div id="guide-sign" class="sign" hidden></div>
     </div>
     <div id="guide-lanes" class="lanes" hidden></div>
     <div id="guide-headline" class="headline" hidden></div>
@@ -304,6 +310,10 @@
     <div id="row-quiet" class="setting">
       <div class="grow"><div>Always Show Next Turn</div><div class="muted">Off, the arrow for the next turn appears as the turn approaches and clears after it. On, a dim arrow for the next turn stays in the corner the whole route. <span id="quiet-reason"></span></div></div>
       <button id="set-quiet-glyph" class="switch" role="switch"></button>
+    </div>
+    <div class="setting">
+      <div class="grow"><div>Speed Limit Sign</div><div class="muted">The posted limit of the road ahead, from the route, as a sign on this page, the phone app and the head unit map.</div></div>
+      <button id="set-speed-sign" class="switch" role="switch"></button>
     </div>
   </div>
   <div id="rows-map">
@@ -604,6 +614,13 @@ function applyTurn(g) {
   $("guide-glyph").innerHTML = glyph(m.type, m.modifier);
   $("guide-dist").textContent = nearDistance(m.distance);
   $("guide-text").textContent = g.bannerInstructions || m.instruction || "Continue";
+  const limit = settings && settings.speedLimitSign ? g.currentSpeedLimit : 0;
+  const sign = $("guide-sign");
+  sign.hidden = !limit;
+  if (limit) {
+    sign.className = "sign " + (metric() ? "metric" : "us");
+    sign.innerHTML = metric() ? String(limit) : "<small>SPEED<br>LIMIT</small>" + Math.round(limit / 1.609344);
+  }
   lanes.hidden = !g.lanes.length;
   lanes.innerHTML = g.lanes.map(lane => {
     const dir = lane.active && lane.activeDirection ? lane.activeDirection : (lane.directions[0] || "straight");
@@ -1114,6 +1131,7 @@ function renderSettings() {
   onOff($("set-audio"), settings.navAudio, v => saveSettings({ navAudio: v }));
   onOff($("set-recompute"), settings.recompute, v => saveSettings({ recompute: v }));
   onOff($("set-quiet-glyph"), settings.quietGlyph, v => saveSettings({ quietGlyph: v }));
+  onOff($("set-speed-sign"), settings.speedLimitSign, v => saveSettings({ speedLimitSign: v }));
   $("token-state").textContent = settings.tokenSet ? "(already set)" : "(not set)";
   $("token-state").className = settings.tokenSet ? "ok" : "muted";
   renderSetup();
