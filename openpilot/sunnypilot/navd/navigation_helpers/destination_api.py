@@ -118,6 +118,7 @@ class DestinationAPI:
       "navLaneChangeTimer": p.get("NavLaneChangeTimer", return_default=True),
       "recompute": p.get_bool("MapboxRecompute"),
       "quietGlyph": p.get_bool("NavMiciQuietGlyph"),
+      "speedLimitSign": p.get_bool("NavSpeedLimitSign"),
       # stock openpilot's units toggle; every distance a client shows reads by it
       "metric": p.get_bool("IsMetric"),
       # write-only: set or not set is all a client learns of the token
@@ -154,6 +155,8 @@ class DestinationAPI:
       p.put_bool("MapboxRecompute", bool(body["recompute"]), block=True)
     if "quietGlyph" in body:
       p.put_bool("NavMiciQuietGlyph", bool(body["quietGlyph"]), block=True)
+    if "speedLimitSign" in body:
+      p.put_bool("NavSpeedLimitSign", bool(body["speedLimitSign"]), block=True)
     if "token" in body:
       # an empty submit is a no-op, not a wipe
       token = str(body["token"]).strip()
