@@ -281,6 +281,7 @@ inline static std::unordered_map<std::string, ParamKeyAttributes> keys = {
     {"NavLaneChangeTimer", {PERSISTENT | BACKUP, INT, "0"}},
     // mici only: faint next-turn glyph in the quiet state between maneuvers
     {"NavMiciQuietGlyph", {PERSISTENT | BACKUP, BOOL, "0"}},
+    {"NavSpeedLimitSign", {PERSISTENT | BACKUP, BOOL, "0"}},
     {"NavigationAudio", {PERSISTENT | BACKUP, BOOL, "0"}},
 
     // mapd
