@@ -25,6 +25,15 @@ def smooth_value(val, prev_val, tau, dt=DT_MDL):
   alpha = 1 - np.exp(-dt/tau) if tau > 0 else 1
   return alpha * val + (1 - alpha) * prev_val
 
+# Below about 12 m/s the model's steering request ripples at 0.8 to 3 Hz and a torque car's loop
+# passes it to the wheel. Same schedule as the Nissan angle filter, applied to the request so the
+# torque loop keeps its phase margin; the model's own constant holds where the schedule is shorter.
+LAT_SMOOTH_BP = [5.0, 10.0, 20.0]  # m/s
+LAT_SMOOTH_V = [0.3, 0.1, 0.0]  # s
+
+def lat_smooth_seconds(v_ego, base):
+  return max(base, float(np.interp(v_ego, LAT_SMOOTH_BP, LAT_SMOOTH_V)))
+
 def clip_curvature(v_ego, prev_curvature, new_curvature, roll) -> tuple[float, bool]:
   # This function respects ISO lateral jerk and acceleration limits + a max curvature
   v_ego = max(v_ego, MIN_SPEED)
