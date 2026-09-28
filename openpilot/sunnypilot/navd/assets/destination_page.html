@@ -1158,7 +1158,7 @@ function showSetup(step) {
     moveInto("rows-device", "setup-device");
     $("setup-here").textContent = location.host;
     $("setup-here").href = location.origin + "/";
-    $("setup-net").textContent = location.hostname === "192.168.43.1" ? "With the device's Wifi Tethering on:" : "Home wifi with the car in the driveway:";
+    $("setup-net").textContent = location.hostname === "192.168.43.1" ? "With the device's Wifi Tethering on (the phone's internet rides the device's SIM while joined):" : "Home wifi with the car in the driveway:";
     $("setup-pin").textContent = pinText();
   }
   setupStep = step;
