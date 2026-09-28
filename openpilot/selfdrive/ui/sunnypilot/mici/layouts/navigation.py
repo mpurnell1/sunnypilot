@@ -60,17 +60,13 @@ class NavigationLayoutMici(NavScroller):
     self._frame = 0
 
     self._info = NavigationInfo()
-    self._nav_toggle = BigParamControl("navigation", "AllowNavigation")
-    self._nav_toggle.set_value("set up from the sunnynav app, or the device page on port 5050")
+    self._nav_toggle = BigParamControl("allow navigation", "AllowNavigation")
     self._end_route_btn = BigButton("end route")
     self._end_route_btn.set_click_callback(self._end_route)
     self._desires_toggle = BigParamControl("use route turn desires", "NavDesiresAllowed")
-    self._desires_toggle.set_value("plan the turn you signal for on your route")
     self._lane_toggle = BigParamControl("show lanes", "NavLaneGuidance")
-    self._lane_toggle.set_value("lanes for the next maneuver on the turn card")
     self._lane_timer = BigMultiParamToggle("route lane change delay", "NavLaneChangeTimer", ["off", "nudgeless", "0.5 s", "1 s", "2 s", "3 s"])
     self._quiet_toggle = BigParamControl("always show next turn", "NavMiciQuietGlyph")
-    self._quiet_toggle.set_value("a dim arrow between turns")
 
     self._scroller.add_widgets([self._info, self._nav_toggle, self._end_route_btn, self._desires_toggle, self._lane_toggle,
                                 self._lane_timer, self._quiet_toggle])
