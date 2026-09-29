@@ -51,6 +51,15 @@ class LatControlTorque(LatControl):
 
     self.extension = LatControlTorqueExt(self, CP, CP_SP, CI)
 
+    # The Subaru EPS slews any torque change at about 1300 counts/s (STEER_MAX 2047), measured on
+    # the bench rack. Commanding faster drives the module deep into slew saturation, which adds
+    # roughly 90 deg of phase lag at the rack's ~0.8 Hz resonance and rings the torque loop up
+    # (notes/lateral-oscillation.md). Cap the command's rate to what the rack follows and freeze
+    # the integrator while capped, standard anti-windup, so the controller never commands into it.
+    self.torque_rate_limit = 1300.0 / 2047.0 * self.dt if CP.brand == "subaru" else float("inf")
+    self.torque_last = 0.0
+    self.torque_rate_limited = False
+
   def update_torque_parameters(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor
     self.torque_params.latAccelOffset = latAccelOffset
@@ -93,12 +102,14 @@ class LatControlTorque(LatControl):
 
     if not active:
       output_torque = 0.0
+      self.torque_last = 0.0
+      self.torque_rate_limited = False
       pid_log.active = False
     else:
       # do error correction in lateral acceleration space, convert at end to handle non-linear torque responses correctly
       pid_log.error = float(error)
 
-      freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5
+      freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5 or self.torque_rate_limited
       output_lataccel = self.pid.update(pid_log.error, speed=CS.vEgo, feedforward=ff, freeze_integrator=freeze_integrator)
       output_torque = self.torque_from_lateral_accel(output_lataccel, self.torque_params)
 
@@ -107,6 +118,12 @@ class LatControlTorque(LatControl):
       pid_log, output_torque = self.extension.update(CS, VM, self.pid, params, ff, pid_log, setpoint, measurement, calibrated_pose, roll_compensation,
                                                      future_desired_lateral_accel, measurement, lateral_accel_deadzone, gravity_adjusted_future_lateral_accel,
                                                      desired_curvature, measured_curvature, steer_limited_by_safety, output_torque)
+
+      if self.torque_rate_limit < float("inf"):
+        limited = float(np.clip(output_torque, self.torque_last - self.torque_rate_limit, self.torque_last + self.torque_rate_limit))
+        self.torque_rate_limited = limited != output_torque
+        output_torque = limited
+      self.torque_last = output_torque
 
       pid_log.active = True
       pid_log.p = float(self.pid.p)
