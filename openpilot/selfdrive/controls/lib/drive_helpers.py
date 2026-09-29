@@ -26,10 +26,12 @@ def smooth_value(val, prev_val, tau, dt=DT_MDL):
   return alpha * val + (1 - alpha) * prev_val
 
 # Below about 12 m/s the model's steering request ripples at 0.8 to 3 Hz and a torque car's loop
-# passes it to the wheel. Same schedule as the Nissan angle filter, applied to the request so the
-# torque loop keeps its phase margin; the model's own constant holds where the schedule is shorter.
-LAT_SMOOTH_BP = [5.0, 10.0, 20.0]  # m/s
-LAT_SMOOTH_V = [0.3, 0.1, 0.0]  # s
+# passes it to the wheel, so smooth the request (not the command, which keeps the loop's phase
+# margin). Schedule widened from the Nissan angle filter after road logs showed the wobble reaches
+# to ~12 m/s (notes/lateral-oscillation.md); the model's own constant holds where the schedule is
+# shorter.
+LAT_SMOOTH_BP = [5.0, 8.0, 12.0, 20.0]  # m/s
+LAT_SMOOTH_V = [0.4, 0.3, 0.15, 0.0]  # s
 
 def lat_smooth_seconds(v_ego, base):
   return max(base, float(np.interp(v_ego, LAT_SMOOTH_BP, LAT_SMOOTH_V)))
