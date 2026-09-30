@@ -45,7 +45,7 @@ class Controls(ControlsExt):
 
     self.sm = messaging.SubMaster(['lateralDelay', 'vehicleParameters', 'lateralTorqueParameters', 'modelV2', 'selfdriveState',
                                    'extrinsicsCalibration', 'deviceMotion', 'longitudinalPlan', 'lateralManeuverPlan', 'carState', 'carOutput',
-                                   'driverMonitoringState', 'onroadEvents', 'driverAssistance'] + self.sm_services_ext,
+                                   'driverMonitoringState', 'onroadEvents', 'driverAssistance', 'liveLocationKalman'] + self.sm_services_ext,
                                   poll='selfdriveState')
     self.pm = messaging.PubMaster(['carControl', 'controlsState'] + self.pm_services_ext)
 
@@ -173,7 +173,15 @@ class Controls(ControlsExt):
     # Orientation and angle rates can be useful for carcontroller
     # Only calibrated (car) frame is relevant for the carcontroller
     CC.currentCurvature = self.curvature
-    if self.calibrated_pose is not None:
+    # The IMU-only pose drifts nose-down by 1 to 1.4 deg at sustained highway speed against the
+    # GPS-fused Kalman pitch (subaru-forester-long-gains.md), which costs the grade feedforward
+    # about 0.2 m/s^2, so the Kalman's calibrated orientation is preferred while it is valid.
+    llk = self.sm['liveLocationKalman']
+    if llk.status == 'valid' and llk.calibratedOrientationNED.valid and len(llk.calibratedOrientationNED.value) == 3:
+      CC.orientationNED = list(llk.calibratedOrientationNED.value)
+      if llk.angularVelocityCalibrated.valid and len(llk.angularVelocityCalibrated.value) == 3:
+        CC.angularVelocity = list(llk.angularVelocityCalibrated.value)
+    elif self.calibrated_pose is not None:
       CC.orientationNED = self.calibrated_pose.orientation.xyz.tolist()
       CC.angularVelocity = self.calibrated_pose.angular_velocity.xyz.tolist()
 
