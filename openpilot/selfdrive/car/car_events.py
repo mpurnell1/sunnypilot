@@ -2,7 +2,9 @@ from openpilot.cereal import log
 from opendbc.car.structs import car
 from opendbc.car import DT_CTRL, structs
 from opendbc.car.car_helpers import interfaces
+from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.interfaces import MAX_CTRL_SPEED
+from opendbc.car.subaru.carstate import HIGH_ANGLE_GATE_SPEED_KPH
 from opendbc.car.toyota.values import ToyotaFlags
 
 from openpilot.selfdrive.selfdrived.events import Events
@@ -12,12 +14,18 @@ GearShifter = structs.CarState.GearShifter
 EventName = log.OnroadEvent.EventName
 NetworkLocation = structs.CarParams.NetworkLocation
 
+# The Subaru EPS fades a high-angle cut over about 0.4 s (bench), and the guard that makes the cut reads the
+# VDC's angle, up to 27 deg from the EPS angle in carState at parking speeds
+SUBARU_CUT_FADE_FRAMES = int(0.5 / DT_CTRL)
+SUBARU_CUT_ANGLE_DEG = 55
+
 
 class CarEvents:
   def __init__(self, CP: structs.CarParams):
     self.CP = CP
 
     self.steering_unpressed = 0
+    self.steer_fault_frames = 0
     self.low_speed_alert = False
     self.no_steer_warning = False
     self.silent_steer_warning = True
@@ -96,6 +104,10 @@ class CarEvents:
 
     return events
 
+  def expected_steer_cut(self, CS: car.CarState) -> bool:
+    return self.CP.brand == 'subaru' and CS.vEgo < HIGH_ANGLE_GATE_SPEED_KPH * CV.KPH_TO_MS and \
+           abs(CS.steeringAngleDeg) >= SUBARU_CUT_ANGLE_DEG
+
   def create_common_events(self, CS: structs.CarState, CS_prev: car.CarState):
     events = Events()
 
@@ -164,8 +176,12 @@ class CarEvents:
 
     # Handle permanent and temporary steering faults
     self.steering_unpressed = 0 if CS.steeringPressed else self.steering_unpressed + 1
+    self.steer_fault_frames = self.steer_fault_frames + 1 if CS.steerFaultTemporary else 0
     if CS.steerFaultTemporary:
-      if CS.steeringPressed and (not CS_prev.steerFaultTemporary or self.no_steer_warning):
+      if self.expected_steer_cut(CS):
+        if not CS.standstill and self.steer_fault_frames > SUBARU_CUT_FADE_FRAMES and self.steering_unpressed >= int(1.5 / DT_CTRL):
+          events.add(EventName.steerTempUnavailable)
+      elif CS.steeringPressed and (not CS_prev.steerFaultTemporary or self.no_steer_warning):
         self.no_steer_warning = True
       else:
         self.no_steer_warning = False
