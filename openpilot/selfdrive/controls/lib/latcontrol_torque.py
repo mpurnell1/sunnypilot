@@ -27,6 +27,10 @@ KI = 0.15
 
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
 KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
+# The Forester's rack turns several times further per unit torque at walking speed than the v^2
+# schedule above assumes, and against its 1300 counts/s slew the stock gains below 5 m/s make a
+# saturated bang-bang limit cycle, +-70 deg at 0.4 Hz hands off (notes/lateral-oscillation.md).
+KP_INTERP_SUBARU = [60, 30, 16, 8, 4, 3.8, 3.5, 2.0, KP]
 
 LP_FILTER_CUTOFF_HZ = 1.2
 JERK_LOOKAHEAD_SECONDS = 0.19
@@ -41,7 +45,8 @@ class LatControlTorque(LatControl):
     self.torque_params = CP.lateralTuning.torque.as_builder()
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
     self.lateral_accel_from_torque = CI.lateral_accel_from_torque()
-    self.pid = PIDController([INTERP_SPEEDS, KP_INTERP], KI, rate=1/self.dt)
+    kp = KP_INTERP_SUBARU if CP.brand == "subaru" else KP_INTERP
+    self.pid = PIDController([INTERP_SPEEDS, kp], KI, rate=1/self.dt)
     self.update_limits()
     self.steering_angle_deadzone_deg = self.torque_params.steeringAngleDeadzoneDeg
     self.lat_accel_request_buffer_len = int(LAT_ACCEL_REQUEST_BUFFER_SECONDS / self.dt)
