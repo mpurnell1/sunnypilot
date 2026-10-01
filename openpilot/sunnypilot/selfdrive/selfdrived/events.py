@@ -267,7 +267,7 @@ EVENTS_SP: dict[int, dict[str, Alert | AlertCallbackType]] = {
       "Big Model Ready",
       "",
       AlertStatus.normal, AlertSize.small,
-      Priority.LOW, VisualAlert.none, AudibleAlert.prompt, 2.),
+      Priority.LOW, VisualAlert.none, AudibleAlert.prompt, .2),
   },
 
   EventNameSP.navigationBanner: {
