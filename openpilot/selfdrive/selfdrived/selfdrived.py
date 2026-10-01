@@ -205,6 +205,7 @@ class SelfdriveD(CruiseHelper):
     loading = self.params.get_bool("ChestnutLoading")
     if self.big_model_loading and not loading:
       self.big_model_ready_t = time.monotonic()
+    if not self.enabled and time.monotonic() < self.big_model_ready_t + 2.:
       self.events_sp.add(custom.OnroadEventSP.EventName.bigModelReady)
     self.big_model_loading = loading
     if self.big_model_loading:
