@@ -535,9 +535,11 @@ class SelfdriveD(CruiseHelper):
       bars = self.sm['carStateSP'].distanceBars
       if bars and self.distance_bars_prev and bars != self.distance_bars_prev:
         step = 1 if bars > self.distance_bars_prev else -1
-        self.personality = min(max(self.personality + step, 0), len(LONGITUDINAL_PERSONALITY_MAP) - 1)
-        self.params.put('LongitudinalPersonality', self.personality)
-        self.events.add(EventName.personalityChanged)
+        personality = min(max(self.personality + step, 0), len(LONGITUDINAL_PERSONALITY_MAP) - 1)
+        if personality != self.personality:
+          self.personality = personality
+          self.params.put('LongitudinalPersonality', self.personality)
+          self.events.add(EventName.personalityChanged)
       self.distance_bars_prev = bars
 
     self.icbm.run(CS, self.sm['carControl'], self.sm['longitudinalPlanSP'], self.is_metric)
