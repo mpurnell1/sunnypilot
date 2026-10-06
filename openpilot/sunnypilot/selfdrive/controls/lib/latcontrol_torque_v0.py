@@ -7,6 +7,7 @@ from opendbc.car.lateral import get_friction
 from openpilot.common.constants import ACCELERATION_DUE_TO_GRAVITY
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.selfdrive.controls.lib.latcontrol import LatControl
+from openpilot.selfdrive.controls.lib.latcontrol_torque import KP_INTERP_SUBARU_LOW, SUBARU_TORQUE_SLEW
 from openpilot.common.pid import PIDController
 
 from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_ext import LatControlTorqueExt
@@ -40,7 +41,8 @@ class LatControlTorque(LatControl):
     self.torque_params = CP.lateralTuning.torque.as_builder()
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
     self.lateral_accel_from_torque = CI.lateral_accel_from_torque()
-    self.pid = PIDController([INTERP_SPEEDS, KP_INTERP], KI, KD, rate=1/self.dt)
+    kp = KP_INTERP_SUBARU_LOW + [KP] if CP.brand == "subaru" else KP_INTERP
+    self.pid = PIDController([INTERP_SPEEDS, kp], KI, KD, rate=1/self.dt)
     self.update_limits()
     self.steering_angle_deadzone_deg = self.torque_params.steeringAngleDeadzoneDeg
     self.lat_accel_request_buffer_len = int(LAT_ACCEL_REQUEST_BUFFER_SECONDS / self.dt)
@@ -49,6 +51,10 @@ class LatControlTorque(LatControl):
     self.measurement_rate_filter = FirstOrderFilter(0.0, 1 / (2 * np.pi * LP_FILTER_CUTOFF_HZ), self.dt)
 
     self.extension = LatControlTorqueExt(self, CP, CP_SP, CI)
+
+    self.torque_rate_limit = SUBARU_TORQUE_SLEW * self.dt if CP.brand == "subaru" else float("inf")
+    self.torque_last = 0.0
+    self.torque_rate_limited = False
 
   def update_torque_parameters(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor
@@ -69,6 +75,8 @@ class LatControlTorque(LatControl):
     pid_log.version = VERSION
     if not active:
       output_torque = 0.0
+      self.torque_last = 0.0
+      self.torque_rate_limited = False
       pid_log.active = False
     else:
       measured_curvature = -VM.calc_curvature(math.radians(CS.steeringAngleDeg - params.angleOffsetDeg), CS.vEgo, params.roll)
@@ -99,7 +107,7 @@ class LatControlTorque(LatControl):
       # TODO jerk is weighted by lat_delay for legacy reasons, but should be made independent of it
       ff += get_friction(error, lateral_accel_deadzone, FRICTION_THRESHOLD, self.torque_params)
 
-      freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5
+      freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5 or self.torque_rate_limited
       output_lataccel = self.pid.update(pid_log.error,
                                        -measurement_rate,
                                         feedforward=ff,
@@ -112,6 +120,12 @@ class LatControlTorque(LatControl):
       pid_log, output_torque = self.extension.update(CS, VM, self.pid, params, ff, pid_log, setpoint, measurement, calibrated_pose, roll_compensation,
                                                      future_desired_lateral_accel, measurement, lateral_accel_deadzone, gravity_adjusted_future_lateral_accel,
                                                      desired_curvature, measured_curvature, steer_limited_by_safety, output_torque)
+
+      if self.torque_rate_limit < float("inf"):
+        limited = float(np.clip(output_torque, self.torque_last - self.torque_rate_limit, self.torque_last + self.torque_rate_limit))
+        self.torque_rate_limited = limited != output_torque
+        output_torque = limited
+      self.torque_last = output_torque
 
       pid_log.active = True
       pid_log.p = float(self.pid.p)
