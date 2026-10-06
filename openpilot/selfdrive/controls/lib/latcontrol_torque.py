@@ -27,10 +27,18 @@ KI = 0.15
 
 INTERP_SPEEDS = [1, 1.5, 2.0, 3.0, 5, 7.5, 10, 15, 30]
 KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
-# The Forester's rack turns several times further per unit torque at walking speed than the v^2
-# schedule above assumes, and against its 1300 counts/s slew the stock gains below 5 m/s make a
-# saturated bang-bang limit cycle, +-70 deg at 0.4 Hz hands off (notes/lateral-oscillation.md).
-KP_INTERP_SUBARU = [60, 30, 16, 8, 4, 3.8, 3.5, 2.0, KP]
+# The Forester's rack turns about 10x further per unit torque at 3 to 5 m/s than at highway speed
+# and 3x at 8 to 12 m/s (measured over 44 h of logs, .scratch/rack_gain_large.py), where the v^2
+# schedule above assumes it is constant. Against its slew the stock gains below 8 m/s then sustain
+# a bang-bang limit cycle, +-40 to 70 deg at 0.4 Hz hands off (notes/lateral-oscillation.md).
+# Below 15 m/s only; the road-speed gain is each controller's own.
+KP_INTERP_SUBARU_LOW = [60, 30, 16, 8, 4, 3.8, 3.5, 2.0]
+# The Subaru EPS slews any torque change at about 1300 counts/s (STEER_MAX 2047), measured on the
+# bench rack. Commanding faster drives the module deep into slew saturation, which adds roughly
+# 90 deg of phase lag at the rack's ~0.8 Hz resonance and rings the torque loop up
+# (notes/lateral-oscillation.md). The command's rate is capped to what the rack follows and the
+# integrator frozen while capped, standard anti-windup, so the controller never commands into it.
+SUBARU_TORQUE_SLEW = 1300.0 / 2047.0  # of full torque, per second
 
 LP_FILTER_CUTOFF_HZ = 1.2
 JERK_LOOKAHEAD_SECONDS = 0.19
@@ -45,7 +53,7 @@ class LatControlTorque(LatControl):
     self.torque_params = CP.lateralTuning.torque.as_builder()
     self.torque_from_lateral_accel = CI.torque_from_lateral_accel()
     self.lateral_accel_from_torque = CI.lateral_accel_from_torque()
-    kp = KP_INTERP_SUBARU if CP.brand == "subaru" else KP_INTERP
+    kp = KP_INTERP_SUBARU_LOW + [KP] if CP.brand == "subaru" else KP_INTERP
     self.pid = PIDController([INTERP_SPEEDS, kp], KI, rate=1/self.dt)
     self.update_limits()
     self.steering_angle_deadzone_deg = self.torque_params.steeringAngleDeadzoneDeg
@@ -56,12 +64,7 @@ class LatControlTorque(LatControl):
 
     self.extension = LatControlTorqueExt(self, CP, CP_SP, CI)
 
-    # The Subaru EPS slews any torque change at about 1300 counts/s (STEER_MAX 2047), measured on
-    # the bench rack. Commanding faster drives the module deep into slew saturation, which adds
-    # roughly 90 deg of phase lag at the rack's ~0.8 Hz resonance and rings the torque loop up
-    # (notes/lateral-oscillation.md). Cap the command's rate to what the rack follows and freeze
-    # the integrator while capped, standard anti-windup, so the controller never commands into it.
-    self.torque_rate_limit = 1300.0 / 2047.0 * self.dt if CP.brand == "subaru" else float("inf")
+    self.torque_rate_limit = SUBARU_TORQUE_SLEW * self.dt if CP.brand == "subaru" else float("inf")
     self.torque_last = 0.0
     self.torque_rate_limited = False
 
