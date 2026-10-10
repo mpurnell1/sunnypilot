@@ -16,7 +16,7 @@ import pyray as rl
 from openpilot.common.filter_simple import FirstOrderFilter
 from openpilot.selfdrive.ui.sunnypilot.nav_status import ROUTE_FAILURE_THRESHOLD, NavStatus
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import (
-  _draw_flag, _draw_maneuver_icon, draw_lane_glyph, format_distance, lane_direction, slowdown_pulse, slowing_for_turn,
+  _draw_flag, _draw_maneuver_icon, assist_pulse, assist_pulsing, draw_lane_glyph, format_distance, lane_direction,
 )
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import (
   ChipMode, TransientNav, TransientNavState, chip_mode, flag_raised, pick_upcoming_maneuver,
@@ -67,7 +67,7 @@ class CornerContent:
 
 
 def corner_content(state: TransientNavState, mode: ChipMode, msg,
-                   lane_guidance: bool, quiet_glyph: bool, raised: bool = True, slowing: bool = False) -> CornerContent | None:
+                   lane_guidance: bool, quiet_glyph: bool, raised: bool = True, assist: bool = False) -> CornerContent | None:
   if mode == ChipMode.SEARCHING:
     return CornerContent('searching', SEARCH_ALPHA, raised=raised)
   if mode == ChipMode.FAILURE:
@@ -89,10 +89,11 @@ def corner_content(state: TransientNavState, mode: ChipMode, msg,
     return CornerContent('maneuver', QUIET_ALPHA, maneuver_type, modifier)
   if state in (TransientNavState.APPROACH, TransientNavState.PINNED):
     lanes = tuple(msg.lanes) if lane_guidance else ()
-    return CornerContent('maneuver', FULL_ALPHA, maneuver_type, modifier, distance, lanes, pulse=slowing)
-  # the slowdown starts before the corner's own approach window, so the brake shows its reason
-  if state == TransientNavState.QUIET and (quiet_glyph or slowing):
-    return CornerContent('maneuver', QUIET_ALPHA, maneuver_type, modifier, pulse=slowing)
+    return CornerContent('maneuver', FULL_ALPHA, maneuver_type, modifier, distance, lanes, pulse=assist)
+  # the slowdown and the lane hint start before the corner's own approach window, so the car
+  # shows what it is acting on
+  if state == TransientNavState.QUIET and (quiet_glyph or assist):
+    return CornerContent('maneuver', QUIET_ALPHA, maneuver_type, modifier, pulse=assist)
   return None
 
 
@@ -135,7 +136,7 @@ class MiciNavRenderer(Widget):
                           off_route=msg.routeState != 'onRoute')
     self._content = corner_content(self.transient.state, self._mode, msg,
                                    self.nav_status.lane_guidance, self.nav_status.mici_quiet_glyph,
-                                   flag_raised(self.nav_status.state), slowing_for_turn())
+                                   flag_raised(self.nav_status.state), assist_pulsing())
 
   def _update_state(self) -> None:
     self.update_state()
@@ -156,7 +157,7 @@ class MiciNavRenderer(Widget):
     drawn = self._drawn
     a = min(alpha, 1.0)
     if drawn.pulse:
-      a *= slowdown_pulse()
+      a *= assist_pulse()
     cx = rect.x + CENTER_X
 
     # the set-speed circle's drop shadow

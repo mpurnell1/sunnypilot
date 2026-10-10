@@ -17,7 +17,7 @@ from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.ui.sunnypilot.nav_status import ROUTE_FAILURE_THRESHOLD
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import (
-  BAD, LANE_INACTIVE, TURN_COLOR, _draw_flag, draw_lane_glyph, format_distance, lane_direction, slowdown_pulse, slowing_for_turn,
+  BAD, LANE_INACTIVE, TURN_COLOR, _draw_flag, assist_pulse, assist_pulsing, draw_lane_glyph, format_distance, lane_direction,
 )
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import ChipMode, TransientNavState, pick_upcoming_index
 from openpilot.selfdrive.ui.ui_state import ui_state
@@ -131,7 +131,7 @@ class BannerContent:
   pulse: bool = False
 
 
-def banner_content(state: TransientNavState, mode: ChipMode, msg, lane_guidance: bool, slowing: bool = False) -> BannerContent | None:
+def banner_content(state: TransientNavState, mode: ChipMode, msg, lane_guidance: bool, assist: bool = False) -> BannerContent | None:
   if mode != ChipMode.LIVE or state not in (TransientNavState.APPROACH, TransientNavState.PINNED):
     return None
   idx = pick_upcoming_index(msg.allManeuvers)
@@ -147,7 +147,7 @@ def banner_content(state: TransientNavState, mode: ChipMode, msg, lane_guidance:
                        then.modifier if then is not None else None, lanes,
                        route_state=str(msg.routeState),
                        failing=msg.routeFailures >= ROUTE_FAILURE_THRESHOLD,
-                       pulse=slowing and str(msg.routeState) == 'onRoute')
+                       pulse=assist and str(msg.routeState) == 'onRoute')
 
 
 class NavBannerRenderer(Widget):
@@ -172,7 +172,7 @@ class NavBannerRenderer(Widget):
     self._update_frame = ui_state.sm.frame
     self._nav.update_state()
     self._content = banner_content(self._nav.transient.state, self._nav.mode,
-                                   ui_state.sm['navigationd'], self._nav.nav_status.lane_guidance, slowing_for_turn())
+                                   ui_state.sm['navigationd'], self._nav.nav_status.lane_guidance, assist_pulsing())
 
   def _update_state(self) -> None:
     self.update_state()
@@ -218,7 +218,7 @@ class NavBannerRenderer(Widget):
       if content.route_state == 'offRoute':
         tint = DIM_TREATMENT
       elif content.pulse:
-        tint = rl.Color(255, 255, 255, int(255 * slowdown_pulse()))
+        tint = rl.Color(255, 255, 255, int(255 * assist_pulse()))
       else:
         tint = rl.WHITE
       rl.draw_texture_ex(icon, rl.Vector2(card.x + ICON_PAD, card.y + 12), 0, 1.0, tint)

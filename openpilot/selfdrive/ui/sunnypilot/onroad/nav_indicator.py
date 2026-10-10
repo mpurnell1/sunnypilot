@@ -11,6 +11,7 @@ import time
 
 import pyray as rl
 
+from openpilot.cereal import log
 from openpilot.selfdrive.ui.onroad.hud_renderer import UI_CONFIG
 from openpilot.selfdrive.ui.sunnypilot.nav_status import ROUTE_FAILURE_THRESHOLD, NavStatus
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import (
@@ -22,6 +23,8 @@ from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.application import gui_app, FontWeight
 from openpilot.system.ui.lib.text_measure import measure_text_cached
 from openpilot.system.ui.widgets import Widget
+
+LaneChangeState = log.LaneChangeState
 
 # directly below the set speed box (x+60, y+45, set_speed_height tall)
 LEFT_MARGIN = 60
@@ -55,14 +58,27 @@ ARROW_ANGLES = {
 }
 
 
-def slowdown_pulse(now: float | None = None) -> float:
-  """Alpha scale for a glyph the route slowdown is braking for: a slow breathe over a third of it."""
+def assist_pulse(now: float | None = None) -> float:
+  """Alpha scale for the glyph of a maneuver the car is acting on: a slow breathe over a third of it."""
   t = time.monotonic() if now is None else now
   return 1.0 - PULSE_DEPTH * (0.5 - 0.5 * math.cos(2 * math.pi * t / PULSE_PERIOD))
 
 
 def slowing_for_turn() -> bool:
   return bool(ui_state.sm['longitudinalPlanSP'].smartCruiseControl.navTurn.active)
+
+
+def assist_ready() -> bool:
+  """The route lane change delay stands ready to take the signaled exit or merge."""
+  nav = ui_state.sm['navigationd']
+  lane_change = ui_state.sm['modelV2'].meta.laneChangeState
+  return bool(nav.laneChangeAutoConfirm) and str(nav.laneChangeDirection) in ('left', 'right') \
+    and lane_change in (LaneChangeState.off, LaneChangeState.preLaneChange)
+
+
+# one breath for both: the car is about to act on this maneuver
+def assist_pulsing() -> bool:
+  return slowing_for_turn() or assist_ready()
 
 
 def lane_direction(lane) -> str:
@@ -352,7 +368,7 @@ class NavIndicatorRenderer(Widget):
     self._font = gui_app.font(FontWeight.SEMI_BOLD)
     self._mode = ChipMode.HIDDEN
     self._update_frame = -1
-    self._slowing = False
+    self._pulse = False
     # the route summary lays out below this
     self.stack_bottom: float = 0.0
 
@@ -370,7 +386,7 @@ class NavIndicatorRenderer(Widget):
     msg = ui_state.sm['navigationd']
     self.transient.update(self._mode == ChipMode.LIVE, msg.allManeuvers, msg.audioCueId, msg.audioCueStage,
                           off_route=msg.routeState != 'onRoute')
-    self._slowing = slowing_for_turn()
+    self._pulse = assist_pulsing()
 
   def _update_state(self) -> None:
     self.update_state()
@@ -398,7 +414,7 @@ class NavIndicatorRenderer(Widget):
     span = CHIP_ICON_SIZE + CHIP_GAP + text_size.x
     x = box.x + (box.width - span) / 2
     cy = box.y + box.height / 2
-    icon_color = rl.Color(255, 255, 255, int(CHIP_DIM.a * slowdown_pulse())) if pulse else CHIP_DIM
+    icon_color = rl.Color(255, 255, 255, int(CHIP_DIM.a * assist_pulse())) if pulse else CHIP_DIM
     _draw_maneuver_icon(x + CHIP_ICON_SIZE / 2, cy, maneuver_type, modifier, icon_color, CHIP_ICON_SIZE)
     rl.draw_text_ex(self._font, text, rl.Vector2(x + CHIP_ICON_SIZE + CHIP_GAP, cy - text_size.y / 2),
                     CHIP_FONT_SIZE, 0, CHIP_DIM)
@@ -438,6 +454,6 @@ class NavIndicatorRenderer(Widget):
       return
 
     box = rl.Rectangle(x, top, width, BOX_HEIGHT)
-    self._render_chip(box, maneuver, dimmed=msg.routeState == 'offRoute', pulse=self._slowing)
+    self._render_chip(box, maneuver, dimmed=msg.routeState == 'offRoute', pulse=self._pulse)
     self.stack_bottom = top + box.height
     self.set_rect(box)
