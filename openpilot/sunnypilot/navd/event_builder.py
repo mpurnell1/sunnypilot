@@ -10,10 +10,6 @@ from openpilot.common.realtime import DT_MDL
 
 from openpilot.sunnypilot.navd.constants import BannerMode, NAV_BANNER, NAV_CV
 
-# what the hinted lane change is for, by Mapbox maneuver type; turns, forks and the rest
-# read as a plain lane change
-LANE_HINT_SUBJECTS = {'off ramp': 'Exit', 'merge': 'Merge'}
-
 
 class EventBuilder:
   def __init__(self):
@@ -69,11 +65,6 @@ class EventBuilder:
     return turn_messages.get(upcoming_turn, f"Upcoming {upcoming_turn.replace('_', ' ').title()}")
 
   @staticmethod
-  def _lane_hint_subject(nav_msg) -> str:
-    maneuver_type = nav_msg.allManeuvers[1].type if len(nav_msg.allManeuvers) > 1 else ''
-    return next((subject for t, subject in LANE_HINT_SUBJECTS.items() if t in maneuver_type), 'Lane change')
-
-  @staticmethod
   def build_navigation_events(sm: messaging.SubMaster, metric=True) -> list:
     nav_msg = sm['navigationd']
     # a route can be valid before any maneuvers have been computed, so both are required to build a banner
@@ -84,10 +75,6 @@ class EventBuilder:
 
     if nav_msg.upcomingTurn != 'none':
       banner_message = EventBuilder._get_turning_message(nav_msg.upcomingTurn)
-    elif nav_msg.laneChangeDirection in ('left', 'right'):
-      # assist never moves the car on its own; the prompt tells the driver the blinker is
-      # what starts it
-      banner_message = f"{EventBuilder._lane_hint_subject(nav_msg)} ahead: signal {nav_msg.laneChangeDirection} when clear"
 
     return [{
       'name': custom.OnroadEventSP.EventName.navigationBanner,
