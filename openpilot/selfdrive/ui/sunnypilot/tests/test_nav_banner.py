@@ -203,17 +203,17 @@ class TestReflowGating:
     assert HudRendererSP.nav_summary_anchor(True, False, False, chip_bottom=333.0) == 249.0
 
 
-class TestSlowdownPulse:
-  def test_banner_breathes_while_slowing_on_route(self):
-    content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(THREE_STEPS), False, slowing=True)
+class TestAssistPulse:
+  def test_banner_breathes_while_assisting_on_route(self):
+    content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(THREE_STEPS), False, assist=True)
     assert content is not None and content.pulse
 
   def test_off_route_never_pulses(self):
-    content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(THREE_STEPS, route_state='offRoute'), False, slowing=True)
+    content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(THREE_STEPS, route_state='offRoute'), False, assist=True)
     assert content is not None and not content.pulse
 
   def test_pulse_breathes_over_a_third(self):
-    from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import PULSE_DEPTH, PULSE_PERIOD, slowdown_pulse
-    assert slowdown_pulse(0.0) == 1.0
-    assert abs(slowdown_pulse(PULSE_PERIOD / 2) - (1.0 - PULSE_DEPTH)) < 1e-9
-    assert abs(slowdown_pulse(PULSE_PERIOD) - 1.0) < 1e-9
+    from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import PULSE_DEPTH, PULSE_PERIOD, assist_pulse
+    assert assist_pulse(0.0) == 1.0
+    assert abs(assist_pulse(PULSE_PERIOD / 2) - (1.0 - PULSE_DEPTH)) < 1e-9
+    assert abs(assist_pulse(PULSE_PERIOD) - 1.0) < 1e-9

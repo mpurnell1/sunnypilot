@@ -103,18 +103,14 @@ class TestEventBuilder:
     events = EventBuilder.build_navigation_events(MockSM(nav_msg))
     assert events[0]['message'] == 'In 45m, Bear left onto Fairview Drive'
 
-  def test_lane_hint_names_the_maneuver(self):
+  def test_lane_hint_keeps_the_turn_text(self):
+    # the HUD breathes the maneuver's glyph for a hint; the strip keeps saying where the turn is
     nav_msg = self.create_nav_msg()
-    nav_msg.laneChangeDirection = 'right'
     nav_msg.allManeuvers[1] = custom.Navigationd.Maneuver.new_message(distance=600.0, type='off ramp', modifier='slightRight', instruction='Exit 179')
-    assert EventBuilder.build_navigation_events(MockSM(nav_msg))[0]['message'] == 'Exit ahead: signal right when clear'
-
-    nav_msg.laneChangeDirection = 'left'
-    nav_msg.allManeuvers[1] = custom.Navigationd.Maneuver.new_message(distance=600.0, type='merge', modifier='slightLeft', instruction='I-55')
-    assert EventBuilder.build_navigation_events(MockSM(nav_msg))[0]['message'] == 'Merge ahead: signal left when clear'
-
-    nav_msg.allManeuvers[1] = custom.Navigationd.Maneuver.new_message(distance=600.0, type='turn', modifier='left', instruction='Main Street')
-    assert EventBuilder.build_navigation_events(MockSM(nav_msg))[0]['message'] == 'Lane change ahead: signal left when clear'
+    plain = EventBuilder.build_navigation_events(MockSM(nav_msg))[0]['message']
+    nav_msg.laneChangeDirection = 'right'
+    nav_msg.laneChangeAutoConfirm = True
+    assert EventBuilder.build_navigation_events(MockSM(nav_msg))[0]['message'] == plain
 
   def test_straight(self):
     nav_msg = self.create_nav_msg()

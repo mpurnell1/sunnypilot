@@ -4,7 +4,10 @@ Copyright (c) 2021-, Haibin Wen, sunnypilot, and a number of other contributors.
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import ARROW_ANGLES, format_distance
+from openpilot.cereal import custom, log
+
+from openpilot.selfdrive.ui.sunnypilot.onroad import nav_indicator as nav_indicator_module
+from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import ARROW_ANGLES, assist_ready, format_distance
 from openpilot.selfdrive.ui.sunnypilot.onroad.route_summary import (
   MIN_SCALE, PADDING_V, ROW_HEIGHT, format_remaining_time, plan_layout,
 )
@@ -28,6 +31,45 @@ class TestFormatDistance:
   def test_never_negative(self):
     assert format_distance(-5, True) == "0 m"
     assert format_distance(-5, False) == "0 ft"
+
+
+class TestAssistReady:
+  """The lane change delay stands ready: the breath lasts until the car moves over."""
+
+  def setup_method(self):
+    self._real_sm = nav_indicator_module.ui_state.sm
+    self.sm: dict = {}
+    nav_indicator_module.ui_state.sm = self.sm
+
+  def teardown_method(self):
+    nav_indicator_module.ui_state.sm = self._real_sm
+
+  def _set(self, direction='right', confirm=True, lane_change=log.LaneChangeState.off):
+    nav = custom.Navigationd.new_message()
+    nav.laneChangeDirection = direction
+    nav.laneChangeAutoConfirm = confirm
+    model = log.ModelDataV2.new_message()
+    model.meta.laneChangeState = lane_change
+    self.sm['navigationd'] = nav
+    self.sm['modelV2'] = model
+
+  def test_ready_while_the_hint_can_confirm(self):
+    self._set()
+    assert assist_ready()
+    self._set(lane_change=log.LaneChangeState.preLaneChange)
+    assert assist_ready()
+
+  def test_a_hint_that_cannot_confirm_is_only_advisory(self):
+    self._set(confirm=False)
+    assert not assist_ready()
+    self._set(direction='none', confirm=False)
+    assert not assist_ready()
+
+  def test_stops_once_the_car_moves_over(self):
+    self._set(lane_change=log.LaneChangeState.laneChangeStarting)
+    assert not assist_ready()
+    self._set(lane_change=log.LaneChangeState.laneChangeFinishing)
+    assert not assist_ready()
 
 
 class TestFormatRemainingTime:
