@@ -2,15 +2,17 @@ from opendbc.car import DT_CTRL
 from opendbc.car.structs import car
 from opendbc.car.subaru.values import CAR
 from openpilot.cereal import log
-from openpilot.selfdrive.car.car_events import CarEvents, SUBARU_CUT_FADE_FRAMES, SUBARU_CUT_ANGLE_DEG
+from openpilot.selfdrive.car.car_events import CarEvents, SUBARU_CUT_FADE_FRAMES, SUBARU_CUT_ANGLE_DEG, SUBARU_CUT_HOLD_TORQUE
 
 EventName = log.OnroadEvent.EventName
 STEER_EVENTS = (EventName.steerTempUnavailable, EventName.steerTempUnavailableSilent)
 UNPRESSED_FRAMES = int(1.5 / DT_CTRL)
+EMPTY_WHEEL_TORQUE = 20.
+LIGHT_HAND_TORQUE = SUBARU_CUT_HOLD_TORQUE + 1.
 
 
 def car_state(**fields):
-  return car.CarState.new_message(**{'vEgo': 5., 'steeringAngleDeg': SUBARU_CUT_ANGLE_DEG + 10., **fields})
+  return car.CarState.new_message(**{'vEgo': 5., 'steeringAngleDeg': SUBARU_CUT_ANGLE_DEG + 10., 'steeringTorque': EMPTY_WHEEL_TORQUE, **fields})
 
 
 class TestSubaruHighAngleCut:
@@ -31,12 +33,12 @@ class TestSubaruHighAngleCut:
     assert self.run(car_state(steerFaultTemporary=True), SUBARU_CUT_FADE_FRAMES) == set()
     assert self.run(car_state(steerFaultTemporary=True), 1) == {EventName.steerTempUnavailable}
 
-  def test_hand_on_the_wheel_stays_quiet(self):
+  def test_light_hand_on_the_wheel_stays_quiet(self):
     self.run(car_state(), UNPRESSED_FRAMES)
-    assert self.run(car_state(steerFaultTemporary=True, steeringPressed=True), 5 * SUBARU_CUT_FADE_FRAMES) == set()
+    assert self.run(car_state(steerFaultTemporary=True, steeringTorque=LIGHT_HAND_TORQUE), 5 * SUBARU_CUT_FADE_FRAMES) == set()
 
   def test_hand_released_mid_cut_gets_the_stock_grace(self):
-    self.run(car_state(steerFaultTemporary=True, steeringPressed=True), 5 * SUBARU_CUT_FADE_FRAMES)
+    self.run(car_state(steerFaultTemporary=True, steeringTorque=LIGHT_HAND_TORQUE), 5 * SUBARU_CUT_FADE_FRAMES)
     assert self.run(car_state(steerFaultTemporary=True), UNPRESSED_FRAMES - 1) == set()
     assert self.run(car_state(steerFaultTemporary=True), 1) == {EventName.steerTempUnavailable}
 
