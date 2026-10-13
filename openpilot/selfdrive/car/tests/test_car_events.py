@@ -28,10 +28,10 @@ class TestSubaruHighAngleCut:
       self.CS_prev = CS
     return seen
 
-  def test_empty_wheel_alerts_after_the_fade(self):
+  def test_empty_wheel_chimes_after_the_fade(self):
     self.run(car_state(), UNPRESSED_FRAMES)
     assert self.run(car_state(steerFaultTemporary=True), SUBARU_CUT_FADE_FRAMES) == set()
-    assert self.run(car_state(steerFaultTemporary=True), 1) == {EventName.steerTempUnavailable}
+    assert self.run(car_state(steerFaultTemporary=True), 1) == {EventName.steerTempUnavailableSilent}
 
   def test_light_hand_on_the_wheel_stays_quiet(self):
     self.run(car_state(), UNPRESSED_FRAMES)
@@ -40,7 +40,7 @@ class TestSubaruHighAngleCut:
   def test_hand_released_mid_cut_gets_the_stock_grace(self):
     self.run(car_state(steerFaultTemporary=True, steeringTorque=LIGHT_HAND_TORQUE), 5 * SUBARU_CUT_FADE_FRAMES)
     assert self.run(car_state(steerFaultTemporary=True), UNPRESSED_FRAMES - 1) == set()
-    assert self.run(car_state(steerFaultTemporary=True), 1) == {EventName.steerTempUnavailable}
+    assert self.run(car_state(steerFaultTemporary=True), 1) == {EventName.steerTempUnavailableSilent}
 
   def test_standstill_stays_quiet(self):
     self.run(car_state(), UNPRESSED_FRAMES)

@@ -184,7 +184,7 @@ class CarEvents:
     if CS.steerFaultTemporary:
       if self.expected_steer_cut(CS):
         if not CS.standstill and self.steer_fault_frames > SUBARU_CUT_FADE_FRAMES and self.steering_unheld >= int(1.5 / DT_CTRL):
-          events.add(EventName.steerTempUnavailable)
+          events.add(EventName.steerTempUnavailableSilent)
       elif CS.steeringPressed and (not CS_prev.steerFaultTemporary or self.no_steer_warning):
         self.no_steer_warning = True
       else:
