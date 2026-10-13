@@ -18,6 +18,8 @@ NetworkLocation = structs.CarParams.NetworkLocation
 # VDC's angle, up to 27 deg from the EPS angle in carState at parking speeds
 SUBARU_CUT_FADE_FRAMES = int(0.5 / DT_CTRL)
 SUBARU_CUT_ANGLE_DEG = 55
+# steeringPressed needs 80 units, an override against live assist; through a cut an empty wheel reads under 30, a steering hand 40 to 80
+SUBARU_CUT_HOLD_TORQUE = 40
 
 
 class CarEvents:
@@ -25,6 +27,7 @@ class CarEvents:
     self.CP = CP
 
     self.steering_unpressed = 0
+    self.steering_unheld = 0
     self.steer_fault_frames = 0
     self.low_speed_alert = False
     self.no_steer_warning = False
@@ -176,10 +179,11 @@ class CarEvents:
 
     # Handle permanent and temporary steering faults
     self.steering_unpressed = 0 if CS.steeringPressed else self.steering_unpressed + 1
+    self.steering_unheld = 0 if abs(CS.steeringTorque) > SUBARU_CUT_HOLD_TORQUE else self.steering_unheld + 1
     self.steer_fault_frames = self.steer_fault_frames + 1 if CS.steerFaultTemporary else 0
     if CS.steerFaultTemporary:
       if self.expected_steer_cut(CS):
-        if not CS.standstill and self.steer_fault_frames > SUBARU_CUT_FADE_FRAMES and self.steering_unpressed >= int(1.5 / DT_CTRL):
+        if not CS.standstill and self.steer_fault_frames > SUBARU_CUT_FADE_FRAMES and self.steering_unheld >= int(1.5 / DT_CTRL):
           events.add(EventName.steerTempUnavailable)
       elif CS.steeringPressed and (not CS_prev.steerFaultTemporary or self.no_steer_warning):
         self.no_steer_warning = True
