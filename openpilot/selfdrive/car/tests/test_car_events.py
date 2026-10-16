@@ -1,14 +1,15 @@
 from opendbc.car import DT_CTRL
 from opendbc.car.structs import car
+from opendbc.car.subaru.carstate import HIGH_ANGLE_HELD_TORQUE
 from opendbc.car.subaru.values import CAR
 from openpilot.cereal import log
-from openpilot.selfdrive.car.car_events import CarEvents, SUBARU_CUT_FADE_FRAMES, SUBARU_CUT_ANGLE_DEG, SUBARU_CUT_HOLD_TORQUE
+from openpilot.selfdrive.car.car_events import CarEvents, SUBARU_CUT_FADE_FRAMES, SUBARU_CUT_ANGLE_DEG
 
 EventName = log.OnroadEvent.EventName
 STEER_EVENTS = (EventName.steerTempUnavailable, EventName.steerTempUnavailableSilent)
 UNPRESSED_FRAMES = int(1.5 / DT_CTRL)
 EMPTY_WHEEL_TORQUE = 20.
-LIGHT_HAND_TORQUE = SUBARU_CUT_HOLD_TORQUE + 1.
+LIGHT_HAND_TORQUE = HIGH_ANGLE_HELD_TORQUE + 1.
 
 
 def car_state(**fields):
