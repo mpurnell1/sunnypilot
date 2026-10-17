@@ -4,7 +4,7 @@ from opendbc.car import DT_CTRL, structs
 from opendbc.car.car_helpers import interfaces
 from opendbc.car.common.conversions import Conversions as CV
 from opendbc.car.interfaces import MAX_CTRL_SPEED
-from opendbc.car.subaru.carstate import HIGH_ANGLE_GATE_SPEED_KPH, HIGH_ANGLE_HELD_TORQUE
+from opendbc.car.subaru.carstate import HIGH_ANGLE_GATE_SPEED_KPH
 from opendbc.car.toyota.values import ToyotaFlags
 
 from openpilot.selfdrive.selfdrived.events import Events
@@ -18,6 +18,8 @@ NetworkLocation = structs.CarParams.NetworkLocation
 # VDC's angle, up to 27 deg from the EPS angle in carState at parking speeds
 SUBARU_CUT_FADE_FRAMES = int(0.5 / DT_CTRL)
 SUBARU_CUT_ANGLE_DEG = 55
+# steeringPressed needs 80 units, an override against live assist; through a cut an empty wheel reads under 30, a steering hand 40 to 80
+SUBARU_CUT_HOLD_TORQUE = 40
 
 
 class CarEvents:
@@ -177,7 +179,7 @@ class CarEvents:
 
     # Handle permanent and temporary steering faults
     self.steering_unpressed = 0 if CS.steeringPressed else self.steering_unpressed + 1
-    self.steering_unheld = 0 if abs(CS.steeringTorque) > HIGH_ANGLE_HELD_TORQUE else self.steering_unheld + 1
+    self.steering_unheld = 0 if abs(CS.steeringTorque) > SUBARU_CUT_HOLD_TORQUE else self.steering_unheld + 1
     self.steer_fault_frames = self.steer_fault_frames + 1 if CS.steerFaultTemporary else 0
     if CS.steerFaultTemporary:
       if self.expected_steer_cut(CS):
