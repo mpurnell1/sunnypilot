@@ -97,16 +97,17 @@ class TestNavTurnInstance(OpenpilotTestCase):
     self.mem_params = Params("/dev/shm/params") if platform.system() != "Darwin" else self.params
     self.params.put_bool("NavTurnSlowdown", True, block=True)
     self.params.put_bool("SmartCruiseControlMap", False, block=True)
-    self.nav_turn = SmartCruiseControlMap("NavTurnSlowdown", "NavTargetVelocities", NAV_TURN_MIN_V)
+    self.nav_turn = SmartCruiseControlMap("NavTurnSlowdown", "NavTargetVelocities", NAV_TURN_MIN_V, needs_mapd=False)
+    self.sm = MagicMock()
+    self.sm.__getitem__.return_value = SimpleNamespace(latitude=0.0, longitude=0.0)
 
   def test_floor_is_its_own(self):
     waypoint_lon_deg = (20.0 / R) * (180.0 / math.pi)
-    self.mem_params.put("LastGPSPosition", json.dumps({"latitude": 0.0, "longitude": 0.0}), block=True)
     self.mem_params.put("NavTargetVelocities",
                         json.dumps([{"latitude": 0.0, "longitude": waypoint_lon_deg, "velocity": 2.0}]), block=True)
 
     for _ in range(2):
-      self.nav_turn.update(True, False, 10.0, 0.0, 15.0)
+      self.nav_turn.update(self.sm, True, False, 10.0, 0.0, 15.0)
 
     assert self.nav_turn.state == MapState.turning
     assert self.nav_turn.output_v_target == NAV_TURN_MIN_V
@@ -114,7 +115,7 @@ class TestNavTurnInstance(OpenpilotTestCase):
   def test_cleared_param_releases(self):
     self.test_floor_is_its_own()
     self.mem_params.remove("NavTargetVelocities")
-    self.nav_turn.update(True, False, 10.0, 0.0, 15.0)
+    self.nav_turn.update(self.sm, True, False, 10.0, 0.0, 15.0)
     assert self.nav_turn.state == MapState.enabled
     assert self.nav_turn.output_v_target == V_CRUISE_UNSET
 
