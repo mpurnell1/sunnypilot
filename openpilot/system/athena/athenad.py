@@ -389,14 +389,18 @@ def getVersion() -> dict[str, str]:
 
 
 @dispatcher.add_method
-def setNavDestination(latitude: float = 0, longitude: float = 0, place_name: str | None = None, place_details: str | None = None) -> dict[str, int]:
+def setNavDestination(latitude: float = 0, longitude: float = 0, place_name: str | None = None, place_details: str | None = None) -> dict[str, int | str]:
   # navigationd geocodes whatever text lands in MapboxRoute, and Mapbox resolves a "lon,lat"
   # query to that exact point, so an explicit pin from the caller wins over a text search,
   # which could match a different location than the one picked on the phone
   if latitude or longitude:
+    if not (math.isfinite(latitude) and math.isfinite(longitude) and -90 <= latitude <= 90 and -180 <= longitude <= 180):
+      return {"success": 0, "error": "Invalid destination coordinates"}
     destination = f"{longitude},{latitude}"
     # a pin's coordinates say nothing readable, so the caller's label is the recents label
     label = place_name or place_details or ""
+    # stock navd, when its toggle is on, follows the same pin
+    Params().put("NavDestination", {"latitude": latitude, "longitude": longitude}, block=True)
   elif place_name:
     destination = place_name
     label = ""
