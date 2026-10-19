@@ -14,7 +14,7 @@ from numpy import interp
 
 from openpilot.sunnypilot.navd.helpers import ROUNDABOUT_TYPES
 
-# metres to the maneuver at which each stage fires, against m/s; imminent is about the braking point
+# meters to the maneuver at which each stage fires, against m/s; imminent is about the braking point
 STAGE_SPEED_BP = [4.5, 13.4, 22.4, 31.3]  # 10/30/50/70 mph
 APPROACH_DIST = [150.0, 300.0, 500.0, 800.0]
 IMMINENT_DIST = [40.0, 80.0, 130.0, 200.0]

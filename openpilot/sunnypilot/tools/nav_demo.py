@@ -34,6 +34,7 @@ import argparse
 import os
 import sys
 import time
+from typing import cast
 from dataclasses import dataclass, replace
 from types import SimpleNamespace
 
@@ -199,7 +200,7 @@ def _build_msg(state: TickState, cues: NavAudioCues, stub: SimpleNamespace):
   stub.route = SimpleNamespace(route_id=1) if state.route is not None else None
   # the production builder, called with a stub in place of the daemon, so the message
   # shape can never drift from what navigationd publishes
-  return Navigationd._build_navigation_message(stub, banner, progress, guidance, state.gps_ok)
+  return Navigationd._build_navigation_message(cast(Navigationd, stub), banner, progress, guidance, state.gps_ok)
 
 
 # --- scenarios: generators yielding one TickState per 3 Hz tick ---
@@ -348,6 +349,7 @@ def message_stream(names, speedup: float = 1.0, hold_ticks: int = 0):
       yield name, state, _build_msg(state, cues, stub)
       last = state
     for _ in range(hold_ticks):
+      assert last is not None
       held = replace(last, label=None)
       yield name, held, _build_msg(held, cues, stub)
 

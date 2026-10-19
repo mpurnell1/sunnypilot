@@ -19,7 +19,7 @@ NAV_LANE_CHANGE_OFF = 0
 class NAV_BANNER:
   """Incremental banners: show near each distance milestone rather than continuously.
 
-  Thresholds are metres to the upcoming maneuver, coarse far out and tightening near the
+  Thresholds are meters to the upcoming maneuver, coarse far out and tightening near the
   turn, so the prompts feel like a nav app instead of a permanent overlay.
   """
   THRESHOLDS_M = (3000.0, 1500.0, 800.0, 400.0, 150.0, 50.0)

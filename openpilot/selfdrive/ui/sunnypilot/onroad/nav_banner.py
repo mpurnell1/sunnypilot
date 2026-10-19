@@ -247,7 +247,7 @@ class NavBannerRenderer(Widget):
       size = measure_text_cached(self._font_medium, then_text, THEN_FONT_SIZE)
       rl.draw_text_ex(self._font_medium, then_text, rl.Vector2(then_cx - size.x / 2, card.y + 26),
                       THEN_FONT_SIZE, 0, rl.WHITE)
-      then_icon = gui_app.texture(f"{ICONS_PATH}/{icon_name(content.then_type, content.then_modifier)}.png",
+      then_icon = gui_app.texture(f"{ICONS_PATH}/{icon_name(content.then_type, content.then_modifier or '')}.png",
                                   THEN_ICON_SIZE, THEN_ICON_SIZE)
       rl.draw_texture_ex(then_icon, rl.Vector2(then_cx - THEN_ICON_SIZE / 2, card.y + 90), 0, 1.0, rl.WHITE)
 

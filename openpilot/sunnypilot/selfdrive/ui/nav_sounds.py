@@ -21,8 +21,8 @@ AMPLITUDE = 0.85
 EDGE_S = 0.005  # raised-cosine attack/release
 
 
-def _tone(freq: float, dur: float, sr: int = SAMPLE_RATE, amp: float = AMPLITUDE) -> np.ndarray:
-  n = max(1, int(dur * sr))
+def _tone(freq: float, seconds: float, sr: int = SAMPLE_RATE, amp: float = AMPLITUDE) -> np.ndarray:
+  n = max(1, int(seconds * sr))
   wave = amp * np.sin(2 * np.pi * freq * np.arange(n) / sr).astype(np.float32)
   return wave * _envelope(n, sr)
 
@@ -37,12 +37,12 @@ def _envelope(n: int, sr: int) -> np.ndarray:
   return env
 
 
-def _gap(dur: float, sr: int = SAMPLE_RATE) -> np.ndarray:
-  return np.zeros(max(0, int(dur * sr)), dtype=np.float32)
+def _gap(seconds: float, sr: int = SAMPLE_RATE) -> np.ndarray:
+  return np.zeros(max(0, int(seconds * sr)), dtype=np.float32)
 
 
-def _note(semitones: float, dur: float, sr: int, amp: float = AMPLITUDE) -> np.ndarray:
-  return _tone(BASE_FREQ * 2 ** (semitones / 12), dur, sr, amp)
+def _note(semitones: float, seconds: float, sr: int, amp: float = AMPLITUDE) -> np.ndarray:
+  return _tone(BASE_FREQ * 2 ** (semitones / 12), seconds, sr, amp)
 
 
 def _pair(direction: str, note_dur: float, gap_dur: float, sr: int) -> list[np.ndarray]:
