@@ -30,8 +30,11 @@ class TestMapbox(OpenpilotTestCase):
     cls.here = Coordinate(34.23305, -119.17557)
     cls.mapbox.params.put('MapboxRoute', '740 E Ventura Blvd. Camarillo, CA', block=True)
     cls.destination, route_dict = cls.mapbox.set_destination({"place_name": cls.mapbox.params.get('MapboxRoute')}, cls.here)
-    cls.route = Route.from_mapbox(route_dict)
-    cls.progress = cls.route.progress(cls.here) if cls.route else None
+    route = Route.from_mapbox(route_dict)
+    # set_destination hands back a stored route, not just a geocoded address
+    assert route is not None
+    cls.route = route
+    cls.progress = route.progress(cls.here)
 
   @classmethod
   def tearDownClass(cls):
@@ -39,8 +42,6 @@ class TestMapbox(OpenpilotTestCase):
     super().tearDownClass()
 
   def test_set_destination(self):
-    # set_destination hands back a stored route, not just a geocoded address
-    assert self.route is not None
     settings = self.mapbox.params.get('MapboxSettings')
     assert settings is not None
     assert settings['navData']['current'] == {'latitude': self.destination["latitude"], 'longitude': self.destination["longitude"]}
@@ -70,7 +71,7 @@ class TestMapbox(OpenpilotTestCase):
     assert isinstance(round(speed_limit_metric * CV.KPH_TO_MPH), int)
 
   def test_timezone_lookup(self):
-    tzid = self.mapbox.get_timezone(self.here, os.environ.get('MAPBOX_TOKEN_CI'))
+    tzid = self.mapbox.get_timezone(self.here, os.environ['MAPBOX_TOKEN_CI'])
     assert tzid == 'America/Los_Angeles'
     assert self.mapbox.params.get('NavDestinationTimezone') == 'America/Los_Angeles'
 

@@ -21,7 +21,7 @@ class TestSubaruHighAngleCut(OpenpilotTestCase):
     self.car_events = CarEvents(car.CarParams.new_message(brand='subaru', carFingerprint=CAR.SUBARU_FORESTER))
     self.CS_prev = car_state()
 
-  def run(self, CS, frames):
+  def _drive(self, CS, frames):
     seen = set()
     for _ in range(frames):
       names = self.car_events.update(CS, self.CS_prev, car.CarControl.new_message()).names
@@ -30,23 +30,23 @@ class TestSubaruHighAngleCut(OpenpilotTestCase):
     return seen
 
   def test_empty_wheel_chimes_after_the_fade(self):
-    self.run(car_state(), UNPRESSED_FRAMES)
-    assert self.run(car_state(steerFaultTemporary=True), SUBARU_CUT_FADE_FRAMES) == set()
-    assert self.run(car_state(steerFaultTemporary=True), 1) == {EventName.steerTempUnavailableSilent}
+    self._drive(car_state(), UNPRESSED_FRAMES)
+    assert self._drive(car_state(steerFaultTemporary=True), SUBARU_CUT_FADE_FRAMES) == set()
+    assert self._drive(car_state(steerFaultTemporary=True), 1) == {EventName.steerTempUnavailableSilent}
 
   def test_light_hand_on_the_wheel_stays_quiet(self):
-    self.run(car_state(), UNPRESSED_FRAMES)
-    assert self.run(car_state(steerFaultTemporary=True, steeringTorque=LIGHT_HAND_TORQUE), 5 * SUBARU_CUT_FADE_FRAMES) == set()
+    self._drive(car_state(), UNPRESSED_FRAMES)
+    assert self._drive(car_state(steerFaultTemporary=True, steeringTorque=LIGHT_HAND_TORQUE), 5 * SUBARU_CUT_FADE_FRAMES) == set()
 
   def test_hand_released_mid_cut_gets_the_stock_grace(self):
-    self.run(car_state(steerFaultTemporary=True, steeringTorque=LIGHT_HAND_TORQUE), 5 * SUBARU_CUT_FADE_FRAMES)
-    assert self.run(car_state(steerFaultTemporary=True), UNPRESSED_FRAMES - 1) == set()
-    assert self.run(car_state(steerFaultTemporary=True), 1) == {EventName.steerTempUnavailableSilent}
+    self._drive(car_state(steerFaultTemporary=True, steeringTorque=LIGHT_HAND_TORQUE), 5 * SUBARU_CUT_FADE_FRAMES)
+    assert self._drive(car_state(steerFaultTemporary=True), UNPRESSED_FRAMES - 1) == set()
+    assert self._drive(car_state(steerFaultTemporary=True), 1) == {EventName.steerTempUnavailableSilent}
 
   def test_standstill_stays_quiet(self):
-    self.run(car_state(), UNPRESSED_FRAMES)
-    assert self.run(car_state(steerFaultTemporary=True, standstill=True), 5 * SUBARU_CUT_FADE_FRAMES) == set()
+    self._drive(car_state(), UNPRESSED_FRAMES)
+    assert self._drive(car_state(steerFaultTemporary=True, standstill=True), 5 * SUBARU_CUT_FADE_FRAMES) == set()
 
   def test_fault_outside_the_envelope_keeps_the_stock_alert(self):
-    self.run(car_state(vEgo=20., steeringAngleDeg=10.), UNPRESSED_FRAMES)
-    assert self.run(car_state(vEgo=20., steeringAngleDeg=10., steerFaultTemporary=True), 1) == {EventName.steerTempUnavailable}
+    self._drive(car_state(vEgo=20., steeringAngleDeg=10.), UNPRESSED_FRAMES)
+    assert self._drive(car_state(vEgo=20., steeringAngleDeg=10., steerFaultTemporary=True), 1) == {EventName.steerTempUnavailable}
