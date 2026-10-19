@@ -19,6 +19,7 @@ navigation_helpers/destination_api.py, shared with the athena transport.
 import argparse
 import json
 import threading
+from typing import cast
 from functools import lru_cache
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -123,7 +124,7 @@ class DestinationHandler(BaseHTTPRequestHandler):
     return api.apply_settings(body)
 
   def _dispatch_request(self) -> None:
-    server: DestinationHTTPServer = self.server  # type: ignore[assignment]
+    server = cast(DestinationHTTPServer, self.server)
     api = server.api
     parsed = urlparse(self.path)
     allowed = self._routes.get(parsed.path)

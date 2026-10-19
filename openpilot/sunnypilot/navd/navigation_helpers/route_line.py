@@ -99,7 +99,7 @@ def route_line_snapshot(params: Params, tolerance_m: float = DECIMATION_TOLERANC
   value = params.get('MapboxSettings')
   route = value['navData']['route'] if value else None
   rid = route_id(route)
-  if rid == 0:
+  if rid == 0 or route is None:
     return {"routeId": 0, "points": [], "totalDistance": 0.0, "steps": []}
   points = [[float(c['latitude']), float(c['longitude'])] for c in route['geometry']]
   if len(points) > 2:

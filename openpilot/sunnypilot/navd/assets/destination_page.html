@@ -67,7 +67,7 @@
   .guide { border-top: 1px solid var(--line); margin-top: 10px; padding-top: 10px; }
   .guide .glyph { width: 72px; height: 72px; flex: none; fill: none; stroke: var(--ink); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
   .guide .dist { font-size: 1.5rem; font-weight: 600; line-height: 1.2; }
-  /* the posted limit as the road signs it: MUTCD's white rectangle for miles, the Vienna convention's red ring for kilometres */
+  /* the posted limit as the road signs it: MUTCD's white rectangle for miles, the Vienna convention's red ring for kilometers */
   .sign { flex: none; align-self: center; background: #fff; color: #000; font-weight: 700; text-align: center; line-height: 1; }
   .sign.us { width: 46px; padding: 4px 0 5px; border: 2px solid #000; border-radius: 4px; font-size: 1.35rem; }
   .sign.us small { display: block; font-size: 0.55rem; font-weight: 600; margin-bottom: 3px; }
@@ -411,7 +411,7 @@ async function api(path, opts) {
   return body;
 }
 
-// distances read by the device's units toggle: metres in fifties then kilometres, or feet in fifties then miles
+// distances read by the device's units toggle: meters in fifties then kilometers, or feet in fifties then miles
 function metric() { return !!(settings && settings.metric); }
 function farDistance(m) {
   return metric() ? (m / 1000).toFixed(m < 10000 ? 1 : 0) + " km" : (m / 1609.344).toFixed(m < 16093 ? 1 : 0) + " mi";

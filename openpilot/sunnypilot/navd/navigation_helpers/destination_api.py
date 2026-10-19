@@ -119,7 +119,7 @@ class DestinationAPI:
   def settings_view(self) -> dict:
     p = self.params
     return {
-      # a client greys the rows one device lacks: the arrival pill is the 3X's, the quiet glyph the four's,
+      # a client grays the rows one device lacks: the arrival pill is the 3X's, the quiet glyph the four's,
       # Slow for Route Turns a car's with openpilot longitudinal
       "device": self.device,
       # the branch and commit the device runs, for bug reports

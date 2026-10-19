@@ -14,6 +14,9 @@ from openpilot.selfdrive.locationd.helpers import Pose
 from openpilot.common.mock.generators import generate_deviceMotion
 from openpilot.sunnypilot.selfdrive.car import interfaces as sunnypilot_interfaces
 
+# the last gain each controller's table ends on
+KP_LAST: dict[type, float] = {LatControlTorque: KP_V1, LatControlTorqueV0: KP_V0}
+
 
 class TestTorqueRateLimit(OpenpilotTestCase):
   """The Subaru EPS slews at about 1300 counts/s (STEER_MAX 2047); the torque controller caps its
@@ -74,14 +77,14 @@ class TestTorqueRateLimit(OpenpilotTestCase):
     for cls in self.CONTROLLERS:
       lac, _ = self._controller(SUBARU.SUBARU_FORESTER, cls)
       speeds, gains = lac.pid._k_p
-      assert list(gains) == KP_INTERP_SUBARU_LOW + [{LatControlTorque: KP_V1, LatControlTorqueV0: KP_V0}[cls]], cls.__module__
+      assert list(gains) == KP_INTERP_SUBARU_LOW + [KP_LAST[cls]], cls.__module__
       assert speeds[-1] == 30
 
   def test_other_brands_are_not_capped(self):
     for cls in self.CONTROLLERS:
       lac, VM = self._controller(TOYOTA.TOYOTA_RAV4, cls)
       assert lac.torque_rate_limit == float("inf")
-      assert list(lac.pid._k_p[1]) == KP_INTERP[:-1] + [{LatControlTorque: KP_V1, LatControlTorqueV0: KP_V0}[cls]]
+      assert list(lac.pid._k_p[1]) == KP_INTERP[:-1] + [KP_LAST[cls]]
       for _ in range(10):
         self._step(lac, VM, 0.05)
       assert not lac.torque_rate_limited

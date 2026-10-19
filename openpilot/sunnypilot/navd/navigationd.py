@@ -291,6 +291,7 @@ class Navigationd:
     return banner, progress, guidance
 
   def _turn_targets_ahead(self, progress: RouteProgress) -> list[TurnTarget]:
+    assert self.route is not None
     key = (self.route.route_id, self.turn_speed_scale)
     if key != self.turn_targets_key:
       self.turn_targets = turn_targets(self.route, self.turn_speed_scale or 1.0)

@@ -182,7 +182,7 @@ def _draw_turn(cx: float, cy: float, angle_deg: float, color: rl.Color, size: fl
     return
 
   half_stroke = size * 0.11
-  a = abs(angle_deg)
+  a = int(abs(angle_deg))
   sgn = 1.0 if angle_deg > 0 else -1.0
   arc_radius = {45: 0.20, 90: 0.20, 135: 0.16}[a] * size
   stem_x = cx - sgn * {45: 0.18, 90: 0.28, 135: 0.22}[a] * size

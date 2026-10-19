@@ -15,7 +15,7 @@ from openpilot.system.ui.lib.application import gui_app
 from openpilot.system.ui.lib.multilang import tr
 from openpilot.system.ui.widgets import DialogResult, Widget
 from openpilot.system.ui.widgets.confirm_dialog import alert_dialog
-from openpilot.system.ui.widgets.list_view import button_item, text_item
+from openpilot.system.ui.widgets.list_view import MultipleButtonAction, button_item, text_item
 from openpilot.system.ui.widgets.option_dialog import MultiOptionDialog
 from openpilot.system.ui.widgets.scroller_tici import Scroller
 
@@ -86,7 +86,7 @@ class NavigationLayout(Widget):
                                           param="NavigationAudio")
     self._sound_tour_item = button_item(tr("Sound Tour"), tr("Play"),
                                         tr("Learn the navigation sounds. Each cue plays while the screen shows the card it will accompany."),
-                                        self._play_sound_tour, enabled=lambda: ui_state.is_offroad)
+                                        self._play_sound_tour, enabled=ui_state.is_offroad)
 
     self._turn_slowdown_item = toggle_item_sp(tr("Slow for Route Turns"),
                                               tr("Slow down ahead of each turn on your route to the speed drivers take a corner of that angle. Applies to turns of 55 degrees or more."),  # noqa: E501
@@ -232,7 +232,9 @@ class NavigationLayout(Widget):
       selected = 2
     else:
       selected = -1
-    self._favorites_item.action_item.selected_button = selected
+    action = self._favorites_item.action_item
+    assert isinstance(action, MultipleButtonAction)
+    action.selected_button = selected
 
   def _render(self, rect):
     self._scroller.render(rect)
