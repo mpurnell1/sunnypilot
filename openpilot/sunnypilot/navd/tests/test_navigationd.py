@@ -8,22 +8,23 @@ import json
 import platform
 from types import SimpleNamespace
 
-import pytest
-
 import openpilot.cereal.messaging as messaging
+from openpilot.common.test import Mocker
 
 from openpilot.sunnypilot.navd.navigationd import OFF_ROUTE_DEBOUNCE_TICKS, Guidance, Navigationd
 from openpilot.sunnypilot.navd.helpers import Coordinate
+from openpilot.sunnypilot.navd.tests.helpers import NavdTestCase
 
 
-class TestNavigationd:
+class TestNavigationd(NavdTestCase):
   is_darwin = platform.system() == "Darwin"
 
-  @pytest.fixture(autouse=True)
-  def setup_method(self, mocker):
+  def setUp(self):
+    super().setUp()
+    self.mocker = Mocker(self.addCleanup)
     if self.is_darwin:
-      mocker.patch('openpilot.cereal.messaging.SubMaster')
-      mocker.patch('openpilot.cereal.messaging.PubMaster')
+      self.mocker.patch('openpilot.cereal.messaging.SubMaster')
+      self.mocker.patch('openpilot.cereal.messaging.PubMaster')
 
   def test_update_params(self):
     nav = Navigationd()
@@ -45,7 +46,7 @@ class TestNavigationd:
   def test_update_navigation(self):
     nav = Navigationd()
     nav.last_position = Coordinate(latitude=37.0, longitude=128.0)
-    nav.route = SimpleNamespace(route_id=1)
+    self.mocker.patch.object(nav, 'route', SimpleNamespace(route_id=1))
     banner, progress, guidance = nav._update_navigation()
     assert banner == ''
     assert progress is None  # navigation is not allowed, so the route is not consulted
@@ -54,9 +55,9 @@ class TestNavigationd:
   def test_final_step_blocks_reroute(self):
     nav = Navigationd()
     nav.last_position = Coordinate(latitude=37.0, longitude=128.0)
-    nav.mapbox.set_destination = lambda *args, **kwargs: ({}, False)
+    self.mocker.patch.object(nav.mapbox, 'set_destination', return_value=({}, False))
     nav.frame = 0  # keep clear of the periodic param re-read so the fixture state holds
-    nav.route = SimpleNamespace(route_id=1, steps=[])
+    self.mocker.patch.object(nav, 'route', SimpleNamespace(route_id=1, steps=[]))
     nav.destination = "123 Main St"
     nav.new_destination = "123 Main St"
     nav.retry.attempted_destination = "123 Main St"
@@ -136,7 +137,7 @@ class TestNavigationd:
 
     nav.last_position = Coordinate(latitude=34.226, longitude=-119.032)
     nav.last_bearing = -90.0
-    nav.route = SimpleNamespace(route_id=7)
+    self.mocker.patch.object(nav, 'route', SimpleNamespace(route_id=7))
     msg = nav._build_navigation_message('', None, Guidance(), True)
     assert msg.navigationd.hasPosition is True
     assert msg.navigationd.positionLatitude == 34.226
@@ -163,11 +164,12 @@ class TestNavigationd:
       assert received_msg.valid == msg.navigationd.valid
 
 
-class TestTurnTargetPublish:
+class TestTurnTargetPublish(NavdTestCase):
   """The route's turns ahead reach the memory params for the longitudinal planner, and leave it
   with the route, off the route, while rerouting, and once passed."""
 
-  def setup_method(self):
+  def setUp(self):
+    super().setUp()
     from openpilot.sunnypilot.navd.tests.test_turn_targets import ORIGIN, corner_route, offset
     self.nav = Navigationd()
     self.nav.allow_navigation = True
@@ -183,6 +185,7 @@ class TestTurnTargetPublish:
     return json.loads(encoded) if encoded else None
 
   def test_turn_ahead_is_published(self):
+    assert self.nav.route is not None
     corner = self.nav.route.steps[1].location
     assert self.publish(self.start) == [{'latitude': corner.latitude, 'longitude': corner.longitude, 'velocity': 6.5}]
 
@@ -192,6 +195,7 @@ class TestTurnTargetPublish:
 
   def test_off_route_and_rerouting_clear(self):
     assert self.publish(self.start) is not None
+    assert self.nav.route is not None
     self.nav.off_route = True
     self.nav._publish_turn_targets(self.nav.route.progress(self.start))
     assert self.nav.mem_params.get("NavTargetVelocities") is None
@@ -207,4 +211,6 @@ class TestTurnTargetPublish:
 
   def test_car_scale(self):
     self.nav.turn_speed_scale = 1.25
-    assert self.publish(self.start)[0]['velocity'] == pytest.approx(6.5 * 1.25)
+    published = self.publish(self.start)
+    assert published is not None
+    self.assertAlmostEqual(published[0]['velocity'], 6.5 * 1.25)

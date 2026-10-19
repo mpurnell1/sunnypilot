@@ -13,12 +13,12 @@ import json
 import threading
 import time
 
-import pytest
-
 import openpilot.cereal.messaging as messaging
 from openpilot.common.params import Params
+from openpilot.common.test import Mocker
 from openpilot.system.athena.rpc import Dispatcher, handle
 from openpilot.sunnypilot.navd import athena_methods
+from openpilot.sunnypilot.navd.tests.helpers import NavdTestCase
 
 TOKEN = "pk.secret-sentinel-token"
 
@@ -32,9 +32,10 @@ def rpc_call(method: str, params: dict | None = None) -> dict:
   return json.loads(handle(json.dumps(raw), dispatcher))
 
 
-class TestAthenaNavMethods:
-  @pytest.fixture(autouse=True)
-  def setup(self, mocker):
+class TestAthenaNavMethods(NavdTestCase):
+  def setUp(self):
+    super().setUp()
+    mocker = Mocker(self.addCleanup)
     self.params = Params()
     self.params.put("MapboxToken", TOKEN, block=True)
     self.params.put("AllowNavigation", True, block=True)
@@ -111,7 +112,7 @@ class TestAthenaNavMethods:
       assert TOKEN not in json.dumps(response), f"token leaked in {response}"
 
 
-class TestCanSetNow:
+class TestCanSetNow(NavdTestCase):
   """The one-shot gate on real sockets: offroad allows, standstill allows, moving and
   silence both deny, matching the page's VehicleMonitor semantics."""
 

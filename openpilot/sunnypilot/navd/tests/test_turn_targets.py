@@ -6,8 +6,7 @@ See the LICENSE.md file in the root directory for more details.
 """
 import math
 
-import pytest
-
+from openpilot.common.test import OpenpilotTestCase
 from openpilot.sunnypilot.navd.helpers import Coordinate
 from openpilot.sunnypilot.navd.navigation_helpers.route import Route, Step
 from openpilot.sunnypilot.navd.navigation_helpers.turn_targets import car_scale, turn_angle, turn_targets
@@ -46,38 +45,37 @@ def corner_route(exit_heading_deg: float, corner_maneuver: str = 'turn') -> Rout
                total_distance=cumulative[-1], total_duration=30.0)
 
 
-@pytest.mark.parametrize("exit_heading, expected", [(0.0, 6.5), (270.0, 3.0), (320.0, 4.5), (120.0, None)])
-def test_target_by_angle(exit_heading, expected):
-  targets = turn_targets(corner_route(exit_heading))
-  if expected is None:
-    assert targets == []
-  else:
-    assert len(targets) == 1
-    assert targets[0].velocity == expected
-    assert targets[0].along == pytest.approx(200.0, abs=1.0)
-    assert (targets[0].latitude, targets[0].longitude) == (corner_route(exit_heading).steps[1].location.latitude,
-                                                           corner_route(exit_heading).steps[1].location.longitude)
+class TestTurnTargets(OpenpilotTestCase):
+  def test_target_by_angle(self):
+    for exit_heading, expected in [(0.0, 6.5), (270.0, 3.0), (320.0, 4.5), (120.0, None)]:
+      with self.subTest(exit_heading=exit_heading):
+        targets = turn_targets(corner_route(exit_heading))
+        if expected is None:
+          assert targets == []
+        else:
+          assert len(targets) == 1
+          assert targets[0].velocity == expected
+          self.assertAlmostEqual(targets[0].along, 200.0, delta=1.0)
+          assert (targets[0].latitude, targets[0].longitude) == (corner_route(exit_heading).steps[1].location.latitude,
+                                                                 corner_route(exit_heading).steps[1].location.longitude)
 
+  def test_roundabouts_and_forks_carry_no_target(self):
+    for maneuver in ['roundabout', 'exit rotary', 'fork']:
+      with self.subTest(maneuver=maneuver):
+        assert turn_targets(corner_route(0.0, maneuver)) == []
 
-@pytest.mark.parametrize("maneuver", ['roundabout', 'exit rotary', 'fork'])
-def test_roundabouts_and_forks_carry_no_target(maneuver):
-  assert turn_targets(corner_route(0.0, maneuver)) == []
+  def test_car_scale_applies(self):
+    self.assertAlmostEqual(turn_targets(corner_route(0.0), car_scale('volkswagen'))[0].velocity, 6.5 * 1.25)
+    assert car_scale('subaru') == 1.0
 
+  def test_duplicate_vertex_at_the_corner_keeps_the_angle(self):
+    route = corner_route(0.0)
+    corner = 4
+    geometry = [*route.geometry[:corner + 1], route.geometry[corner], *route.geometry[corner + 1:]]
+    self.assertAlmostEqual(turn_angle(geometry, corner), 90.0, delta=0.5)
+    self.assertAlmostEqual(turn_angle(geometry, corner + 1), 90.0, delta=0.5)
 
-def test_car_scale_applies():
-  assert turn_targets(corner_route(0.0), car_scale('volkswagen'))[0].velocity == pytest.approx(6.5 * 1.25)
-  assert car_scale('subaru') == 1.0
-
-
-def test_duplicate_vertex_at_the_corner_keeps_the_angle():
-  route = corner_route(0.0)
-  corner = 4
-  geometry = [*route.geometry[:corner + 1], route.geometry[corner], *route.geometry[corner + 1:]]
-  assert turn_angle(geometry, corner) == pytest.approx(90.0, abs=0.5)
-  assert turn_angle(geometry, corner + 1) == pytest.approx(90.0, abs=0.5)
-
-
-def test_route_ends_have_no_angle():
-  geometry = corner_route(0.0).geometry
-  assert turn_angle(geometry, 0) == 0.0
-  assert turn_angle(geometry, len(geometry) - 1) == 0.0
+  def test_route_ends_have_no_angle(self):
+    geometry = corner_route(0.0).geometry
+    assert turn_angle(geometry, 0) == 0.0
+    assert turn_angle(geometry, len(geometry) - 1) == 0.0

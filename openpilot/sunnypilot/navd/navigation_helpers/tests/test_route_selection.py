@@ -4,9 +4,8 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-import pytest
-
 from openpilot.common.params import Params
+from openpilot.common.test import Mocker, OpenpilotTestCase
 from openpilot.sunnypilot.navd.helpers import Coordinate
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
 
@@ -15,7 +14,7 @@ SCENIC = {'legs': [{'summary': 'CA-1'}]}
 NO_LEGS = {'legs': []}
 
 
-class TestSelectRoute:
+class TestSelectRoute(OpenpilotTestCase):
   def test_no_preference_takes_the_fastest(self):
     assert MapboxIntegration._select_route([FAST, SCENIC], None) is FAST
     assert MapboxIntegration._select_route([FAST, SCENIC], '') is FAST
@@ -32,12 +31,13 @@ class TestSelectRoute:
     assert MapboxIntegration._select_route([NO_LEGS, SCENIC], 'CA-1') is SCENIC
 
 
-class TestPreferenceBinding:
+class TestPreferenceBinding(OpenpilotTestCase):
   """The stored preference names the destination it was chosen for; any other destination
   must request the fastest route."""
 
-  @pytest.fixture(autouse=True)
-  def setup(self, mocker):
+  def setUp(self):
+    super().setUp()
+    mocker = Mocker(self.addCleanup)
     self.params = Params()
     self.params.put('MapboxToken', 'pk.test-token', block=True)
     self.mapbox = MapboxIntegration()

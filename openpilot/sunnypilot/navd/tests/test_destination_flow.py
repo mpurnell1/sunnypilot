@@ -6,14 +6,14 @@ See the LICENSE.md file in the root directory for more details.
 """
 import platform
 import time
-
-import pytest
 from concurrent.futures import Future
 
 from openpilot.common.params import Params
+from openpilot.common.test import Mocker
 from openpilot.sunnypilot.navd import navigationd as navigationd_module
 from openpilot.sunnypilot.navd.helpers import Coordinate
 from openpilot.sunnypilot.navd.navigationd import Navigationd
+from openpilot.sunnypilot.navd.tests.helpers import NavdTestCase
 
 DESTINATION = "740 E Ventura Blvd"
 RESOLVED = "740 E Ventura Blvd, Camarillo, California 93010"
@@ -28,11 +28,12 @@ ROUTE = {
 
 # recents are recorded when a route is accepted and the route preference dies with the trip;
 # both behaviors live in navigationd so every destination source shares them
-class TestDestinationFlow:
+class TestDestinationFlow(NavdTestCase):
   is_darwin = platform.system() == "Darwin"
 
-  @pytest.fixture(autouse=True)
-  def setup(self, mocker):
+  def setUp(self):
+    super().setUp()
+    mocker = Mocker(self.addCleanup)
     if self.is_darwin:
       mocker.patch('openpilot.cereal.messaging.SubMaster')
       mocker.patch('openpilot.cereal.messaging.PubMaster')

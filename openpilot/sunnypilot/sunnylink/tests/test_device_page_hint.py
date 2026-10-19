@@ -6,13 +6,14 @@ See the LICENSE.md file in the root directory for more details.
 """
 from openpilot.sunnypilot.sunnylink.tools.generate_settings_schema import generate_schema
 from openpilot.sunnypilot.sunnylink.utils import DEVICE_PAGE_PLACEHOLDER, device_page_hint, fill_device_page
+from openpilot.common.test import OpenpilotTestCase
 
 
 def _panel(schema):
   return next(panel for panel in schema["panels"] if panel["id"] == "navigation")
 
 
-class TestDevicePageHint:
+class TestDevicePageHint(OpenpilotTestCase):
   def test_wifi_lease_is_the_wifi_address(self):
     assert device_page_hint("192.168.1.42") == "http://192.168.1.42:5050"
 

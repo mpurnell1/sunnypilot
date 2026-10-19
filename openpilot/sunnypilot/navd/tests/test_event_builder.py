@@ -4,21 +4,30 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
+from typing import cast
+
+import openpilot.cereal.messaging as messaging
 from openpilot.cereal import custom
 from openpilot.common.params import Params
 
 from openpilot.common.realtime import DT_MDL
 from openpilot.sunnypilot.navd.constants import BannerMode, NAV_BANNER
 from openpilot.sunnypilot.navd.event_builder import EventBuilder
+from openpilot.sunnypilot.navd.tests.helpers import NavdTestCase
 
 
-class MockSM(dict):
+class _MockSM(dict):
   def __init__(self, nav_msg):
     super().__init__()
     self['navigationd'] = nav_msg
 
 
-class TestEventBuilder:
+def MockSM(nav_msg) -> messaging.SubMaster:
+  # the builder only ever indexes the SubMaster, so a dict stands in for one
+  return cast(messaging.SubMaster, _MockSM(nav_msg))
+
+
+class TestEventBuilder(NavdTestCase):
   def setup_method(self):
     self.params = Params()
     self.event_builder = EventBuilder()
@@ -127,7 +136,7 @@ class TestEventBuilder:
 BANNER = custom.OnroadEventSP.EventName.navigationBanner
 
 
-class TestIncrementalBanners:
+class TestIncrementalBanners(NavdTestCase):
   def setup_method(self):
     self.params = Params()
     self.params.put("NavBannerMode", BannerMode.INCREMENTAL, block=True)

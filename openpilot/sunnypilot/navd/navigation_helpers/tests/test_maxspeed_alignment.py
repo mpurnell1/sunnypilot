@@ -4,8 +4,7 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-import pytest
-
+from openpilot.common.test import OpenpilotTestCase
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
 from openpilot.sunnypilot.navd.helpers import Coordinate
 from openpilot.sunnypilot.navd.navigation_helpers.route import Route
@@ -32,17 +31,17 @@ class FakeResponse:
     }]}
 
 
-@pytest.fixture
+# a fixture by name: the test base resolves a test method's parameters against this module
 def route(mocker):
   mocker.patch('openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration.requests.get', return_value=FakeResponse())
   return MapboxIntegration.generate_route(Coordinate(40.1, -88.2), Coordinate(40.1, -88.16), 'pk.test')
 
 
-def test_unknown_segments_keep_their_slot(route):
-  assert route['maxspeed'] == [{'speed': 30, 'unit': 'mph'}, None, {'speed': 55, 'unit': 'mph'}, {'speed': 25, 'unit': 'mph'}]
+class TestMaxspeedAlignment(OpenpilotTestCase):
+  def test_unknown_segments_keep_their_slot(self, route):
+    assert route['maxspeed'] == [{'speed': 30, 'unit': 'mph'}, None, {'speed': 55, 'unit': 'mph'}, {'speed': 25, 'unit': 'mph'}]
 
-
-def test_steps_take_the_limit_of_their_own_segment(route):
-  steps = Route.from_mapbox(route).steps
-  # dropping the unknown slot would hand the turn at vertex 2 the 25 mph of the segment after it
-  assert [step.maxspeed for step in steps] == [(30, 'mph'), (55, 'mph'), (25, 'mph')]
+  def test_steps_take_the_limit_of_their_own_segment(self, route):
+    steps = Route.from_mapbox(route).steps
+    # dropping the unknown slot would hand the turn at vertex 2 the 25 mph of the segment after it
+    assert [step.maxspeed for step in steps] == [(30, 'mph'), (55, 'mph'), (25, 'mph')]

@@ -6,11 +6,12 @@ See the LICENSE.md file in the root directory for more details.
 """
 from openpilot.sunnypilot.navd.helpers import Coordinate, project_onto_geometry
 from openpilot.sunnypilot.navd.navigation_helpers.route import Route, RouteProgress, Step, upcoming_turn
+from openpilot.sunnypilot.navd.tests.helpers import NavdTestCase
 
 LAT, LON = 32.7767, -96.797
 
 
-class TestProjectOntoGeometry:
+class TestProjectOntoGeometry(NavdTestCase):
   def setup_method(self):
     # one ~700m segment, the vertex spacing Mapbox uses on straight interstate
     self.a, self.b = Coordinate(LAT, LON), Coordinate(LAT + 0.0063, LON)
@@ -50,7 +51,7 @@ def _progress(maneuver_type: str, modifier: str, location: Coordinate = HERE) ->
   return RouteProgress(0.0, 0, 0, step, step, 0.0, 0.0, 0.0, [])
 
 
-class TestUpcomingTurn:
+class TestUpcomingTurn(NavdTestCase):
   def test_plain_turn_publishes_modifier(self):
     assert upcoming_turn(_progress('turn', 'right'), HERE, 0.0) == 'right'
 
@@ -66,7 +67,7 @@ class TestUpcomingTurn:
     assert upcoming_turn(_progress('turn', 'right', Coordinate(LAT + 0.1, LON)), HERE, 0.0) == 'none'
 
 
-class TestRouteRemaining:
+class TestRouteRemaining(NavdTestCase):
   def setup_method(self):
     # straight north-south route: 11 points, two 60-second driving steps plus the arrive step
     geometry = [Coordinate(LAT + 0.001 * i, LON) for i in range(11)]

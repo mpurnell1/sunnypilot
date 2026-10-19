@@ -11,6 +11,7 @@ from openpilot.selfdrive.ui.sunnypilot import nav_status as nav_status_module
 from openpilot.selfdrive.ui.sunnypilot.nav_status import (
   GPS_ACQUIRE_CONFIRM_SECONDS, GPS_LOST_HOLD_SECONDS, ROUTE_FAILURE_THRESHOLD, NavState, NavStatus,
 )
+from openpilot.common.test import Mocker, OpenpilotTestCase
 
 NetworkType = log.DeviceState.NetworkType
 
@@ -42,28 +43,21 @@ class MockSM(dict):
     self['deviceState'] = msg
 
 
-class TestNavStatus:
-  def setup_method(self, method):
+class TestNavStatus(OpenpilotTestCase):
+  def setup_method(self):
     self.params = Params()
     self.params.put("MapboxRoute", "", block=True)
     self.params.put("AllowNavigation", True, block=True)
 
     self.sm = MockSM()
     self.now = 1000.0
-    # both are module/singleton state, so they are restored in teardown rather than left patched
-    self._real_sm = nav_status_module.ui_state.sm
-    self._real_monotonic = nav_status_module.monotonic
-    self._real_started_frame = nav_status_module.ui_state.started_frame
-    nav_status_module.ui_state.sm = self.sm
-    nav_status_module.ui_state.started_frame = STARTED_FRAME
-    nav_status_module.monotonic = lambda: self.now
+    # module and singleton state, patched for the test and restored by the base's cleanup
+    mocker = Mocker(self.addCleanup)
+    mocker.patch.object(nav_status_module.ui_state, 'sm', self.sm)
+    mocker.patch.object(nav_status_module.ui_state, 'started_frame', STARTED_FRAME)
+    mocker.patch.object(nav_status_module, 'monotonic', lambda: self.now)
 
     self.status = NavStatus()
-
-  def teardown_method(self, method):
-    nav_status_module.ui_state.sm = self._real_sm
-    nav_status_module.ui_state.started_frame = self._real_started_frame
-    nav_status_module.monotonic = self._real_monotonic
 
   def tick(self, seconds: float = 0.0):
     self.now += seconds
@@ -209,7 +203,7 @@ class TestNavStatus:
     assert self.status.allow_navigation
 
 
-class TestNavStatusLine:
+class TestNavStatusLine(OpenpilotTestCase):
   """The settings panel's status line; it shares NavStatus with the chip, so the mapping
   from state to words is the only logic it owns."""
 

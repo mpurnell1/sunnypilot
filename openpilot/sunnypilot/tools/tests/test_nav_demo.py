@@ -5,6 +5,7 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 from openpilot.sunnypilot.tools.nav_demo import LANE_SHOW_M, SCENARIOS, message_stream
+from openpilot.common.test import OpenpilotTestCase
 
 
 def run(names, speedup=1.0):
@@ -25,7 +26,7 @@ def labels(states):
   return [s.label for s in states if s.label]
 
 
-class TestApproach:
+class TestApproach(OpenpilotTestCase):
   def test_cues_come_from_the_real_windows(self):
     _, _, edges = run(['approach'])
     assert edges == [('approach', 'turn', 'right'), ('imminent', 'turn', 'right')]
@@ -62,7 +63,7 @@ class TestApproach:
     assert [e[0] for e in edges] == ['approach', 'imminent']
 
 
-class TestReroute:
+class TestReroute(OpenpilotTestCase):
   def test_exactly_one_reroute_cue(self):
     _, _, edges = run(['reroute'])
     assert edges == [('reroute', 'reroute', 'none')]
@@ -84,7 +85,7 @@ class TestReroute:
     assert by_label['rerouted'].navigationd.routeState == 'onRoute'
 
 
-class TestArrival:
+class TestArrival(OpenpilotTestCase):
   def test_one_arrive_cue_then_cleanup(self):
     states, msgs, edges = run(['arrival'])
     assert edges == [('arrive', 'arrive', 'none')]
@@ -98,7 +99,7 @@ class TestArrival:
     assert driving[-1].v < 1.0
 
 
-class TestFailure:
+class TestFailure(OpenpilotTestCase):
   def test_failures_publish_then_recovery(self):
     states, msgs, edges = run(['failure'])
     assert edges == []
@@ -115,7 +116,7 @@ class TestFailure:
     assert all(m.valid for m in msgs[fix_in:])
 
 
-class TestTour:
+class TestTour(OpenpilotTestCase):
   def test_the_whole_tour_holds_together(self):
     states, msgs, _ = run(list(SCENARIOS))
     assert len(states) == len(msgs)
