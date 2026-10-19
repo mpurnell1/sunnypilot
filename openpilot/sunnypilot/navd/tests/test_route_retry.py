@@ -5,14 +5,15 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 import platform
-import pytest
 from concurrent.futures import Future
 
 from openpilot.common.params import Params
+from openpilot.common.test import Mocker
 from openpilot.sunnypilot.navd import navigationd as navigationd_module
 from openpilot.sunnypilot.navd.constants import NAV_RETRY
 from openpilot.sunnypilot.navd.helpers import Coordinate
 from openpilot.sunnypilot.navd.navigationd import Navigationd
+from openpilot.sunnypilot.navd.tests.helpers import NavdTestCase
 
 DESTINATION = "740 E Ventura Blvd"
 ROUTE = {
@@ -26,11 +27,12 @@ ROUTE = {
 
 # a route request costs a Mapbox geocoding call and usually a directions call, and
 # _update_params runs at the 3Hz loop rate, so failures must neither latch nor spin
-class TestRouteRetry:
+class TestRouteRetry(NavdTestCase):
   is_darwin = platform.system() == "Darwin"
 
-  @pytest.fixture(autouse=True)
-  def setup(self, mocker):
+  def setUp(self):
+    super().setUp()
+    mocker = Mocker(self.addCleanup)
     if self.is_darwin:
       mocker.patch('openpilot.cereal.messaging.SubMaster')
       mocker.patch('openpilot.cereal.messaging.PubMaster')

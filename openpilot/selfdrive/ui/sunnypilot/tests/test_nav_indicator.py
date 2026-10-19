@@ -12,9 +12,10 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.route_summary import (
   MIN_SCALE, PADDING_V, ROW_HEIGHT, format_remaining_time, plan_layout,
 )
 from openpilot.sunnypilot.navd.helpers import string_to_direction
+from openpilot.common.test import Mocker, OpenpilotTestCase
 
 
-class TestFormatDistance:
+class TestFormatDistance(OpenpilotTestCase):
   def test_metric(self):
     assert format_distance(432, True) == "430 m"
     assert format_distance(996, True) == "1000 m"
@@ -33,16 +34,12 @@ class TestFormatDistance:
     assert format_distance(-5, False) == "0 ft"
 
 
-class TestAssistReady:
+class TestAssistReady(OpenpilotTestCase):
   """The lane change delay stands ready: the breath lasts until the car moves over."""
 
   def setup_method(self):
-    self._real_sm = nav_indicator_module.ui_state.sm
     self.sm: dict = {}
-    nav_indicator_module.ui_state.sm = self.sm
-
-  def teardown_method(self):
-    nav_indicator_module.ui_state.sm = self._real_sm
+    Mocker(self.addCleanup).patch.object(nav_indicator_module.ui_state, 'sm', self.sm)
 
   def _set(self, direction='right', confirm=True, lane_change=log.LaneChangeState.off):
     nav = custom.Navigationd.new_message()
@@ -72,7 +69,7 @@ class TestAssistReady:
     assert not assist_ready()
 
 
-class TestFormatRemainingTime:
+class TestFormatRemainingTime(OpenpilotTestCase):
   def test_minutes(self):
     assert format_remaining_time(0) == "0 min"
     assert format_remaining_time(59) == "1 min"
@@ -84,7 +81,7 @@ class TestFormatRemainingTime:
     assert format_remaining_time(7260) == "2 hr 1 min"
 
 
-class TestSummaryLayout:
+class TestSummaryLayout(OpenpilotTestCase):
   FULL_HEIGHT = ROW_HEIGHT * 3 + 2 * PADDING_V
 
   def test_top_anchored_under_the_stack(self):
@@ -113,7 +110,7 @@ class TestSummaryLayout:
     assert plan_layout(980.0, 1000.0, 2) is None
 
 
-class TestArrowVocabulary:
+class TestArrowVocabulary(OpenpilotTestCase):
   def test_covers_every_normalized_modifier(self):
     # navigationd publishes string_to_direction's output verbatim, so every value it can
     # produce must either map to an angle or have a dedicated glyph ('uturn')

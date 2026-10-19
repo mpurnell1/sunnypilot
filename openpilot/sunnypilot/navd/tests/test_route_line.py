@@ -4,9 +4,8 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-import pytest
-
 from openpilot.common.params import Params
+from openpilot.common.test import OpenpilotTestCase
 from openpilot.sunnypilot.navd.helpers import Coordinate, project_onto_geometry
 from openpilot.sunnypilot.navd.navigation_helpers.route import Route
 from openpilot.sunnypilot.navd.navigation_helpers.route_line import DECIMATION_TOLERANCE_M, overview_points, route_id, route_line_snapshot
@@ -30,7 +29,7 @@ def _put_route(params: Params, geometry: list[dict]) -> None:
   params.put('MapboxSettings', {'navData': {'current': geometry[0], 'route': _route(geometry)}}, block=True)
 
 
-class TestOverviewPoints:
+class TestOverviewPoints(OpenpilotTestCase):
   def test_geojson_becomes_decimated_lat_lon(self):
     # a 1 m kink between two points on a straight north-south line drops out at the 10 m tolerance
     kink = 1.0 / M_PER_DEG_LAT
@@ -40,7 +39,7 @@ class TestOverviewPoints:
     assert overview_points([]) == []
 
 
-class TestRouteId:
+class TestRouteId(OpenpilotTestCase):
   def test_no_route_is_zero(self):
     assert route_id(None) == 0
     assert route_id({'geometry': []}) == 0
@@ -53,12 +52,7 @@ class TestRouteId:
     assert route_id(_route(geometry)) != 0
 
 
-class TestRouteLineSnapshot:
-  @pytest.fixture(autouse=True)
-  def setup(self):
-    # no conftest isolation exists in this repo, so the param survives across tests and runs
-    Params().remove('MapboxSettings')
-
+class TestRouteLineSnapshot(OpenpilotTestCase):
   def test_no_route(self):
     assert route_line_snapshot(Params()) == {"routeId": 0, "points": [], "totalDistance": 0.0, "steps": []}
 
@@ -83,7 +77,8 @@ class TestRouteLineSnapshot:
     progress = loaded.progress(Coordinate(34.2025, -119.0))
     along = snap["totalDistance"] - progress.distance_remaining
     ahead = [s for s in snap["steps"] if s["along"] > along]
-    assert [s["along"] - along for s in ahead] == pytest.approx([progress.all_maneuvers[1].distance])
+    assert len(ahead) == 1
+    self.assertAlmostEqual(ahead[0]["along"] - along, progress.all_maneuvers[1].distance, delta=1e-3)
 
   def test_straight_line_collapses_and_a_corner_survives(self):
     params = Params()

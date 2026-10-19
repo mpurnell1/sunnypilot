@@ -4,14 +4,13 @@ Copyright (c) 2021-, James Vecellio, Haibin Wen, sunnypilot, and a number of oth
 This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
-import pytest
-
 from openpilot.common.params import Params
+from openpilot.common.test import OpenpilotTestCase
 from openpilot.sunnypilot.navd.navigation_helpers import destination_store as ds
 from openpilot.sunnypilot.navd.navigation_helpers.destination_store import DestinationStore
 
 
-class TestFavoritesFunctions:
+class TestFavoritesFunctions(OpenpilotTestCase):
   def test_settings_ui_shape_is_preserved(self):
     # the settings UI reads home/work at the top level and named entries under "favorites";
     # a store round-trip must hand back exactly that shape
@@ -75,7 +74,7 @@ class TestFavoritesFunctions:
     assert favs == {"home": "new dest"}
 
 
-class TestRecentsFunctions:
+class TestRecentsFunctions(OpenpilotTestCase):
   def test_most_recent_first_and_dedupe_on_dest(self):
     recents = ds.update_recents([], "Work", "-122.1,47.6")
     recents = ds.update_recents(recents, "Gym", "-122.2,47.7")
@@ -110,9 +109,9 @@ class TestRecentsFunctions:
     assert ds.normalize_recents([{"name": "no dest"}, "junk", {"dest": " ok ", "name": ""}]) == [{"name": "ok", "dest": "ok"}]
 
 
-class TestDestinationStore:
-  @pytest.fixture(autouse=True)
-  def setup(self):
+class TestDestinationStore(OpenpilotTestCase):
+  def setUp(self):
+    super().setUp()
     self.params = Params()
     self.store = DestinationStore(self.params)
 

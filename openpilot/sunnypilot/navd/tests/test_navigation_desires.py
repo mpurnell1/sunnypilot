@@ -5,9 +5,13 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 from types import SimpleNamespace
+from typing import cast
+
+import openpilot.cereal.messaging as messaging
 
 from openpilot.cereal import log
 from openpilot.sunnypilot.navd.navigation_desires.navigation_desires import NavigationDesires
+from openpilot.sunnypilot.navd.tests.helpers import NavdTestCase
 
 
 class _StubSM:
@@ -30,13 +34,13 @@ def _carstate(left_blinker=False, right_blinker=False, v_ego=5.0, left_blindspot
 
 def _desires(upcoming: str) -> NavigationDesires:
   desires = NavigationDesires()
-  desires.sm = _StubSM(SimpleNamespace(valid=True, upcomingTurn=upcoming))
+  desires.sm = cast(messaging.SubMaster, _StubSM(SimpleNamespace(valid=True, upcomingTurn=upcoming)))
   desires.nav_allowed = True
   desires.param_counter = 0  # keep clear of the periodic param re-read
   return desires
 
 
-class TestTurnDesires:
+class TestTurnDesires(NavdTestCase):
   def test_no_blinker_means_no_turn(self):
     # the car must never start a turn it was not asked for
     assert _desires('left').update(_carstate(), True) == log.Desire.none

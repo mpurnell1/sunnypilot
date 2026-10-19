@@ -12,6 +12,7 @@ from openpilot.selfdrive.ui.sunnypilot.nav_status import NavState
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import (
   ChipMode, TransientNav, TransientNavState, chip_mode, flag_raised, maneuver_signature, pick_upcoming_maneuver,
 )
+from openpilot.common.test import OpenpilotTestCase
 
 
 def _maneuvers(*specs):
@@ -24,7 +25,7 @@ def _maneuvers(*specs):
   return msg.allManeuvers
 
 
-class TestPickUpcomingManeuver:
+class TestPickUpcomingManeuver(OpenpilotTestCase):
   def test_prefers_second_entry(self):
     picked = pick_upcoming_maneuver(_maneuvers(('depart', 'none', 120.0), ('turn', 'right', 480.0)))
     assert picked is not None
@@ -49,8 +50,8 @@ FULL_ROUTE = (('depart', 'straight', 0.0), ('turn', 'right', 400.0), ('arrive', 
 AFTER_TURN = (('turn', 'right', 0.0), ('arrive', 'none', 500.0))
 
 
-class TestTransientNav:
-  def setup_method(self, method):
+class TestTransientNav(OpenpilotTestCase):
+  def setup_method(self):
     self.nav = TransientNav()
     self.cue_id = 7  # arbitrary: the machine must treat the first value it sees as stale
 
@@ -158,7 +159,7 @@ def _status(state: NavState, allow: bool = True, hud: bool = True):
   return SimpleNamespace(allow_navigation=allow, show_turn_indicator=hud, state=state)
 
 
-class TestChipMode:
+class TestChipMode(OpenpilotTestCase):
   def test_absent_without_a_route_to_have(self):
     assert chip_mode(_status(NavState.OFFLINE)) == ChipMode.HIDDEN
     assert chip_mode(_status(NavState.NO_DESTINATION)) == ChipMode.HIDDEN
@@ -178,7 +179,7 @@ class TestChipMode:
     assert chip_mode(_status(NavState.ACTIVE)) == ChipMode.LIVE
 
 
-class TestFlagRaised:
+class TestFlagRaised(OpenpilotTestCase):
   def test_pole_only_until_the_fix(self):
     assert not flag_raised(NavState.WAITING_FOR_GPS)
 

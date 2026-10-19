@@ -3,6 +3,7 @@ from opendbc.car.structs import car
 from opendbc.car.subaru.values import CAR
 from openpilot.cereal import log
 from openpilot.selfdrive.car.car_events import CarEvents, SUBARU_CUT_FADE_FRAMES, SUBARU_CUT_ANGLE_DEG, SUBARU_CUT_HOLD_TORQUE
+from openpilot.common.test import OpenpilotTestCase
 
 EventName = log.OnroadEvent.EventName
 STEER_EVENTS = (EventName.steerTempUnavailable, EventName.steerTempUnavailableSilent)
@@ -15,7 +16,7 @@ def car_state(**fields):
   return car.CarState.new_message(**{'vEgo': 5., 'steeringAngleDeg': SUBARU_CUT_ANGLE_DEG + 10., 'steeringTorque': EMPTY_WHEEL_TORQUE, **fields})
 
 
-class TestSubaruHighAngleCut:
+class TestSubaruHighAngleCut(OpenpilotTestCase):
   def setup_method(self):
     self.car_events = CarEvents(car.CarParams.new_message(brand='subaru', carFingerprint=CAR.SUBARU_FORESTER))
     self.CS_prev = car_state()

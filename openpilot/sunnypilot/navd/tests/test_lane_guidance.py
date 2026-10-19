@@ -5,6 +5,9 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 from types import SimpleNamespace
+from typing import cast
+
+import openpilot.cereal.messaging as messaging
 
 from openpilot.cereal import log
 from openpilot.common.params import Params
@@ -13,8 +16,9 @@ from openpilot.selfdrive.controls.lib.desire_helper import DesireHelper
 from openpilot.sunnypilot.navd.constants import NAV_LANE_CHANGE_OFF
 from openpilot.sunnypilot.navd.helpers import Coordinate, compose_banner_text, lane_change_auto_confirm, lane_change_hint, parse_banner_instructions
 from openpilot.sunnypilot.navd.navigation_desires.navigation_desires import NavigationDesires
-from openpilot.sunnypilot.navd.navigation_helpers.route import Maneuver, RouteProgress, Step
+from openpilot.sunnypilot.navd.navigation_helpers.route import Maneuver, Route, RouteProgress, Step
 from openpilot.sunnypilot.navd.navigationd import HINT_STABLE_CYCLES, Guidance, HintDebounce, Navigationd
+from openpilot.sunnypilot.navd.tests.helpers import NavdTestCase
 
 
 def _banner(distance: float, lanes: list | None = None) -> dict:
@@ -24,7 +28,7 @@ def _banner(distance: float, lanes: list | None = None) -> dict:
   return banner
 
 
-class TestLaneParsing:
+class TestLaneParsing(NavdTestCase):
   def test_lanes_normalized(self):
     banners = [_banner(400, lanes=[
       {'active': False, 'directions': ['straight']},
@@ -32,6 +36,7 @@ class TestLaneParsing:
       {'active': False, 'directions': ['uturn']},
     ])]
     parsed = parse_banner_instructions(banners, distance_to_maneuver=100)
+    assert parsed is not None
     assert parsed['showFull']
     assert parsed['lanes'] == [
       {'active': False, 'directions': ['straight']},
@@ -45,10 +50,11 @@ class TestLaneParsing:
 
   def test_far_banner_is_not_full(self):
     parsed = parse_banner_instructions([_banner(400)], distance_to_maneuver=800)
+    assert parsed is not None
     assert not parsed['showFull']
 
 
-class TestLanePublishing:
+class TestLanePublishing(NavdTestCase):
   def test_lanes_reach_the_message(self):
     nav = Navigationd()
     guidance = Guidance(lanes=[{'active': True, 'directions': ['left', 'straight'], 'activeDirection': 'left'},
@@ -80,7 +86,7 @@ def _hint_progress(maneuver_type: str, modifier: str, distance: float) -> RouteP
   return _maneuvers_progress([Maneuver(40.0, 'depart', 'none', ''), Maneuver(distance, maneuver_type, modifier, '')])
 
 
-class TestLaneChangeHint:
+class TestLaneChangeHint(NavdTestCase):
   def test_sides(self):
     assert lane_change_hint(_hint_progress('off ramp', 'slightRight', 200.0), 30.0) == 'right'
     assert lane_change_hint(_hint_progress('turn', 'left', 200.0), 30.0) == 'left'
@@ -99,7 +105,7 @@ class TestLaneChangeHint:
     assert lane_change_hint(_maneuvers_progress([Maneuver(50.0, 'arrive', 'none', '')]), 30.0) == 'none'
 
 
-class TestAutoConfirm:
+class TestAutoConfirm(NavdTestCase):
   def test_slip_road_topology_confirms(self):
     assert lane_change_auto_confirm(_hint_progress('off ramp', 'slightRight', 200.0))
     assert lane_change_auto_confirm(_hint_progress('merge', 'slightLeft', 200.0))
@@ -125,7 +131,7 @@ class TestAutoConfirm:
 
 
 # road names captured from real drives, where they appeared on the turn card with no action attached
-class TestBannerWording:
+class TestBannerWording(NavdTestCase):
   def test_road_names_get_their_action_back(self):
     assert compose_banner_text('South 5th Street / I 55 Business', 'turn', 'right') == 'Turn right onto South 5th Street / I 55 Business'
     assert compose_banner_text('Exit 179 I-57', 'off ramp', 'slight right') == 'Take Exit 179 I-57'
@@ -148,10 +154,11 @@ class TestBannerWording:
   def test_parse_composes_the_primary_text(self):
     banners = [{'distanceAlongGeometry': 400, 'primary': {'text': 'South 4th Street', 'type': 'turn', 'modifier': 'left'}}]
     parsed = parse_banner_instructions(banners, distance_to_maneuver=100)
+    assert parsed is not None
     assert parsed['maneuverPrimaryText'] == 'Turn left onto South 4th Street'
 
 
-class TestHintStability:
+class TestHintStability(NavdTestCase):
   def test_a_flapping_direction_never_publishes(self):
     hint = HintDebounce()
     published = [hint.update(h) for h in ['left', 'right'] * 5]
@@ -175,13 +182,13 @@ def _trusted_progress(distance_from_route: float) -> RouteProgress:
                              distance_from_route)
 
 
-class TestHintTrust:
+class TestHintTrust(NavdTestCase):
   def _nav(self, distance_from_route: float) -> Navigationd:
     nav = Navigationd()
     nav.allow_navigation = True
     nav.lane_assist = True
-    nav.route = SimpleNamespace(steps=[{}, {}], progress=lambda position: _trusted_progress(distance_from_route),
-                                bearing_misaligned=lambda *args: False)
+    nav.route = cast(Route, SimpleNamespace(steps=[{}, {}], progress=lambda position: _trusted_progress(distance_from_route),
+                                            bearing_misaligned=lambda *args: False))
     nav.last_position = Coordinate(32.7767, -96.797)
     return nav
 
@@ -208,7 +215,7 @@ class TestHintTrust:
     assert not guidance.lane_change_auto_confirm
 
 
-class TestAssistGate:
+class TestAssistGate(NavdTestCase):
   def test_hint_requires_a_lane_change_timer_and_valid_message(self):
     desires = NavigationDesires()
     msg = desires.sm['navigationd']
@@ -230,13 +237,13 @@ class TestAssistGate:
   def test_hint_requires_the_auto_confirm_flag(self):
     desires = NavigationDesires()
     desires.lane_assist = True
-    desires.sm = {'navigationd': SimpleNamespace(valid=True, laneChangeDirection='left', laneChangeAutoConfirm=False)}
+    desires.sm = cast(messaging.SubMaster, {'navigationd': SimpleNamespace(valid=True, laneChangeDirection='left', laneChangeAutoConfirm=False)})
     assert desires.lane_change_hint() == 'none'
-    desires.sm = {'navigationd': SimpleNamespace(valid=True, laneChangeDirection='left', laneChangeAutoConfirm=True)}
+    desires.sm = cast(messaging.SubMaster, {'navigationd': SimpleNamespace(valid=True, laneChangeDirection='left', laneChangeAutoConfirm=True)})
     assert desires.lane_change_hint() == 'left'
 
 
-class TestNavConfirmation:
+class TestNavConfirmation(NavdTestCase):
   """desire_helper: the blinker alone starts a hinted lane change once the nav timer has run."""
 
   def _helper(self, mocker, timer: int) -> DesireHelper:

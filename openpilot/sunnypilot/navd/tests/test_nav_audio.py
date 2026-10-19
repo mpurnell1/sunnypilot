@@ -12,6 +12,7 @@ from openpilot.sunnypilot.navd.nav_audio import NavAudioCues, maneuver_event
 from openpilot.sunnypilot.navd.navigationd import Guidance
 from openpilot.sunnypilot.selfdrive.ui import nav_sounds
 from openpilot.sunnypilot.selfdrive.ui.nav_sounds import NavAudioPlayer, earcon_wave
+from openpilot.sunnypilot.navd.tests.helpers import NavdTestCase
 
 # at exactly the 22.4 m/s breakpoint the stage distances are 500 m (approach) and 130 m (imminent)
 V_CRUISE = 22.4
@@ -30,7 +31,7 @@ def _progress(distance: float, mtype: str = 'turn', modifier: str = 'right', ste
 QUIET = Guidance()
 
 
-class TestManeuverEvents:
+class TestManeuverEvents(NavdTestCase):
   def test_turns(self):
     assert maneuver_event('turn', 'left') == ('turn', 'left', 0)
     assert maneuver_event('turn', 'right') == ('turn', 'right', 0)
@@ -72,7 +73,7 @@ class TestManeuverEvents:
     assert maneuver_event('roundabout', 'right', 'Take the 12th exit') == ('roundabout', 'right', 9)
 
 
-class TestStages:
+class TestStages(NavdTestCase):
   def test_two_stage_prompt_never_repeats(self):
     cues, route = NavAudioCues(), {}
     cues.update(route, _progress(600.0), QUIET, V_CRUISE, False)
@@ -114,7 +115,7 @@ class TestStages:
     assert cues.cue_id == 0
 
 
-class TestEventCues:
+class TestEventCues(NavdTestCase):
   def test_lane_cue_yields_to_the_stage_prompt(self):
     cues, route = NavAudioCues(), {}
     guidance = Guidance(lane_change_direction='left')
@@ -155,7 +156,7 @@ ALL_KINDS = [('turn', 'left'), ('turn', 'right'), ('slightTurn', 'left'), ('slig
              ('reroute', 'none'), ('arrive', 'none')]
 
 
-class TestSynthesis:
+class TestSynthesis(NavdTestCase):
   def test_every_kind_renders(self):
     for kind, direction in ALL_KINDS:
       for stage in ('approach', 'imminent'):
@@ -185,7 +186,7 @@ class _FakeSM:
     return self._msg
 
 
-class TestPlayer:
+class TestPlayer(NavdTestCase):
   def _player(self, monkeypatch, enabled: bool = True) -> NavAudioPlayer:
     monkeypatch.setattr(NavAudioPlayer, '_read_params', lambda self: None)
     player = NavAudioPlayer()

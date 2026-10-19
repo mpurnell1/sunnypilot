@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 from openpilot.cereal import log
 from openpilot.sunnypilot.selfdrive.controls.lib.adjacent_lane_detector import AdjacentLaneDetector, CONFIRM_FRAMES
+from openpilot.common.test import OpenpilotTestCase
 
 LEFT = log.LaneChangeDirection.left
 RIGHT = log.LaneChangeDirection.right
@@ -38,7 +39,7 @@ def _warm(detector, model, v_ego=30.0, frames=CONFIRM_FRAMES):
     detector.update(model, v_ego)
 
 
-class TestAdjacentLaneDetector:
+class TestAdjacentLaneDetector(OpenpilotTestCase):
   def test_no_pavement_side_never_confirms(self):
     detector = AdjacentLaneDetector()
     _warm(detector, _model())

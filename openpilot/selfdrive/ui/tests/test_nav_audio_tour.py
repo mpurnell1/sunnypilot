@@ -9,9 +9,10 @@ import numpy as np
 from openpilot.selfdrive.ui.sunnypilot.nav_audio_tour import STEPS
 from openpilot.selfdrive.ui.sunnypilot.onroad.nav_indicator import ARROW_ANGLES
 from openpilot.sunnypilot.selfdrive.ui.nav_sounds import earcon_wave
+from openpilot.common.test import OpenpilotTestCase
 
 
-class TestTourSteps:
+class TestTourSteps(OpenpilotTestCase):
   def test_every_step_renders(self):
     for step in STEPS:
       wave = earcon_wave(step.kind, step.stage, step.direction)

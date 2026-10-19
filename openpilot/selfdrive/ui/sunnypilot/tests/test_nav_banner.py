@@ -12,6 +12,7 @@ from openpilot.selfdrive.ui.sunnypilot.onroad.nav_banner import (
 )
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import ChipMode, TransientNavState
 from openpilot.sunnypilot.navd.helpers import string_to_direction
+from openpilot.common.test import OpenpilotTestCase
 
 
 def _msg(maneuvers=(), banner: str = '', lane_count: int = 0, route_state: str = 'onRoute', failures: int = 0):
@@ -37,7 +38,7 @@ THREE_STEPS = (('depart', 'none', 0.0, 'Head north'),
                ('fork', 'slightLeft', 900.0, 'Keep left toward I-74 West'))
 
 
-class TestIconSet:
+class TestIconSet(OpenpilotTestCase):
   def test_import_is_complete(self):
     assert len(ICON_FILES) == 87
     assert 'direction_notification_sharp_right' in ICON_FILES
@@ -46,7 +47,7 @@ class TestIconSet:
     assert DEFAULT_ICON in ICON_FILES
 
 
-class TestIconMapping:
+class TestIconMapping(OpenpilotTestCase):
   def test_exact_pair(self):
     assert icon_name('turn', 'right') == 'direction_turn_right'
     assert icon_name('fork', 'slightLeft') == 'direction_fork_slight_left'
@@ -94,7 +95,7 @@ def _measure(text: str) -> float:
   return len(text) * 10
 
 
-class TestWrapTwoLines:
+class TestWrapTwoLines(OpenpilotTestCase):
   def test_short_text_stays_on_one_line(self):
     assert wrap_two_lines('North Neil Street', 200, _measure) == ['North Neil Street']
 
@@ -118,7 +119,7 @@ class TestWrapTwoLines:
     assert wrap_two_lines('', 100, _measure) == []
 
 
-class TestBannerContent:
+class TestBannerContent(OpenpilotTestCase):
   def test_down_while_quiet_or_off(self):
     msg = _msg(THREE_STEPS)
     for state in (TransientNavState.OFF, TransientNavState.QUIET):
@@ -183,7 +184,7 @@ class TestBannerContent:
     assert on is not None and len(on.lanes) == 2
 
 
-class TestReflowGating:
+class TestReflowGating(OpenpilotTestCase):
   def test_consolidates_only_while_the_banner_is_up(self):
     assert HudRendererSP.speed_displays_consolidated(True, False)
     assert not HudRendererSP.speed_displays_consolidated(False, False)
@@ -203,7 +204,7 @@ class TestReflowGating:
     assert HudRendererSP.nav_summary_anchor(True, False, False, chip_bottom=333.0) == 249.0
 
 
-class TestAssistPulse:
+class TestAssistPulse(OpenpilotTestCase):
   def test_banner_breathes_while_assisting_on_route(self):
     content = banner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(THREE_STEPS), False, assist=True)
     assert content is not None and content.pulse

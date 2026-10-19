@@ -5,32 +5,38 @@ This file is part of sunnypilot and is licensed under the MIT License.
 See the LICENSE.md file in the root directory for more details.
 """
 import os
-import pytest
+import unittest
 
 from openpilot.common.constants import CV
 from openpilot.common.prefix import OpenpilotPrefix
+from openpilot.common.test import OpenpilotTestCase
 from openpilot.sunnypilot.navd.helpers import Coordinate
 from openpilot.sunnypilot.navd.navigation_helpers.mapbox_integration import MapboxIntegration
 from openpilot.sunnypilot.navd.navigation_helpers.route import Route, arrived, upcoming_turn
 
 
-@pytest.mark.skipif(not os.environ.get('MAPBOX_TOKEN_CI'), reason="requires a Mapbox token, set MAPBOX_TOKEN_CI to run")
-class TestMapbox:
-  # one live route per class, not per test: the conftest prefix is function-scoped, so
-  # class setup opens its own so the test destination never lands in the real param space
-  @pytest.fixture(scope="class", autouse=True)
-  def route_setup(self, request):
-    with OpenpilotPrefix():
-      cls = request.cls
-      cls.mapbox = MapboxIntegration()
-      cls.mapbox.params.put('MapboxToken', os.environ['MAPBOX_TOKEN_CI'], block=True)
+@unittest.skipUnless(os.environ.get('MAPBOX_TOKEN_CI'), "requires a Mapbox token, set MAPBOX_TOKEN_CI to run")
+class TestMapbox(OpenpilotTestCase):
+  # one live route per class, not per test: the base's prefix is per test, so the class
+  # opens its own so the test destination never lands in the real param space
+  @classmethod
+  def setUpClass(cls):
+    super().setUpClass()
+    cls.prefix = OpenpilotPrefix()
+    cls.prefix.__enter__()
+    cls.mapbox = MapboxIntegration()
+    cls.mapbox.params.put('MapboxToken', os.environ['MAPBOX_TOKEN_CI'], block=True)
 
-      cls.here = Coordinate(34.23305, -119.17557)
-      cls.mapbox.params.put('MapboxRoute', '740 E Ventura Blvd. Camarillo, CA', block=True)
-      cls.destination, route_dict = cls.mapbox.set_destination({"place_name": cls.mapbox.params.get('MapboxRoute')}, cls.here)
-      cls.route = Route.from_mapbox(route_dict)
-      cls.progress = cls.route.progress(cls.here) if cls.route else None
-      yield
+    cls.here = Coordinate(34.23305, -119.17557)
+    cls.mapbox.params.put('MapboxRoute', '740 E Ventura Blvd. Camarillo, CA', block=True)
+    cls.destination, route_dict = cls.mapbox.set_destination({"place_name": cls.mapbox.params.get('MapboxRoute')}, cls.here)
+    cls.route = Route.from_mapbox(route_dict)
+    cls.progress = cls.route.progress(cls.here) if cls.route else None
+
+  @classmethod
+  def tearDownClass(cls):
+    cls.prefix.__exit__(None, None, None)
+    super().tearDownClass()
 
   def test_set_destination(self):
     # set_destination hands back a stored route, not just a geocoded address

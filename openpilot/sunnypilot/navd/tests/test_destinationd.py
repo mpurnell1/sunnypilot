@@ -9,12 +9,13 @@ import threading
 import time
 from types import SimpleNamespace
 
-import pytest
 import requests
 
 import openpilot.cereal.messaging as messaging
 from openpilot.common.params import Params
+from openpilot.common.test import Mocker
 from openpilot.sunnypilot.navd.destinationd import make_server
+from openpilot.sunnypilot.navd.tests.helpers import NavdTestCase
 
 TOKEN = "pk.secret-sentinel-token"
 PLACES = [{"name": "Camarillo Public Library", "longitude": -119.03, "latitude": 34.22}]
@@ -24,9 +25,10 @@ ROUTES = [
 ]
 
 
-class TestDestinationd:
-  @pytest.fixture(autouse=True)
-  def setup(self, mocker):
+class TestDestinationd(NavdTestCase):
+  def setUp(self):
+    super().setUp()
+    mocker = Mocker(self.addCleanup)
     self.params = Params()
     self.params.put("MapboxToken", TOKEN, block=True)
     self.params.put("AllowNavigation", True, block=True)
@@ -43,9 +45,11 @@ class TestDestinationd:
     thread = threading.Thread(target=self.server.serve_forever, daemon=True)
     thread.start()
     self.base = f"http://127.0.0.1:{self.server.server_address[1]}"
-    yield
+
+  def tearDown(self):
     self.server.shutdown()
     self.server.server_close()
+    super().tearDown()
 
   def get(self, path: str) -> requests.Response:
     return requests.get(self.base + path, timeout=5)

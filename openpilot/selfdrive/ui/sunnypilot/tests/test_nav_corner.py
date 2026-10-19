@@ -11,6 +11,7 @@ from openpilot.selfdrive.ui.sunnypilot.mici.onroad.nav_corner import (
   FAILURE_ALPHA, FULL_ALPHA, QUIET_ALPHA, SEARCH_ALPHA, corner_content,
 )
 from openpilot.selfdrive.ui.sunnypilot.onroad.transient_nav import ChipMode, TransientNavState
+from openpilot.common.test import OpenpilotTestCase
 
 
 def _msg(maneuvers=(), lane_count: int = 0, route_state: str = 'onRoute', failures: int = 0):
@@ -32,7 +33,7 @@ def _msg(maneuvers=(), lane_count: int = 0, route_state: str = 'onRoute', failur
 TWO_STEPS = (('depart', 'none', 0.0), ('turn', 'right', 400.0))
 
 
-class TestStatusStates:
+class TestStatusStates(OpenpilotTestCase):
   def test_searching_shows_the_faint_flag_in_any_state(self):
     for state in TransientNavState:
       content = corner_content(state, ChipMode.SEARCHING, _msg(), True, False)
@@ -56,7 +57,7 @@ class TestStatusStates:
     assert content is not None and content.raised
 
 
-class TestRouteStateTreatments:
+class TestRouteStateTreatments(OpenpilotTestCase):
   def test_off_route_dims_to_a_bare_glyph_even_with_quiet_glyph_off(self):
     # PINNED wears the same treatment instead of collapsing; APPROACH never sees offRoute
     # because the machine force-collapses it first
@@ -79,7 +80,7 @@ class TestRouteStateTreatments:
     assert corner_content(TransientNavState.APPROACH, ChipMode.HIDDEN, _msg(TWO_STEPS), True, True) is None
 
 
-class TestQuietState:
+class TestQuietState(OpenpilotTestCase):
   def test_default_quiet_is_an_empty_corner(self):
     assert corner_content(TransientNavState.QUIET, ChipMode.LIVE, _msg(TWO_STEPS), True, False) is None
 
@@ -99,7 +100,7 @@ class TestQuietState:
     assert corner_content(TransientNavState.OFF, ChipMode.LIVE, _msg(TWO_STEPS), True, True) is None
 
 
-class TestExpandedStates:
+class TestExpandedStates(OpenpilotTestCase):
   def test_approach_carries_distance_and_lanes(self):
     content = corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg(TWO_STEPS, lane_count=3), True, False)
     assert content is not None
@@ -127,7 +128,7 @@ class TestExpandedStates:
     assert corner_content(TransientNavState.APPROACH, ChipMode.LIVE, _msg((('depart', 'none', 0.0),)), True, False) is None
 
 
-class TestCornerCanDraw:
+class TestCornerCanDraw(OpenpilotTestCase):
   def test_alert_suppresses_the_corner(self):
     assert not HudRendererSP.corner_can_draw(False, False, 0.0)
 
@@ -142,7 +143,7 @@ class TestCornerCanDraw:
     assert HudRendererSP.corner_can_draw(True, True, 0.0)
 
 
-class TestAssistPulse:
+class TestAssistPulse(OpenpilotTestCase):
   """The glyph of a maneuver the car is acting on breathes: a slowdown, or a lane change it stands ready to take."""
 
   def test_quiet_corner_raises_the_glyph_and_pulses(self):
