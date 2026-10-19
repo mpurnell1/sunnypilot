@@ -9,6 +9,7 @@ from openpilot.selfdrive.controls.lib.longcontrol import LongCtrlState
 from openpilot.selfdrive.modeld.constants import ModelConstants
 from openpilot.selfdrive.controls.lib.longitudinal_planner import LongitudinalPlanner
 from openpilot.selfdrive.controls.radard import _LEAD_ACCEL_TAU
+from openpilot.sunnypilot.tests.fake_submaster import FakeSubMaster
 
 
 class Plant:
@@ -128,16 +129,10 @@ class Plant:
     car_state.carState.vCruise = float(v_cruise * 3.6)
 
     # ******** get controlsState messages for plotting ***
-    sm = {'radarState': radar.radarState,
-          'carState': car_state.carState,
-          'carControl': car_control.carControl,
-          'controlsState': control.controlsState,
-          'selfdriveState': ss.selfdriveState,
-          'modelV2': model.modelV2,
-          'carStateSP': car_state_sp.carStateSP,
-          'liveMapDataSP': live_map_data_sp.liveMapDataSP,
-          'gpsLocation': gps_data.gpsLocation,
-          'navigationd': nav.navigationd}
+    # the fork's planner reads the SubMaster's receive times as well as its structs
+    sm = FakeSubMaster({'radarState': radar, 'carState': car_state, 'carControl': car_control, 'controlsState': control,
+                        'selfdriveState': ss, 'modelV2': model, 'carStateSP': car_state_sp,
+                        'liveMapDataSP': live_map_data_sp, 'gpsLocation': gps_data, 'navigationd': nav})
     self.planner.update(sm)
     self.acceleration = self.planner.output_a_target
     if self.planner.output_should_stop:
