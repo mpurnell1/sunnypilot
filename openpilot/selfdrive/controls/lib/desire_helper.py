@@ -107,7 +107,9 @@ class DesireHelper:
             self.lane_change_state = LaneChangeState.off
             self.lane_change_direction = LaneChangeDirection.none
 
-    self.prev_one_blinker = one_blinker and lateral_active
+    # a steering fault is not a blinker press: the EPS guard's handback at the end of a signalled turn
+    # would re-arm the lane change, with the hand still steering through the turn as the nudge
+    self.prev_one_blinker = one_blinker and (lateral_active or carstate.steerFaultTemporary)
 
     if self.lane_turn_direction != TurnDirection.none:
       self.desire = TURN_DESIRES[self.lane_turn_direction]
