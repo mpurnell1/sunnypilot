@@ -23,6 +23,7 @@ from openpilot.selfdrive.car.cruise import VCruiseHelper
 from openpilot.selfdrive.car.helpers import convert_carControlSP, convert_to_capnp
 
 from openpilot.sunnypilot.mads.helpers import set_alternative_experience, set_car_specific_params
+from opendbc.safety import ALTERNATIVE_EXPERIENCE
 from openpilot.sunnypilot.selfdrive.car import interfaces as sunnypilot_interfaces
 
 REPLAY = "REPLAY" in os.environ
@@ -126,6 +127,10 @@ class Car:
     # mads
     set_alternative_experience(self.CP, self.CP_SP, self.params)
     set_car_specific_params(self.CP, self.CP_SP, self.params)
+    # This build keeps the camera's AEB blocked under openpilot longitudinal, as stock openpilot does: the
+    # pass-through on subaru-long-aeb is unproven against a recognized target (subaru-roadmap phase 13).
+    if self.CP.brand == "subaru":
+      self.CP.alternativeExperience |= ALTERNATIVE_EXPERIENCE.DISABLE_STOCK_AEB
 
     openpilot_enabled_toggle = self.params.get_bool("OpenpilotEnabledToggle")
     controller_available = self.CI.CC is not None and openpilot_enabled_toggle and not self.CP.dashcamOnly
