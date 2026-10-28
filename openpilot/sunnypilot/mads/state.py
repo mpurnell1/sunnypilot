@@ -42,13 +42,18 @@ class StateMachine:
   def check_contains_in_list(self) -> bool:
     return bool(self._events.contains_in_list(GEARS_ALLOW_PAUSED) or self._events_sp.contains_in_list(GEARS_ALLOW_PAUSED_SILENT))
 
-  def update(self):
+  def update(self, ignition: bool = True):
     # soft disable timer and current alert types are from the state machine of openpilot
     # decrement the soft disable timer at every step, as it's reset on
     # entrance in SOFT_DISABLING state
 
+    # pandad drops the panda to NO_OUTPUT on the ignition edge, about a second before the
+    # manager kills selfdrived, and the safety-model check would alert on the mismatch
+    if not ignition:
+      self.state = State.disabled
+
     # ENABLED, SOFT DISABLING, PAUSED, OVERRIDING
-    if self.state != State.disabled:
+    elif self.state != State.disabled:
       # user and immediate disable always have priority in a non-disabled state
       if self.check_contains(ET.USER_DISABLE):
         if self._events_sp.has(EventNameSP.silentLkasDisable):

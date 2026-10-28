@@ -62,6 +62,15 @@ class TestMADSStateMachine(OpenpilotTestCase):
         assert State.disabled == self.state_machine.state
         self.clear_events()
 
+  def test_ignition_off(self):
+    for state in ALL_STATES:
+      for et in MAINTAIN_STATES[state]:
+        self.events_sp.add(make_event([et]))
+        self.state_machine.state = state
+        self.state_machine.update(ignition=False)
+        assert State.disabled == self.state_machine.state
+        self.clear_events()
+
   def test_user_disable(self):
     for state in ALL_STATES:
       for et in MAINTAIN_STATES[state]:
