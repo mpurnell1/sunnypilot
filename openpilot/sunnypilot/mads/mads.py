@@ -34,6 +34,7 @@ class ModularAssistiveDrivingSystem:
     self.active = False
     self.available = False
     self.lateral_mismatch_counter = 0
+    self.ignition = False
     self.allow_always = False
     self.no_main_cruise = False
     self.selfdrive = selfdrive
@@ -115,6 +116,8 @@ class ModularAssistiveDrivingSystem:
     elif any(not ps.controlsAllowedLateral for ps in self.selfdrive.sm['pandaStates']
              if ps.safetyModel not in IGNORED_SAFETY_MODES):
       self.lateral_mismatch_counter += 1
+
+    self.ignition = any(ps.ignitionLine or ps.ignitionCan for ps in self.selfdrive.sm['pandaStates'])
 
   def update_events(self, CS: structs.CarState):
     if not self.selfdrive.enabled and self.enabled:
@@ -216,7 +219,7 @@ class ModularAssistiveDrivingSystem:
     self.update_events(CS)
 
     if not self.CP.passive and self.selfdrive.initialized:
-      self.enabled, self.active = self.state_machine.update()
+      self.enabled, self.active = self.state_machine.update(self.ignition)
 
     # Copy of previous SelfdriveD states for MADS events handling
     self.selfdrive.enabled_prev = self.selfdrive.enabled
