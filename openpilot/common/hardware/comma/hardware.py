@@ -248,7 +248,8 @@ class HardwareComma(HardwareBase):
     return self.get_modem_state().get('temperatures', [])
 
   def get_current_power_draw(self):
-    return (self.read_param_file("/sys/class/hwmon/hwmon1/power1_input", int) / 1e6)
+    power = self.read_param_file("/sys/class/hwmon/hwmon1/power1_input", int, None)
+    return None if power is None else power / 1e6
 
   def get_som_power_draw(self):
     return (self.read_param_file("/sys/class/power_supply/bms/voltage_now", int) * self.read_param_file("/sys/class/power_supply/bms/current_now", int) / 1e12)

@@ -34,8 +34,16 @@ class PowerMonitoring:
     # Reset capacity if it's low
     self.car_battery_capacity_uWh = max((CAR_BATTERY_CAPACITY_uWh / 10), car_battery_capacity_uWh)
 
+  @staticmethod
+  def get_power_draw(voltage_mV: float, current_mA: float) -> float:
+    power = HARDWARE.get_current_power_draw()
+    if power is None:
+      # the comma four has no power monitor on the SoM board, its panda measures the 12V input
+      power = voltage_mV * current_mA / 1e6
+    return power
+
   # Calculation tick
-  def calculate(self, voltage: float | None, ignition: bool):
+  def calculate(self, voltage: float | None, ignition: bool, power_draw: float):
     try:
       now = time.monotonic()
 
@@ -75,11 +83,7 @@ class PowerMonitoring:
           self.car_battery_capacity_uWh += (CAR_CHARGING_RATE_W * 1e6 * integration_time_h)
           self.last_measurement_time = now
       else:
-        # Get current power draw somehow
-        current_power = HARDWARE.get_current_power_draw()
-
-        # Do the integration
-        self._perform_integration(now, current_power)
+        self._perform_integration(now, power_draw)
     except Exception:
       cloudlog.exception("Power monitoring calculation failed")
 

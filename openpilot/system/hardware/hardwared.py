@@ -461,12 +461,12 @@ def hardware_thread(end_event, hw_queue) -> None:
     # will rarely exceed 5V so 9V is set as our buffer between desk use and car use.
     params.put_bool("GithubRunnerSufficientVoltage", ((voltage or 0) and voltage > 9000))
 
-    power_monitor.calculate(voltage, onroad_conditions["ignition"])
+    power_draw = PowerMonitoring.get_power_draw(peripheralState.voltage, peripheralState.current)
+    power_monitor.calculate(voltage, onroad_conditions["ignition"], power_draw)
     msg.deviceState.offroadPowerUsageUwh = power_monitor.get_power_used()
     msg.deviceState.carBatteryCapacityUwh = max(0, power_monitor.get_car_battery_capacity())
-    current_power_draw = HARDWARE.get_current_power_draw()
-    statlog.sample("power_draw", current_power_draw)
-    msg.deviceState.powerDrawW = current_power_draw
+    statlog.sample("power_draw", power_draw)
+    msg.deviceState.powerDrawW = power_draw
 
     som_power_draw = HARDWARE.get_som_power_draw()
     statlog.sample("som_power_draw", som_power_draw)
