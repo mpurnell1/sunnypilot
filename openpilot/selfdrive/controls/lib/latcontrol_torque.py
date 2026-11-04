@@ -33,12 +33,6 @@ KP_INTERP = [250, 120, 65, 30, 11.5, 5.5, 3.5, 2.0, KP]
 # a bang-bang limit cycle, +-40 to 70 deg at 0.4 Hz hands off (notes/lateral-oscillation.md).
 # Below 15 m/s only; the road-speed gain is each controller's own.
 KP_INTERP_SUBARU_LOW = [60, 30, 16, 8, 4, 3.8, 3.5, 2.0]
-# The Subaru EPS slews any torque change at about 1300 counts/s (STEER_MAX 2047), measured on the
-# bench rack. Commanding faster drives the module deep into slew saturation, which adds roughly
-# 90 deg of phase lag at the rack's ~0.8 Hz resonance and rings the torque loop up
-# (notes/lateral-oscillation.md). The command's rate is capped to what the rack follows and the
-# integrator frozen while capped, standard anti-windup, so the controller never commands into it.
-SUBARU_TORQUE_SLEW = 1300.0 / 2047.0  # of full torque, per second
 
 LP_FILTER_CUTOFF_HZ = 1.2
 JERK_LOOKAHEAD_SECONDS = 0.19
@@ -63,10 +57,6 @@ class LatControlTorque(LatControl):
     self.jerk_filter = FirstOrderFilter(0.0, 1 / (2 * np.pi * LP_FILTER_CUTOFF_HZ), self.dt)
 
     self.extension = LatControlTorqueExt(self, CP, CP_SP, CI)
-
-    self.torque_rate_limit = SUBARU_TORQUE_SLEW * self.dt if CP.brand == "subaru" else float("inf")
-    self.torque_last = 0.0
-    self.torque_rate_limited = False
 
   def update_torque_parameters(self, latAccelFactor, latAccelOffset, friction):
     self.torque_params.latAccelFactor = latAccelFactor
@@ -110,14 +100,12 @@ class LatControlTorque(LatControl):
 
     if not active:
       output_torque = 0.0
-      self.torque_last = 0.0
-      self.torque_rate_limited = False
       pid_log.active = False
     else:
       # do error correction in lateral acceleration space, convert at end to handle non-linear torque responses correctly
       pid_log.error = float(error)
 
-      freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5 or self.torque_rate_limited
+      freeze_integrator = steer_limited_by_safety or CS.steeringPressed or CS.vEgo < 5
       output_lataccel = self.pid.update(pid_log.error, speed=CS.vEgo, feedforward=ff, freeze_integrator=freeze_integrator)
       output_torque = self.torque_from_lateral_accel(output_lataccel, self.torque_params)
 
@@ -126,12 +114,6 @@ class LatControlTorque(LatControl):
       pid_log, output_torque = self.extension.update(CS, VM, self.pid, params, ff, pid_log, setpoint, measurement, calibrated_pose, roll_compensation,
                                                      future_desired_lateral_accel, measurement, lateral_accel_deadzone, gravity_adjusted_future_lateral_accel,
                                                      desired_curvature, measured_curvature, steer_limited_by_safety, output_torque)
-
-      if self.torque_rate_limit < float("inf"):
-        limited = float(np.clip(output_torque, self.torque_last - self.torque_rate_limit, self.torque_last + self.torque_rate_limit))
-        self.torque_rate_limited = limited != output_torque
-        output_torque = limited
-      self.torque_last = output_torque
 
       pid_log.active = True
       pid_log.p = float(self.pid.p)
